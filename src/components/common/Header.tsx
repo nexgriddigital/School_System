@@ -18,10 +18,18 @@ import {
   Check,
   Sparkles,
   LogOut,
-  Search
+  Search,
+  BookOpen,
+  Shield,
+  Download
 } from 'lucide-react';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  onOpenTerms?: () => void;
+  onOpenManual?: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => {
   const { 
     schoolName,
     setSchoolName,
@@ -309,6 +317,17 @@ export const Header: React.FC = () => {
                   {currentUser?.name?.charAt(0) || 'A'}
                 </div>
 
+                {onOpenManual && (
+                  <button
+                    onClick={onOpenManual}
+                    className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800/90 hover:bg-slate-700 text-amber-300 border border-slate-700 rounded-lg text-xs font-medium transition cursor-pointer"
+                    title="Open Instructions Manual (PDF with NexGrid Digital Letterhead)"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>System Manual</span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => setShowTemplatesModal(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow transition cursor-pointer"
@@ -330,8 +349,32 @@ export const Header: React.FC = () => {
 
             </div>
           ) : (
-            /* Top Nav Bar is completely cleared until login */
-            <div className="h-9" />
+            /* Top Nav Bar presentation badges */
+            <div className="flex items-center gap-2">
+              {onOpenManual && (
+                <button
+                  onClick={onOpenManual}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-amber-300 border border-slate-700 text-xs font-semibold transition cursor-pointer"
+                  title="Instructions Manual (PDF with NexGrid Digital Letterhead)"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Instructions Manual</span>
+                </button>
+              )}
+              {onOpenTerms && (
+                <button
+                  onClick={onOpenTerms}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition cursor-pointer"
+                  title="Terms & Conditions"
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Terms</span>
+                </button>
+              )}
+              <span className="text-[10px] text-blue-300/80 bg-blue-950/70 px-2 py-0.5 rounded border border-blue-900 font-mono hidden md:inline">
+                NexGrid Digital Systems
+              </span>
+            </div>
           )}
         </div>
 

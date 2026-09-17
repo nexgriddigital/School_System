@@ -39,7 +39,12 @@ import {
 } from '../../services/gmailAuthService';
 import type { User as FirebaseUser } from 'firebase/auth';
 
-export const LoginView: React.FC = () => {
+interface LoginViewProps {
+  onOpenTerms?: () => void;
+  onOpenManual?: () => void;
+}
+
+export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual }) => {
   const { schoolName, login, students, teachers } = useSchool();
   
   const [selectedRole, setSelectedRole] = useState<UserRole>('REGISTRAR');
@@ -723,6 +728,36 @@ export const LoginView: React.FC = () => {
                 </motion.div>
               )}
             </AnimatePresence>
+          </div>
+
+          {/* Login Card Watermark & Legal Footer */}
+          <div className="bg-slate-50/80 border-t border-slate-100 px-6 py-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+            <div className="flex items-center gap-1.5 font-medium text-slate-700">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+              <span>Designed and Developed by NexGrid Digital Systems</span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {onOpenTerms && (
+                <button
+                  type="button"
+                  onClick={onOpenTerms}
+                  className="text-blue-600 hover:text-blue-800 font-semibold underline cursor-pointer"
+                >
+                  Terms & Conditions
+                </button>
+              )}
+              <span>•</span>
+              {onOpenManual && (
+                <button
+                  type="button"
+                  onClick={onOpenManual}
+                  className="text-amber-700 hover:text-amber-900 font-semibold underline cursor-pointer"
+                >
+                  System Manual (PDF)
+                </button>
+              )}
+            </div>
           </div>
         </motion.div>
       </div>
