@@ -17,8 +17,10 @@ import {
   Sparkles,
   Edit3,
   Eye,
-  FileText
+  FileText,
+  UserPlus
 } from 'lucide-react';
+import { UserProvisioningTab } from './UserProvisioningTab';
 
 export const PrincipalView: React.FC = () => {
   const { 
@@ -40,7 +42,7 @@ export const PrincipalView: React.FC = () => {
     openDocumentViewer
   } = useSchool();
 
-  const [activeTab, setActiveTab] = useState<'AUTHORIZATIONS' | 'BROADCAST' | 'TEACHER_MANAGEMENT' | 'DISCIPLINARY_REVERSAL' | 'INSTITUTION_SETTINGS'>('AUTHORIZATIONS');
+  const [activeTab, setActiveTab] = useState<'AUTHORIZATIONS' | 'USER_PROVISIONING' | 'BROADCAST' | 'TEACHER_MANAGEMENT' | 'DISCIPLINARY_REVERSAL' | 'INSTITUTION_SETTINGS'>('AUTHORIZATIONS');
   const [customNameInput, setCustomNameInput] = useState(schoolName);
   const [savedNameNotice, setSavedNameNotice] = useState(false);
 
@@ -100,6 +102,17 @@ export const PrincipalView: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setActiveTab('USER_PROVISIONING')}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition ${
+                activeTab === 'USER_PROVISIONING' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              Staff & User Accounts
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            </button>
+
             <button
               onClick={() => setActiveTab('AUTHORIZATIONS')}
               className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 relative transition ${
@@ -693,6 +706,11 @@ export const PrincipalView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* TAB 0: USER PROVISIONING & TEMPORARY PASSWORD MANAGEMENT */}
+      {activeTab === 'USER_PROVISIONING' && (
+        <UserProvisioningTab />
       )}
 
     </div>

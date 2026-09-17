@@ -77,8 +77,8 @@ export const GmailSendConfirmationModal: React.FC<GmailSendConfirmationModalProp
                   <span className="font-semibold text-slate-800">{roleLabel}</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-100">
-                  <span className="text-slate-500 font-medium">OTP Code:</span>
-                  <span className="font-mono font-bold text-indigo-700 tracking-wider bg-indigo-50 px-2 py-0.5 rounded">{otpCode}</span>
+                  <span className="text-slate-500 font-medium">Security:</span>
+                  <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">Strict Live Gmail OTP</span>
                 </div>
               </div>
 

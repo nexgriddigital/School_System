@@ -15,7 +15,8 @@ import {
   StudentEvaluation,
   ChatMessage,
   AcademicGrade,
-  AcademicStream
+  AcademicStream,
+  InstitutionalUser
 } from '../types';
 import { 
   INITIAL_STUDENTS, 
@@ -29,8 +30,10 @@ import {
   INITIAL_GRADES, 
   INITIAL_EVALUATIONS, 
   INITIAL_ATTENDANCE,
-  INITIAL_BANK_STATEMENT
+  INITIAL_BANK_STATEMENT,
+  INITIAL_USERS
 } from '../mockData';
+import { sendTemporaryPasswordEmailViaGmail } from '../services/gmailAuthService';
 
 interface SchoolContextType {
   // Navigation & Persona State
@@ -59,10 +62,24 @@ interface SchoolContextType {
   bankStatements: BankStatementRow[];
   chatMessages: ChatMessage[];
   
+  // Institutional Users & Principal Provisioning State
+  institutionalUsers: InstitutionalUser[];
+  createInstitutionalUser: (params: { 
+    name: string; 
+    email: string; 
+    role: UserRole; 
+    position: string; 
+    department?: string; 
+    phone?: string; 
+    extraCredentials?: any;
+  }) => Promise<{ success: boolean; tempPassword: string; user: InstitutionalUser; error?: string }>;
+  changeUserPassword: (userIdOrEmail: string, newPass: string) => { success: boolean; error?: string };
+  getUserByEmailOrId: (identifier: string) => InstitutionalUser | undefined;
+
   // Authentication & Session State
   isAuthenticated: boolean;
   currentUser: { id: string; name: string; role: UserRole; email?: string; title?: string } | null;
-  login: (role: UserRole, identifier?: string, password?: string) => { success: boolean; error?: string };
+  login: (role: UserRole, identifier?: string, password?: string, customName?: string) => { success: boolean; error?: string };
   logout: () => void;
   isDemoTemplateMode: boolean;
   setIsDemoTemplateMode: (val: boolean) => void;
@@ -525,6 +542,27 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [selectedStudentForIdCard, setSelectedStudentForIdCard] = useState<Student | null>(null);
   const [selectedInvoiceForReceipt, setSelectedInvoiceForReceipt] = useState<Invoice | null>(null);
 
+  // Institutional Users Directory (Principal Provisioned & System)
+  const [institutionalUsers, setInstitutionalUsers] = useState<InstitutionalUser[]>(() => {
+    const saved = localStorage.getItem('oskar_school_users');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return INITIAL_USERS;
+      }
+    }
+    return INITIAL_USERS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('oskar_school_users', JSON.stringify(institutionalUsers));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [institutionalUsers]);
+
   // Authentication & Session State (False until login)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return localStorage.getItem('oskar_school_auth') === 'true';
@@ -625,6 +663,176 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // --- ACTIONS ---
+
+  // Principal-Led User Provisioning & Password Handlers
+  const getUserByEmailOrId = useCallback((identifier: string): InstitutionalUser | undefined => {
+    if (!identifier) return undefined;
+    const clean = identifier.trim().toLowerCase();
+    return institutionalUsers.find(u => 
+      u.email.toLowerCase() === clean || 
+      u.id.toLowerCase() === clean ||
+      (u.extraCredentials?.studentId && u.extraCredentials.studentId.toLowerCase() === clean)
+    );
+  }, [institutionalUsers]);
+
+  const changeUserPassword = useCallback((userIdOrEmail: string, newPass: string) => {
+    if (!userIdOrEmail || !newPass) return { success: false, error: 'Missing user identifier or password' };
+    const clean = userIdOrEmail.trim().toLowerCase();
+
+    setInstitutionalUsers(prev => prev.map(u => {
+      if (u.email.toLowerCase() === clean || u.id.toLowerCase() === clean || (u.extraCredentials?.studentId && u.extraCredentials.studentId.toLowerCase() === clean)) {
+        return {
+          ...u,
+          password: newPass,
+          temporaryPassword: undefined,
+          isTemporaryPassword: false,
+          mustChangePasswordOnFirstLogin: false,
+        };
+      }
+      return u;
+    }));
+
+    // Also update student if applicable
+    setStudents(prev => prev.map(s => {
+      if (s.id.toLowerCase() === clean || s.accountNumber.toLowerCase() === clean) {
+        return {
+          ...s,
+          password: newPass,
+          temporaryPassword: undefined,
+          mustChangePasswordOnLogin: false,
+        };
+      }
+      return s;
+    }));
+
+    return { success: true };
+  }, []);
+
+  const createInstitutionalUser = async (params: {
+    name: string;
+    email: string;
+    role: UserRole;
+    position: string;
+    department?: string;
+    phone?: string;
+    extraCredentials?: any;
+  }): Promise<{ success: boolean; tempPassword: string; user: InstitutionalUser; error?: string }> => {
+    // 1. Generate secure automatic temporary password
+    const numPart = Math.floor(1000 + Math.random() * 9000);
+    const charPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const tempPassword = `Osk#${numPart}!${charPart}`;
+
+    const newId = `USR-${params.role.substring(0, 3)}-${Date.now().toString().slice(-4)}`;
+
+    const newUser: InstitutionalUser = {
+      id: newId,
+      name: params.name.trim(),
+      email: params.email.trim(),
+      role: params.role,
+      position: params.position.trim(),
+      department: params.department || (
+        params.role === 'TEACHER' ? 'Faculty & Instruction' :
+        params.role === 'STUDENT' ? 'Secondary Scholar Division' :
+        params.role === 'PARENT' ? 'Parent Association' :
+        params.role === 'REGISTRAR' ? 'Admissions & Records' :
+        params.role === 'FINANCE' ? 'Finance & Treasury' :
+        params.role === 'PROGRAM_OFFICE' ? 'Academic Program Office' :
+        params.role === 'COUNSELLOR' ? 'Pastoral Care & Counseling' :
+        'Executive Administration'
+      ),
+      password: tempPassword,
+      temporaryPassword: tempPassword,
+      isTemporaryPassword: true,
+      mustChangePasswordOnFirstLogin: true,
+      createdAt: new Date().toISOString().split('T')[0],
+      createdBy: currentUser?.name || 'Prof. Mengistu Haile (Principal)',
+      phone: params.phone,
+      extraCredentials: params.extraCredentials,
+    };
+
+    // 2. Dispatch email with Temporary Password via Gmail REST API
+    try {
+      await sendTemporaryPasswordEmailViaGmail({
+        recipientEmail: params.email.trim(),
+        recipientName: params.name.trim(),
+        roleName: params.role,
+        positionTitle: params.position.trim(),
+        tempPassword,
+        schoolName,
+        senderName: currentUser?.name || schoolName,
+      });
+    } catch (err: any) {
+      console.warn('Notice: Gmail dispatch encountered warning or offline preview:', err);
+    }
+
+    // 3. Save to institutional users list
+    setInstitutionalUsers(prev => [newUser, ...prev]);
+
+    // 4. If Teacher, register in teachers list
+    if (params.role === 'TEACHER') {
+      const newTeacher: Teacher = {
+        id: `TCH-${Date.now().toString().slice(-3)}`,
+        name: params.name.trim(),
+        email: params.email.trim(),
+        subject: params.extraCredentials?.subject || 'Academic Subject',
+        isHomeroom: Boolean(params.extraCredentials?.homeroomSection),
+        assignedSectionId: params.extraCredentials?.homeroomSection || null,
+        assignedSections: params.extraCredentials?.homeroomSection ? [params.extraCredentials.homeroomSection] : ['General Classes'],
+      };
+      setTeachers(prev => [newTeacher, ...prev]);
+    }
+
+    // 5. If Student, register in students list
+    if (params.role === 'STUDENT') {
+      const grade = (params.extraCredentials?.grade as AcademicGrade) || 9;
+      const year = new Date().getFullYear();
+      const countInGrade = students.filter(s => s.grade === grade).length + 1;
+      const suffix = countInGrade < 10 ? `0${countInGrade}` : `${countInGrade}`;
+      const generatedId = `OSK-${year}-${grade < 10 ? '0' + grade : grade}${suffix}`;
+      const generatedAcc = `ACC-${grade}${Math.floor(1000 + Math.random() * 9000)}`;
+
+      const newStudent: Student = {
+        id: generatedId,
+        accountNumber: generatedAcc,
+        fullName: params.name.trim(),
+        gender: 'Other',
+        dob: '2010-01-01',
+        grade,
+        stream: params.extraCredentials?.stream || null,
+        sectionId: params.extraCredentials?.section || null,
+        eighthGradeCertAttached: true,
+        entranceExamScore: 85,
+        photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+        previousSchool: {
+          name: 'Primary Academy',
+          isSameSchool: true,
+        },
+        parents: {
+          fatherName: 'Parent of ' + params.name,
+          fatherPhone: params.phone || '+251 91 100 0000',
+          motherName: '',
+          motherPhone: '',
+          email: params.email,
+        },
+        emergencyContact: {
+          name: 'Emergency Guardian',
+          phone1: params.phone || '+251 91 100 0000',
+          phone2: '',
+          relationship: 'Guardian',
+        },
+        registrationStatus: 'COMPLETE',
+        temporaryPassword: tempPassword,
+        mustChangePasswordOnLogin: true,
+        password: tempPassword,
+        idCardCollected: false,
+        streamChangeRequest: null,
+        lostIdRequest: null,
+      };
+      setStudents(prev => [newStudent, ...prev]);
+    }
+
+    return { success: true, tempPassword, user: newUser };
+  };
 
   // 1. Admissions / Registrar: Register Student
   const registerStudent = (newStudentData: Omit<Student, 'id' | 'accountNumber' | 'registrationStatus' | 'idCardCollected'>): Student => {
@@ -1604,10 +1812,49 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const login = (role: UserRole) => {
-    setCurrentRole(role);
+  const login = (role: UserRole, identifier?: string, password?: string, customName?: string) => {
+    setCurrentRoleState(role);
+    const userObj = getRolePersona(role);
+
+    // If identifier matches an institutional user, attach their profile credentials
+    if (identifier) {
+      const match = getUserByEmailOrId(identifier);
+      if (match) {
+        userObj.name = match.name;
+        userObj.email = match.email;
+        userObj.title = match.position;
+        userObj.id = match.id;
+
+        if (match.role === 'TEACHER') {
+          const matchingTeacher = teachers.find(t => t.email.toLowerCase() === match.email.toLowerCase() || t.name.toLowerCase() === match.name.toLowerCase());
+          if (matchingTeacher) {
+            setActiveTeacherId(matchingTeacher.id);
+          }
+        }
+        if (match.role === 'STUDENT') {
+          const matchingStudent = students.find(s => 
+            s.id.toLowerCase() === match.id.toLowerCase() || 
+            (match.extraCredentials?.studentId && s.id.toLowerCase() === match.extraCredentials.studentId.toLowerCase()) || 
+            (match.email && s.parents?.email?.toLowerCase() === match.email.toLowerCase())
+          );
+          if (matchingStudent) {
+            setActiveStudentId(matchingStudent.id);
+          }
+        }
+      }
+    }
+
+    if (customName && customName.trim()) {
+      userObj.name = customName.trim();
+    }
+    if (identifier && identifier.includes('@')) {
+      userObj.email = identifier.trim();
+    }
+    setCurrentUser(userObj);
     setIsAuthenticated(true);
     try {
+      localStorage.setItem('oskar_school_role', role);
+      localStorage.setItem('oskar_school_user', JSON.stringify(userObj));
       localStorage.setItem('oskar_school_auth', 'true');
     } catch (e) {
       console.error(e);
@@ -1670,6 +1917,10 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       attendanceRecords,
       bankStatements,
       chatMessages,
+      institutionalUsers,
+      createInstitutionalUser,
+      changeUserPassword,
+      getUserByEmailOrId,
       schoolName,
       setSchoolName,
       selectedStudentForIdCard,

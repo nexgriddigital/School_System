@@ -114,13 +114,13 @@ export const EmailOtpView: React.FC<EmailOtpViewProps> = ({
 
     setTimeout(() => {
       setIsVerifying(false);
-      if (code === expectedOtp || code === '123456') {
+      if (code === expectedOtp) {
         setIsSuccess(true);
         setTimeout(() => {
           onVerifySuccess();
         }, 600);
       } else {
-        setErrorMsg('Invalid verification passcode. Please verify the code in your email.');
+        setErrorMsg('Invalid verification passcode. Please check the exact 6-digit code sent to your email.');
         onShake();
       }
     }, 500);
@@ -144,12 +144,6 @@ export const EmailOtpView: React.FC<EmailOtpViewProps> = ({
     setErrorMsg(null);
     onResendOtp();
     inputRefs.current[0]?.focus();
-  };
-
-  const handleAutoFillSimulated = () => {
-    const parts = expectedOtp.split('');
-    setDigits(parts);
-    verifyOtp(expectedOtp);
   };
 
   // Mask email display for privacy: r***r@oskaracademy.edu
@@ -218,16 +212,12 @@ export const EmailOtpView: React.FC<EmailOtpViewProps> = ({
           ))}
         </div>
 
-        {/* Quick Simulated Auto-fill helper */}
-        <div className="flex items-center justify-between text-xs px-1">
-          <button
-            type="button"
-            onClick={handleAutoFillSimulated}
-            className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg border border-blue-200 transition cursor-pointer"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-blue-500" />
-            <span>Use Passcode ({expectedOtp})</span>
-          </button>
+        {/* Verification Passcode Help & Expiry */}
+        <div className="flex items-center justify-between text-xs px-1 text-slate-500">
+          <div className="flex items-center gap-1 text-[11px] text-slate-600">
+            <Mail className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+            <span>Check your inbox for the code</span>
+          </div>
 
           <span className="text-slate-400 font-mono text-[11px]">Expires in 5m</span>
         </div>

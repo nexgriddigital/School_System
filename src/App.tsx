@@ -1,14 +1,11 @@
 import React, { useState } from 'react';
 import { SchoolProvider, useSchool } from './context/SchoolContext';
 import { Header } from './components/common/Header';
-import { AllTemplatesBottomSection } from './components/common/AllTemplatesBottomSection';
-import { TemplatesModal } from './components/common/TemplatesModal';
 import { IdCardModal } from './components/common/IdCardModal';
 import { ReceiptModal } from './components/common/ReceiptModal';
 import { DocumentViewerModal } from './components/common/DocumentViewerModal';
 import { TermsAndConditionsModal } from './components/common/TermsAndConditionsModal';
 import { InstructionsManualModal } from './components/common/InstructionsManualModal';
-import { ProductionWatermark } from './components/common/ProductionWatermark';
 import { AdmissionsView } from './components/admissions/AdmissionsView';
 import { FinanceView } from './components/finance/FinanceView';
 import { ProgramOfficeView } from './components/program/ProgramOfficeView';
@@ -43,13 +40,9 @@ const MainContent: React.FC<{
       {currentRole === 'STUDENT' && <StudentView />}
       {currentRole === 'PARENT' && <ParentView />}
 
-      {/* All Templates & Stakeholder Workspaces included on the bottom as rich previews */}
-      <AllTemplatesBottomSection />
-
       {/* Global Modals */}
       <IdCardModal />
       <ReceiptModal />
-      <TemplatesModal />
       {activeDocumentModal && (
         <DocumentViewerModal
           isOpen={activeDocumentModal.isOpen}
@@ -70,7 +63,7 @@ const AppFooter: React.FC<{
   onOpenTerms: () => void;
   onOpenManual: () => void;
 }> = ({ onOpenTerms, onOpenManual }) => {
-  const { schoolName, setShowTemplatesModal } = useSchool();
+  const { schoolName } = useSchool();
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownloadManual = () => {
@@ -89,14 +82,6 @@ const AppFooter: React.FC<{
       <div className="max-w-7xl mx-auto px-4 flex flex-col gap-4">
         {/* Quick Access Badges for Customer Presentation */}
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <button
-            onClick={() => setShowTemplatesModal(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-xs border border-blue-200 transition shadow-2xs group cursor-pointer"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-blue-600 group-hover:scale-110 transition-transform" />
-            <span>Interactive System Templates & Stakeholder Portals</span>
-          </button>
-
           <button
             onClick={onOpenManual}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold text-xs border border-amber-200 transition cursor-pointer"
@@ -124,7 +109,7 @@ const AppFooter: React.FC<{
           </button>
         </div>
 
-        {/* Primary Attribution & Watermark Banner */}
+        {/* Primary Attribution & System Info */}
         <div className="py-2 border-y border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-900 tracking-wide">
@@ -135,8 +120,8 @@ const AppFooter: React.FC<{
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 text-blue-700 font-bold tracking-tight">
-            <span>Designed and Developed by NexGrid Digital Systems</span>
+          <div className="flex items-center gap-2 text-slate-500 font-medium">
+            <span>Institutional Operations & Governance Portal</span>
           </div>
         </div>
 
@@ -153,8 +138,6 @@ const AppFooter: React.FC<{
             <button onClick={onOpenManual} className="hover:text-blue-600 underline cursor-pointer">
               System Documentation
             </button>
-            <span>&bull;</span>
-            <span>All Rights Reserved &copy; 2026 NexGrid Digital Systems</span>
           </div>
         </div>
       </div>
@@ -172,24 +155,20 @@ const MainApp: React.FC = () => {
       <Header onOpenTerms={() => setShowTermsModal(true)} onOpenManual={() => setShowManualModal(true)} />
       <div className="flex-1">
         {isAuthenticated ? (
-          <MainContent 
-            onOpenTerms={() => setShowTermsModal(true)} 
-            onOpenManual={() => setShowManualModal(true)} 
-          />
+          <>
+            <MainContent 
+              onOpenTerms={() => setShowTermsModal(true)} 
+              onOpenManual={() => setShowManualModal(true)} 
+            />
+            <AppFooter 
+              onOpenTerms={() => setShowTermsModal(true)} 
+              onOpenManual={() => setShowManualModal(true)} 
+            />
+          </>
         ) : (
           <LoginView onOpenTerms={() => setShowTermsModal(true)} onOpenManual={() => setShowManualModal(true)} />
         )}
       </div>
-      <AppFooter 
-        onOpenTerms={() => setShowTermsModal(true)} 
-        onOpenManual={() => setShowManualModal(true)} 
-      />
-
-      {/* Floating Production Presentation Watermark & Quick Actions Toolbar */}
-      <ProductionWatermark
-        onOpenTerms={() => setShowTermsModal(true)}
-        onOpenManual={() => setShowManualModal(true)}
-      />
 
       {/* Terms and Conditions Modal */}
       <TermsAndConditionsModal

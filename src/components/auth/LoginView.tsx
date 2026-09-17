@@ -18,15 +18,15 @@ import {
   ArrowRight, 
   Eye, 
   EyeOff, 
-  Sparkles,
   HelpCircle,
   Mail,
-  KeyRound
+  KeyRound,
+  ShieldCheck,
+  Crown
 } from 'lucide-react';
 import { AnimatedMascot } from './AnimatedMascot';
 import { PasswordResetRequestModal } from './PasswordResetRequestModal';
 import { EmailOtpView } from './EmailOtpView';
-import { SimulatedEmailToast } from './SimulatedEmailToast';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { GmailSendConfirmationModal } from './GmailSendConfirmationModal';
 import { AllTemplatesBottomSection } from '../common/AllTemplatesBottomSection';
@@ -34,7 +34,6 @@ import {
   initGoogleAuth, 
   signInWithGoogle, 
   signOutGoogle, 
-  getGoogleAccessToken, 
   sendOtpEmailViaGmail 
 } from '../../services/gmailAuthService';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -44,15 +43,53 @@ interface LoginViewProps {
   onOpenManual?: () => void;
 }
 
+type AuthMode = 'SIGN_IN' | 'PRINCIPAL_SIGN_UP';
+
 export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual }) => {
-  const { schoolName, login, students, teachers } = useSchool();
+  const { 
+    schoolName, 
+    login, 
+    students, 
+    teachers, 
+    institutionalUsers, 
+    getUserByEmailOrId, 
+    changeUserPassword 
+  } = useSchool();
   
+  // Auth Mode: Sign In or Principal Sign Up (Gated by Mastercode System_Principal)
+  const [authMode, setAuthMode] = useState<AuthMode>('SIGN_IN');
+
+  // Sign In States
   const [selectedRole, setSelectedRole] = useState<UserRole>('REGISTRAR');
   const [identifier, setIdentifier] = useState('registrar@oskaracademy.edu');
   const [password, setPassword] = useState('Admin@2026');
   const [showPassword, setShowPassword] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+
+  // First Login Mandatory Password Update States
+  const [isFirstLoginPasswordStep, setIsFirstLoginPasswordStep] = useState(false);
+  const [firstLoginTargetUser, setFirstLoginTargetUser] = useState<{
+    id: string;
+    name: string;
+    email: string;
+    role: UserRole;
+    position: string;
+    tempPasswordProvided?: string;
+  } | null>(null);
+  const [newPermanentPassword, setNewPermanentPassword] = useState('');
+  const [confirmPermanentPassword, setConfirmPermanentPassword] = useState('');
+  const [showNewPermanentPassword, setShowNewPermanentPassword] = useState(false);
+  const [isSavingPermanentPassword, setIsSavingPermanentPassword] = useState(false);
+
+  // Principal Sign Up States
+  const [principalMasterCode, setPrincipalMasterCode] = useState('');
+  const [showMasterCode, setShowMasterCode] = useState(false);
+  const [principalName, setPrincipalName] = useState('Prof. Mengistu Haile');
+  const [principalEmail, setPrincipalEmail] = useState('principal@oskaracademy.edu');
+  const [principalPassword, setPrincipalPassword] = useState('');
+  const [principalConfirmPassword, setPrincipalConfirmPassword] = useState('');
+  const [showPrincipalPassword, setShowPrincipalPassword] = useState(false);
   
   // Google / Gmail Auth Integration
   const [googleUser, setGoogleUser] = useState<FirebaseUser | null>(null);
@@ -64,8 +101,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
 
   // OTP States
   const [isOtpStep, setIsOtpStep] = useState(false);
-  const [expectedOtp, setExpectedOtp] = useState('849201');
-  const [showEmailToast, setShowEmailToast] = useState(false);
+  const [expectedOtp, setExpectedOtp] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -88,7 +124,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     return () => unsubscribe();
   }, []);
 
-  const handleConnectGoogle = async () => {
+  const handleConnectGoogle = async (): Promise<FirebaseUser | null> => {
     setIsConnectingGoogle(true);
     setErrorMsg(null);
     try {
@@ -96,12 +132,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
       if (result) {
         setGoogleUser(result.user);
         setIsGoogleConnected(true);
+        return result.user;
       }
-      // If result is null, the user cancelled or closed the popup without signing in
+      return null;
     } catch (error: any) {
       if (error?.message && !error.message.includes('popup-closed')) {
         setErrorMsg(error.message);
       }
+      return null;
     } finally {
       setIsConnectingGoogle(false);
     }
@@ -126,25 +164,24 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
       hintId: string;
       defaultPass: string;
       description: string;
-      requiresEmail: boolean;
     }[];
   }[] = [
     {
       title: 'Administrative Leadership',
       roles: [
-        { role: 'REGISTRAR', label: 'Admissions & Registrar', icon: Building2, hintId: 'registrar@oskaracademy.edu', defaultPass: 'Admin@2026', description: 'Student registrations, ID generation & verify documents', requiresEmail: true },
-        { role: 'FINANCE', label: 'Finance Office', icon: CreditCard, hintId: 'finance@oskaracademy.edu', defaultPass: 'Finance#2026', description: 'Bank reconciliation, invoices, tuition & waivers', requiresEmail: true },
-        { role: 'PRINCIPAL', label: 'Principal / Head', icon: GraduationCap, hintId: 'principal@oskaracademy.edu', defaultPass: 'Principal#2026', description: 'Executive analytics, teacher leaves & stream change approvals', requiresEmail: true },
-        { role: 'PROGRAM_OFFICE', label: 'Program Office', icon: Layers, hintId: 'program.office@oskaracademy.edu', defaultPass: 'Program#2026', description: 'Section capacity & automated allocation', requiresEmail: true },
-        { role: 'COUNSELLOR', label: 'Counsellor & Discipline', icon: HeartHandshake, hintId: 'counselling@oskaracademy.edu', defaultPass: 'Counsellor#2026', description: 'Student conduct, parent conferences & pastoral care', requiresEmail: true },
+        { role: 'REGISTRAR', label: 'Admissions & Registrar', icon: Building2, hintId: 'registrar@oskaracademy.edu', defaultPass: 'Admin@2026', description: 'Student registrations, ID generation & verify documents' },
+        { role: 'FINANCE', label: 'Finance Office', icon: CreditCard, hintId: 'finance@oskaracademy.edu', defaultPass: 'Finance#2026', description: 'Bank reconciliation, invoices, tuition & waivers' },
+        { role: 'PRINCIPAL', label: 'Principal / Head', icon: GraduationCap, hintId: 'principal@oskaracademy.edu', defaultPass: 'Principal#2026', description: 'Executive analytics, teacher leaves & stream change approvals' },
+        { role: 'PROGRAM_OFFICE', label: 'Program Office', icon: Layers, hintId: 'program.office@oskaracademy.edu', defaultPass: 'Program#2026', description: 'Section capacity & automated allocation' },
+        { role: 'COUNSELLOR', label: 'Counsellor & Discipline', icon: HeartHandshake, hintId: 'counselling@oskaracademy.edu', defaultPass: 'Counsellor#2026', description: 'Student conduct, parent conferences & pastoral care' },
       ]
     },
     {
       title: 'Faculty & Scholars',
       roles: [
-        { role: 'TEACHER', label: 'Teacher Portal', icon: Users, hintId: teachers[0]?.id || 'TCH-001', defaultPass: 'Teacher@2026', description: 'Homeroom roster, continuous grading & day-off requests', requiresEmail: false },
-        { role: 'STUDENT', label: 'Student Scholar', icon: User, hintId: students[0]?.id || 'OSK-2026-0901', defaultPass: 'Password@123', description: 'Report card, digital ID, schedule & tuition status', requiresEmail: false },
-        { role: 'PARENT', label: 'Parent / Guardian', icon: Home, hintId: students[0]?.parents?.fatherPhone || '+251 91 123 4567', defaultPass: 'Parent@2026', description: 'Child progress monitoring, attendance & billing history', requiresEmail: false },
+        { role: 'TEACHER', label: 'Teacher Portal', icon: Users, hintId: teachers[0]?.id || 'TCH-001', defaultPass: 'Teacher@2026', description: 'Homeroom roster, continuous grading & day-off requests' },
+        { role: 'STUDENT', label: 'Student Scholar', icon: User, hintId: students[0]?.id || 'OSK-2026-0901', defaultPass: 'Password@123', description: 'Report card, digital ID, schedule & tuition status' },
+        { role: 'PARENT', label: 'Parent / Guardian', icon: Home, hintId: students[0]?.parents?.fatherPhone || '+251 91 123 4567', defaultPass: 'Parent@2026', description: 'Child progress monitoring, attendance & billing history' },
       ]
     }
   ];
@@ -153,26 +190,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     .flatMap(c => c.roles)
     .find(r => r.role === selectedRole) || roleCategories[0].roles[0];
 
-  // Any account using an email address, or admin leadership roles, requires Email OTP verification
-  const requiresEmailOtp = identifier.includes('@') || currentRoleMeta.requiresEmail;
-
   const handleRoleSelect = (role: UserRole) => {
     setSelectedRole(role);
     setErrorMsg(null);
     setIsOtpStep(false);
-    setShowEmailToast(false);
     const meta = roleCategories.flatMap(c => c.roles).find(r => r.role === role);
     if (meta) {
       setIdentifier(meta.hintId);
       setPassword(meta.defaultPass);
     }
-  };
-
-  const handleQuickFill = () => {
-    setIdentifier(currentRoleMeta.hintId);
-    setPassword(currentRoleMeta.defaultPass);
-    setErrorMsg(null);
-    setIsOtpStep(false);
   };
 
   const calculatePasswordStrength = (pass: string) => {
@@ -185,7 +211,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     return score;
   };
 
-  const passStrength = calculatePasswordStrength(password);
+  const passStrength = calculatePasswordStrength(authMode === 'PRINCIPAL_SIGN_UP' ? principalPassword : password);
 
   const generateOtp = () => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -193,10 +219,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     return code;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const triggerShake = () => {
+    setIsShaking(true);
+    setTimeout(() => setIsShaking(false), 500);
+  };
+
+  // Sign in submit: validates inputs, connects Gmail if needed, sends real OTP code
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim()) {
-      setErrorMsg('Please enter your assigned identifier, ID, or email.');
+      setErrorMsg('Please enter your institutional email or account identifier.');
       triggerShake();
       return;
     }
@@ -207,50 +239,97 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
       return;
     }
 
-    setIsLoading(true);
-    setErrorMsg(null);
+    // Prepare code
+    const code = generateOtp();
 
-    // If account requires Email OTP Authentication
-    if (requiresEmailOtp) {
-      const code = generateOtp();
-
-      // Check if Gmail is connected
-      if (isGoogleConnected && googleUser) {
-        setIsLoading(false);
-        // Prompt user confirmation modal before sending real email via Gmail API
-        setShowGmailConfirmModal(true);
+    // Check if Gmail sender is connected
+    if (!isGoogleConnected || !googleUser) {
+      setErrorMsg('Connecting to Gmail to dispatch real 6-digit verification code...');
+      const user = await handleConnectGoogle();
+      if (!user) {
+        setErrorMsg('Gmail connection is required to dispatch the real OTP verification code. Please connect your Gmail account.');
+        triggerShake();
         return;
       }
+    }
 
-      // If Gmail is not yet connected, generate code and show OTP view with simulated toast
-      setTimeout(() => {
-        setIsLoading(false);
-        setWasSentViaGmail(false);
-        setShowEmailToast(true);
-        setIsOtpStep(true);
-      }, 500);
+    // Show confirmation modal to confirm sending actual email
+    setShowGmailConfirmModal(true);
+  };
+
+  // Principal Sign Up submit: strictly checks Mastercode === "System_Principal"
+  const handlePrincipalSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    // Strict Mastercode check
+    if (!principalMasterCode.trim()) {
+      setErrorMsg('Principal Master Authorization Code is required.');
+      triggerShake();
       return;
     }
 
-    // Direct login for ID-based stakeholders (students, teachers with code)
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsSuccess(true);
-      setTimeout(() => {
-        login(selectedRole, identifier, password);
-      }, 700);
-    }, 600);
+    if (principalMasterCode.trim() !== 'System_Principal') {
+      setErrorMsg('Invalid Master Authorization Code. Registration is strictly restricted to authorized Principal leadership with mastercode "System_Principal".');
+      triggerShake();
+      return;
+    }
+
+    if (!principalName.trim()) {
+      setErrorMsg('Please enter the Principal\'s full legal name.');
+      triggerShake();
+      return;
+    }
+
+    if (!principalEmail.trim() || !principalEmail.includes('@')) {
+      setErrorMsg('Please enter a valid institutional email to receive the live Gmail OTP.');
+      triggerShake();
+      return;
+    }
+
+    if (!principalPassword || principalPassword.length < 6) {
+      setErrorMsg('Principal password must be at least 6 characters long.');
+      triggerShake();
+      return;
+    }
+
+    if (principalPassword !== principalConfirmPassword) {
+      setErrorMsg('Passwords do not match. Please re-enter your password accurately.');
+      triggerShake();
+      return;
+    }
+
+    // Generate real code
+    generateOtp();
+
+    // Check Gmail sender connection
+    if (!isGoogleConnected || !googleUser) {
+      setErrorMsg('Connecting to Gmail to dispatch real 6-digit verification code...');
+      const user = await handleConnectGoogle();
+      if (!user) {
+        setErrorMsg('Gmail connection is required to dispatch the real OTP verification code. Please connect your Gmail account.');
+        triggerShake();
+        return;
+      }
+    }
+
+    // Open confirmation modal
+    setShowGmailConfirmModal(true);
   };
 
+  // Dispatches the actual live OTP email through the Gmail API
   const handleConfirmSendGmail = async () => {
     setIsSendingGmail(true);
     setErrorMsg(null);
 
+    const targetRecipient = authMode === 'PRINCIPAL_SIGN_UP' ? principalEmail.trim() : identifier.trim();
+    const targetRoleLabel = authMode === 'PRINCIPAL_SIGN_UP' ? 'Principal & Executive Oversight' : currentRoleMeta.label;
+
     try {
       await sendOtpEmailViaGmail({
-        recipientEmail: identifier,
+        recipientEmail: targetRecipient,
         otpCode: expectedOtp,
-        roleName: currentRoleMeta.label,
+        roleName: targetRoleLabel,
         schoolName,
         senderName: googleUser?.displayName || schoolName,
       });
@@ -258,53 +337,116 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
       setIsSendingGmail(false);
       setShowGmailConfirmModal(false);
       setWasSentViaGmail(true);
-      setShowEmailToast(false);
       setIsOtpStep(true);
     } catch (err: any) {
       console.error('Failed to send email via Gmail:', err);
       setIsSendingGmail(false);
       setShowGmailConfirmModal(false);
-      setErrorMsg(`Gmail dispatch error: ${err?.message || 'Check your Gmail permissions'}. Falling back to instant verification.`);
-      // Fallback to OTP step
-      setWasSentViaGmail(false);
-      setShowEmailToast(true);
-      setIsOtpStep(true);
+      setErrorMsg(`Gmail dispatch failed: ${err?.message || 'Check recipient email address and Gmail sender authorization'}. Please ensure a valid email is provided.`);
+      triggerShake();
     }
   };
 
+  // Called when user enters the correct 6-digit code received in their actual Gmail inbox
   const handleOtpSuccess = () => {
     setIsSuccess(true);
-    setShowEmailToast(false);
+
+    if (authMode === 'PRINCIPAL_SIGN_UP') {
+      setTimeout(() => {
+        login('PRINCIPAL', principalEmail, principalPassword, principalName);
+      }, 700);
+      return;
+    }
+
+    // Check if institutional user or student requires mandatory password change on first login
+    const matchInst = getUserByEmailOrId(identifier);
+    const matchStudent = students.find(s => 
+      s.id.toLowerCase() === identifier.trim().toLowerCase() || 
+      s.accountNumber.toLowerCase() === identifier.trim().toLowerCase() ||
+      (s.parents?.email && s.parents.email.toLowerCase() === identifier.trim().toLowerCase())
+    );
+
+    const mustChange = Boolean(matchInst?.mustChangePasswordOnFirstLogin) || Boolean(matchStudent?.mustChangePasswordOnLogin);
+
+    if (mustChange) {
+      setTimeout(() => {
+        setIsSuccess(false);
+        setIsOtpStep(false);
+        setFirstLoginTargetUser({
+          id: matchInst?.id || matchStudent?.id || identifier,
+          name: matchInst?.name || matchStudent?.fullName || 'Institutional User',
+          email: matchInst?.email || (matchStudent?.parents?.email || identifier),
+          role: matchInst?.role || selectedRole,
+          position: matchInst?.position || currentRoleMeta.label,
+          tempPasswordProvided: password,
+        });
+        setIsFirstLoginPasswordStep(true);
+      }, 600);
+      return;
+    }
+
     setTimeout(() => {
       login(selectedRole, identifier, password);
     }, 700);
   };
 
-  const triggerShake = () => {
-    setIsShaking(true);
-    setTimeout(() => setIsShaking(false), 500);
+  const handleSaveFirstLoginPermanentPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    if (!newPermanentPassword || newPermanentPassword.length < 6) {
+      setErrorMsg('New permanent password must be at least 6 characters long.');
+      triggerShake();
+      return;
+    }
+
+    if (firstLoginTargetUser?.tempPasswordProvided && newPermanentPassword === firstLoginTargetUser.tempPasswordProvided) {
+      setErrorMsg('Your new permanent password cannot be identical to your temporary password. Please choose a new unique password.');
+      triggerShake();
+      return;
+    }
+
+    if (newPermanentPassword !== confirmPermanentPassword) {
+      setErrorMsg('Permanent passwords do not match. Please verify both fields.');
+      triggerShake();
+      return;
+    }
+
+    setIsSavingPermanentPassword(true);
+
+    try {
+      if (firstLoginTargetUser) {
+        changeUserPassword(firstLoginTargetUser.email, newPermanentPassword);
+        setTimeout(() => {
+          login(
+            firstLoginTargetUser.role,
+            firstLoginTargetUser.email,
+            newPermanentPassword,
+            firstLoginTargetUser.name
+          );
+        }, 700);
+      }
+    } catch (err: any) {
+      setIsSavingPermanentPassword(false);
+      setErrorMsg(err?.message || 'Failed to update permanent password.');
+      triggerShake();
+    }
   };
+
+  const activeEmailForOtp = authMode === 'PRINCIPAL_SIGN_UP' ? principalEmail : identifier;
+  const activeRoleLabelForOtp = authMode === 'PRINCIPAL_SIGN_UP' ? 'Principal & Executive Oversight' : currentRoleMeta.label;
 
   return (
     <div className="relative min-h-[calc(100vh-140px)] py-10 px-4 sm:px-6 lg:px-8 flex flex-col justify-between overflow-hidden">
-      {/* Simulated Email Delivery Toast Notification (if not connected or for quick testing) */}
-      <SimulatedEmailToast
-        isOpen={showEmailToast}
-        email={identifier}
-        otpCode={expectedOtp}
-        onClose={() => setShowEmailToast(false)}
-        onCopyOrFill={() => {}}
-      />
-
-      {/* Gmail Send Confirmation Dialog (Mandatory User Consent before sending email) */}
+      {/* Gmail Send Confirmation Dialog */}
       <GmailSendConfirmationModal
         isOpen={showGmailConfirmModal}
         onClose={() => setShowGmailConfirmModal(false)}
         onConfirm={handleConfirmSendGmail}
-        recipientEmail={identifier}
-        senderEmail={googleUser?.email || 'me'}
+        recipientEmail={activeEmailForOtp}
+        senderEmail={googleUser?.email || 'Connected Gmail Account'}
         otpCode={expectedOtp}
-        roleLabel={currentRoleMeta.label}
+        roleLabel={activeRoleLabelForOtp}
         isSending={isSendingGmail}
       />
 
@@ -343,8 +485,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
         {/* Animated Mascot / Security Guardian */}
         <AnimatedMascot
           isPasswordFocused={isPasswordFocused && !isOtpStep}
-          showPassword={showPassword}
-          inputLength={isOtpStep ? 6 : identifier.length}
+          showPassword={showPassword || showMasterCode || showPrincipalPassword}
+          inputLength={isOtpStep ? 6 : (authMode === 'PRINCIPAL_SIGN_UP' ? principalEmail.length : identifier.length)}
           isAuthenticating={isLoading || isSendingGmail}
           isSuccess={isSuccess}
           hasError={Boolean(errorMsg)}
@@ -373,15 +515,71 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
               </div>
             </div>
 
+            {/* Auth Mode Switcher Tabs */}
+            {!isOtpStep && !isFirstLoginPasswordStep && (
+              <div className="mt-4 flex items-center justify-center gap-2 p-1 bg-slate-900/60 rounded-xl border border-slate-700/60 max-w-sm mx-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('SIGN_IN');
+                    setErrorMsg(null);
+                  }}
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    authMode === 'SIGN_IN'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                  }`}
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Sign In</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('PRINCIPAL_SIGN_UP');
+                    setErrorMsg(null);
+                  }}
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    authMode === 'PRINCIPAL_SIGN_UP'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                  }`}
+                >
+                  <Crown className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Principal Sign Up</span>
+                  <span className="text-[9px] bg-amber-400/30 text-amber-200 px-1 py-0.2 rounded font-mono">Master</span>
+                </button>
+              </div>
+            )}
+
             {/* Micro Badge for active portal */}
             <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-medium">
-              <currentRoleMeta.icon className="w-3.5 h-3.5 text-blue-300" />
-              <span>Target: <strong>{currentRoleMeta.label}</strong></span>
-              {requiresEmailOtp && (
-                <span className="ml-1 bg-amber-400/20 text-amber-300 text-[10px] font-mono px-1.5 py-0.2 rounded border border-amber-400/30 flex items-center gap-1">
-                  <Mail className="w-3 h-3" />
-                  <span>Gmail OTP</span>
-                </span>
+              {isFirstLoginPasswordStep ? (
+                <>
+                  <KeyRound className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Mandatory Security: <strong>First-Time Password Update</strong></span>
+                  <span className="ml-1 bg-amber-400/20 text-amber-300 text-[10px] font-mono px-1.5 py-0.2 rounded border border-amber-400/30">
+                    Mandatory
+                  </span>
+                </>
+              ) : authMode === 'PRINCIPAL_SIGN_UP' ? (
+                <>
+                  <Crown className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Executive Role: <strong>Principal Registration</strong></span>
+                  <span className="ml-1 bg-amber-400/20 text-amber-300 text-[10px] font-mono px-1.5 py-0.2 rounded border border-amber-400/30">
+                    Master Gated
+                  </span>
+                </>
+              ) : (
+                <>
+                  <currentRoleMeta.icon className="w-3.5 h-3.5 text-blue-300" />
+                  <span>Target: <strong>{currentRoleMeta.label}</strong></span>
+                  <span className="ml-1 bg-emerald-400/20 text-emerald-300 text-[10px] font-mono px-1.5 py-0.2 rounded border border-emerald-400/30 flex items-center gap-1">
+                    <Mail className="w-3 h-3" />
+                    <span>Strict Gmail OTP</span>
+                  </span>
+                </>
               )}
             </div>
           </div>
@@ -389,7 +587,116 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
           {/* Form Body */}
           <div className="p-6 sm:p-7 space-y-5">
             <AnimatePresence mode="wait">
-              {isOtpStep ? (
+              {isFirstLoginPasswordStep && firstLoginTargetUser ? (
+                /* MANDATORY FIRST-TIME LOGIN PASSWORD UPDATE VIEW */
+                <motion.div
+                  key="first-login-step"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className="space-y-4"
+                >
+                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-3">
+                    <KeyRound className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-amber-950 text-sm">Mandatory Password Setup</span>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-950 font-mono text-[10px] font-bold">
+                          First Login
+                        </span>
+                      </div>
+                      <p className="text-amber-800 leading-relaxed">
+                        Welcome, <strong>{firstLoginTargetUser.name}</strong> ({firstLoginTargetUser.position}). 
+                        Your account was provisioned with an automatic temporary password by the Office of the Principal. 
+                        Please set your permanent password to complete authentication and access your dashboard.
+                      </p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleSaveFirstLoginPermanentPassword} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Verified Institutional Account
+                      </label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                        <input
+                          type="text"
+                          readOnly
+                          value={`${firstLoginTargetUser.email} (${firstLoginTargetUser.role})`}
+                          className="w-full pl-9 pr-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono text-slate-600 cursor-not-allowed"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        New Permanent Password <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                        <input
+                          type={showNewPermanentPassword ? 'text' : 'password'}
+                          required
+                          minLength={6}
+                          value={newPermanentPassword}
+                          onChange={(e) => setNewPermanentPassword(e.target.value)}
+                          placeholder="Enter your personal permanent password (min 6 chars)"
+                          className="w-full pl-9 pr-10 py-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPermanentPassword(!showNewPermanentPassword)}
+                          className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          {showNewPermanentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Confirm Permanent Password <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                        <input
+                          type={showNewPermanentPassword ? 'text' : 'password'}
+                          required
+                          minLength={6}
+                          value={confirmPermanentPassword}
+                          onChange={(e) => setConfirmPermanentPassword(e.target.value)}
+                          placeholder="Re-type your personal permanent password"
+                          className="w-full pl-9 pr-10 py-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isSavingPermanentPassword}
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                    >
+                      {isSavingPermanentPassword ? (
+                        <>
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                            className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full"
+                          />
+                          <span>Committing Permanent Password & Entering Portal...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck className="w-4 h-4" />
+                          <span>Save Permanent Password & Enter Portal</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </motion.div>
+              ) : isOtpStep ? (
                 /* STEP 2: EMAIL OTP VERIFICATION VIEW */
                 <motion.div
                   key="otp-step"
@@ -399,29 +706,249 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                   transition={{ duration: 0.3 }}
                 >
                   <EmailOtpView
-                    email={identifier}
+                    email={activeEmailForOtp}
                     expectedOtp={expectedOtp}
-                    roleLabel={currentRoleMeta.label}
+                    roleLabel={activeRoleLabelForOtp}
                     isSentViaGmail={wasSentViaGmail}
                     gmailSender={googleUser?.email}
                     onVerifySuccess={handleOtpSuccess}
                     onBack={() => {
                       setIsOtpStep(false);
-                      setShowEmailToast(false);
                     }}
                     onResendOtp={() => {
-                      const code = generateOtp();
-                      if (isGoogleConnected && googleUser) {
-                        setShowGmailConfirmModal(true);
-                      } else {
-                        setShowEmailToast(true);
-                      }
+                      generateOtp();
+                      setShowGmailConfirmModal(true);
                     }}
                     onShake={triggerShake}
                   />
                 </motion.div>
+              ) : authMode === 'PRINCIPAL_SIGN_UP' ? (
+                /* STEP 1 (B): PRINCIPAL SIGN UP (MASTERCODE GATED: "System_Principal") */
+                <motion.div
+                  key="principal-signup-step"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className="space-y-4"
+                >
+                  {/* Google / Gmail Delivery Bar */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                        Gmail OTP Dispatch Account:
+                      </span>
+                      {isGoogleConnected && (
+                        <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-semibold border border-emerald-200 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>Connected</span>
+                        </span>
+                      )}
+                    </div>
+                    <GoogleSignInButton
+                      onSignIn={handleConnectGoogle}
+                      isConnected={isGoogleConnected}
+                      userEmail={googleUser?.email}
+                      onDisconnect={handleDisconnectGoogle}
+                      isLoading={isConnectingGoogle}
+                    />
+                  </div>
+
+                  {/* Principal Registration Notice */}
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-950">
+                      <Crown className="w-4 h-4 text-amber-600" />
+                      <span>Authorized Principal Registration</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                      Only the institutional Principal can register an executive account. You must provide the official mastercode <strong className="font-mono text-amber-950 bg-amber-100 px-1 py-0.2 rounded border border-amber-300">System_Principal</strong>. A live 6-digit OTP will be dispatched to your email for confirmation.
+                    </p>
+                  </div>
+
+                  {/* Error Message */}
+                  <AnimatePresence>
+                    {errorMsg && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="p-3 bg-rose-50 text-rose-700 rounded-xl text-xs border border-rose-200 flex items-center gap-2"
+                      >
+                        <ShieldAlert className="w-4 h-4 shrink-0" />
+                        <span>{errorMsg}</span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Principal Registration Form */}
+                  <form onSubmit={handlePrincipalSignUp} className="space-y-3.5">
+                    {/* Master Authorization Code */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                        <span>Principal Master Authorization Code *</span>
+                        <span className="text-[10px] font-mono text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                          System_Principal
+                        </span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showMasterCode ? 'text' : 'password'}
+                          value={principalMasterCode}
+                          onChange={(e) => {
+                            setPrincipalMasterCode(e.target.value);
+                            if (errorMsg) setErrorMsg(null);
+                          }}
+                          placeholder="Enter Master Code (System_Principal)"
+                          className="w-full pl-9 pr-10 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent font-mono transition"
+                        />
+                        <ShieldCheck className="w-4 h-4 text-amber-600 absolute left-3 top-3" />
+                        <button
+                          type="button"
+                          onClick={() => setShowMasterCode(!showMasterCode)}
+                          className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          {showMasterCode ? <EyeOff className="w-4 h-4 text-amber-600" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Principal Full Name */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Principal Full Legal Name *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={principalName}
+                          onChange={(e) => {
+                            setPrincipalName(e.target.value);
+                            if (errorMsg) setErrorMsg(null);
+                          }}
+                          placeholder="e.g. Prof. Mengistu Haile"
+                          className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
+                        />
+                        <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                      </div>
+                    </div>
+
+                    {/* Principal Email Address (Receives actual Gmail OTP) */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                        <span>Principal Email (Receives Real Gmail OTP) *</span>
+                        <span className="text-[10px] text-blue-600 font-semibold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                          Gmail OTP Delivery
+                        </span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="email"
+                          value={principalEmail}
+                          onChange={(e) => {
+                            setPrincipalEmail(e.target.value);
+                            if (errorMsg) setErrorMsg(null);
+                          }}
+                          placeholder="e.g. principal@oskaracademy.edu or your Gmail"
+                          className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
+                        />
+                        <Mail className="w-4 h-4 text-blue-600 absolute left-3 top-3" />
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        The real 6-digit OTP code will be sent to this email address. You may use your personal Gmail address to verify.
+                      </p>
+                    </div>
+
+                    {/* Password */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Executive Account Password *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPrincipalPassword ? 'text' : 'password'}
+                          value={principalPassword}
+                          onFocus={() => setIsPasswordFocused(true)}
+                          onBlur={() => setIsPasswordFocused(false)}
+                          onChange={(e) => {
+                            setPrincipalPassword(e.target.value);
+                            if (errorMsg) setErrorMsg(null);
+                          }}
+                          placeholder="Create secure password (min 6 chars)"
+                          className="w-full pl-9 pr-10 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
+                        />
+                        <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                        <button
+                          type="button"
+                          onClick={() => setShowPrincipalPassword(!showPrincipalPassword)}
+                          className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          {showPrincipalPassword ? <EyeOff className="w-4 h-4 text-amber-600" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Confirm Password */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Confirm Password *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPrincipalPassword ? 'text' : 'password'}
+                          value={principalConfirmPassword}
+                          onChange={(e) => {
+                            setPrincipalConfirmPassword(e.target.value);
+                            if (errorMsg) setErrorMsg(null);
+                          }}
+                          placeholder="Re-type your password"
+                          className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
+                        />
+                        <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                      </div>
+                    </div>
+
+                    {/* Submit Button for Principal Registration */}
+                    <motion.button
+                      type="submit"
+                      disabled={isLoading || isSendingGmail}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                      className="w-full py-3 px-4 rounded-xl text-sm font-semibold shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white mt-2"
+                    >
+                      {isSendingGmail ? (
+                        <div className="flex items-center gap-2">
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                            className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                          />
+                          <span>Dispatching Real Gmail OTP...</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Crown className="w-4 h-4" />
+                          <span>Register Principal & Send Gmail OTP</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </div>
+                      )}
+                    </motion.button>
+
+                    <div className="text-center pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthMode('SIGN_IN');
+                          setErrorMsg(null);
+                        }}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-semibold cursor-pointer underline"
+                      >
+                        Already have an account? Return to Sign In
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
               ) : (
-                /* STEP 1: CREDENTIALS & ROLE SELECTION VIEW */
+                /* STEP 1 (A): CREDENTIALS & ROLE SELECTION VIEW */
                 <motion.div
                   key="credentials-step"
                   initial={{ opacity: 0, x: -20 }}
@@ -434,11 +961,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                        Gmail Delivery Service:
+                        Gmail OTP Delivery Service:
                       </span>
                       {isGoogleConnected && (
-                        <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-semibold border border-emerald-200">
-                          Live Gmail API Active
+                        <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-semibold border border-emerald-200 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>Live Gmail API Active</span>
                         </span>
                       )}
                     </div>
@@ -457,15 +985,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
                         Select Department or Stakeholder:
                       </label>
-                      <button
-                        type="button"
-                        onClick={handleQuickFill}
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100/80 px-2 py-0.5 rounded-md transition cursor-pointer"
-                        title="Auto-fill verified credentials for this role"
-                      >
-                        <Sparkles className="w-3 h-3 text-blue-500" />
-                        <span>Use Sample Credentials</span>
-                      </button>
+                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        Strict OTP Protected
+                      </span>
                     </div>
 
                     <div className="space-y-3">
@@ -473,7 +995,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                         <div key={cat.title}>
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">{cat.title}</p>
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                            {cat.roles.map(({ role, label, icon: Icon, requiresEmail }) => {
+                            {cat.roles.map(({ role, label, icon: Icon }) => {
                               const isSelected = selectedRole === role;
                               return (
                                 <button
@@ -497,14 +1019,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                                     <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
                                     <span className="truncate">{label}</span>
                                   </div>
-                                  {requiresEmail && (
-                                    <span 
-                                      className={`text-[9px] px-1 py-0.2 rounded font-mono ${isSelected ? 'bg-blue-800 text-blue-200' : 'bg-slate-200 text-slate-500'}`}
-                                      title="Requires Email 2FA OTP"
-                                    >
-                                      OTP
-                                    </span>
-                                  )}
+                                  <span 
+                                    className={`text-[9px] px-1 py-0.2 rounded font-mono ${isSelected ? 'bg-blue-800 text-blue-200' : 'bg-slate-200 text-slate-500'}`}
+                                  >
+                                    OTP
+                                  </span>
                                 </button>
                               );
                             })}
@@ -513,6 +1032,26 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                       ))}
                     </div>
                   </div>
+
+                  {/* Principal Sign Up Prompt */}
+                  {selectedRole === 'PRINCIPAL' && (
+                    <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 flex items-center justify-between text-xs text-amber-900">
+                      <div className="flex items-center gap-2">
+                        <Crown className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>Registering as new Principal?</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthMode('PRINCIPAL_SIGN_UP');
+                          setErrorMsg(null);
+                        }}
+                        className="font-bold text-amber-800 hover:text-amber-950 underline cursor-pointer"
+                      >
+                        Sign Up with Master Code
+                      </button>
+                    </div>
+                  )}
 
                   {/* Error Message */}
                   <AnimatePresence>
@@ -535,14 +1074,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-xs font-semibold text-slate-700">
-                          {requiresEmailOtp ? 'Institutional Email (Sends OTP via Gmail)' : 'Account ID, Email, or Phone'}
+                          Institutional Email (Receives Live Gmail OTP) *
                         </label>
-                        {requiresEmailOtp && (
-                          <span className="text-[10px] text-blue-600 font-semibold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 flex items-center gap-1">
-                            <Mail className="w-3 h-3" />
-                            <span>Gmail OTP Required</span>
-                          </span>
-                        )}
+                        <span className="text-[10px] text-blue-600 font-semibold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 flex items-center gap-1">
+                          <Mail className="w-3 h-3" />
+                          <span>Strict Live Gmail OTP</span>
+                        </span>
                       </div>
                       <div className="relative">
                         <input
@@ -552,7 +1089,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                             setIdentifier(e.target.value);
                             if (errorMsg) setErrorMsg(null);
                           }}
-                          placeholder={`e.g. ${currentRoleMeta.hintId}`}
+                          placeholder={`e.g. ${currentRoleMeta.hintId} or your Gmail`}
                           className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                         />
                         <UserCheck className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
@@ -567,8 +1104,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                         )}
                       </div>
                       <p className="text-[11px] text-slate-400 mt-1 flex items-center justify-between">
-                        <span>Authorized ID: <strong className="text-slate-600 font-mono">{currentRoleMeta.hintId}</strong></span>
+                        <span>Role Email: <strong className="text-slate-600 font-mono">{currentRoleMeta.hintId}</strong></span>
                         <span className="text-[10px] text-blue-600 font-medium">{currentRoleMeta.description}</span>
+                      </p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">
+                        Tip: You may enter your active Gmail address (e.g. nexgriddigital@gmail.com) to receive the live code in your inbox.
                       </p>
                     </div>
 
@@ -672,7 +1212,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                       <div className="space-y-0.5">
                         <p className="font-bold text-amber-950">Credential Security Protocol:</p>
                         <p className="text-[11px] text-amber-800 leading-relaxed">
-                          Student & Staff password resets are strictly permitted only via the <strong>Finance Office</strong>, <strong>Registrar</strong>, or <strong>Principal</strong> upon identity verification.
+                          All logins strictly require 6-digit email OTP verification. Codes are dispatched live via Google Workspace Gmail API integration.
                         </p>
                       </div>
                     </div>
@@ -680,7 +1220,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                     {/* Submit Button with Dynamic Animation */}
                     <motion.button
                       type="submit"
-                      disabled={isLoading || isSuccess}
+                      disabled={isLoading || isSuccess || isSendingGmail}
                       whileHover={!isLoading && !isSuccess ? { scale: 1.01 } : {}}
                       whileTap={!isLoading && !isSuccess ? { scale: 0.99 } : {}}
                       className={`w-full py-3 px-4 rounded-xl text-sm font-semibold shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer ${
@@ -689,14 +1229,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                           : 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white'
                       }`}
                     >
-                      {isLoading ? (
+                      {isLoading || isSendingGmail ? (
                         <div className="flex items-center gap-2">
                           <motion.div
                             animate={{ rotate: 360 }}
                             transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
                             className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
                           />
-                          <span>{requiresEmailOtp ? 'Preparing Gmail OTP...' : 'Verifying Credentials...'}</span>
+                          <span>Dispatching Real Gmail OTP...</span>
                         </div>
                       ) : isSuccess ? (
                         <motion.div
@@ -709,17 +1249,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                         </motion.div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          {requiresEmailOtp ? (
-                            <>
-                              <Mail className="w-4 h-4" />
-                              <span>{isGoogleConnected ? 'Send OTP via Gmail & Verify' : 'Verify & Send Email OTP'}</span>
-                            </>
-                          ) : (
-                            <>
-                              <KeyRound className="w-4 h-4" />
-                              <span>Sign In to {currentRoleMeta.label}</span>
-                            </>
-                          )}
+                          <Mail className="w-4 h-4" />
+                          <span>Send OTP via Gmail & Verify</span>
                           <ArrowRight className="w-4 h-4" />
                         </div>
                       )}
@@ -730,8 +1261,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
             </AnimatePresence>
           </div>
 
-          {/* Login Card Watermark & Legal Footer */}
-          <div className="bg-slate-50/80 border-t border-slate-100 px-6 py-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+          {/* Login Card Watermark & Legal Footer - STRICTLY UNDER LOGIN CARD ONLY */}
+          <div className="bg-slate-50/90 border-t border-slate-100 px-6 py-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
             <div className="flex items-center gap-1.5 font-medium text-slate-700">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
               <span>Designed and Developed by NexGrid Digital Systems</span>
@@ -769,7 +1300,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
         defaultIdentifier={identifier}
       />
 
-      {/* Institutional Templates & Portals Bottom Catalog */}
+      {/* Institutional Templates & Portals Bottom Catalog - STRICTLY UNDER LOGIN ONLY */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
         <AllTemplatesBottomSection />
       </div>

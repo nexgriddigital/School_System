@@ -209,20 +209,25 @@ export function generateInstructionsManualPdf({ schoolName, generatedBy = 'NexGr
 
   p2Y = addContentCard(
     p2Y,
-    '1.2 Gmail API One-Time Passcode (OTP) Dispatch',
-    'Administrative leadership roles (Registrar, Finance, Principal, Program Office, Counsellor) enforce 2-Step Verification using the Google Workspace Gmail API integration.',
+    '1.2 Principal Mastercode Registration & User Provisioning Lifecycle',
+    'To guarantee supreme institutional integrity, account creation follows a strict hierarchical protocol:',
     [
-      'In-Memory Token Security: OAuth access tokens are strictly held in volatile memory and never saved in persistent storage.',
-      'RFC-Compliant HTML Formatting: Dispatches branded verification emails with 6-digit codes and 5-minute expiration.',
-      'Pre-Send Confirmation Dialog: Mandatory user consent is enforced prior to dispatching emails via Gmail.',
-      'Fallback Mode: For local development and demonstration, instant preview passcodes are generated seamlessly.'
+      'Principal Mastercode Gateway: Registration for the School Principal is strictly gated by the exclusive institutional mastercode: "System_Principal". No other user can register a Principal account without this cryptographic key.',
+      'Principal-Led User Creation: Users other than the Principal are created exclusively by the Principal. Once details (Email, Position, Role, Department) are submitted, the system automatically creates a secure Temporary Password.',
+      'Automated Gmail Dispatch: The temporary credentials and portal guidelines are automatically emailed to the new user via the connected Google Workspace Gmail service.',
+      'Mandatory Password Change on First Login: Newly provisioned users are flagged with mandatory first-login password update. Upon entering their temporary credentials and verifying their Gmail OTP, they are required to set their permanent password before accessing their dashboard.'
     ]
   );
 
   p2Y = addContentCard(
     p2Y,
-    '1.3 Strict Credential Reset Protocol',
-    'To prevent unauthorized account takeovers, student and faculty password resets are strictly forbidden for general staff. Resets are hard-coded to require authorization from only three designated authorities: Finance Office, Registrar, or Principal.'
+    '1.3 Strict Gmail OTP Multi-Factor Authentication',
+    'All system access is strictly authenticated through Multi-Factor Authentication via live Gmail OTP:',
+    [
+      'Live OTP Delivery: Instant 6-digit cryptographic verification codes are sent directly to the user\'s registered Gmail inbox.',
+      'Volatile Token Memory: OAuth access tokens and credentials are held exclusively in volatile runtime memory.',
+      'Anti-Tamper Audit Trail: All authentication attempts, code dispatches, and password updates maintain immutable audit stamps.'
+    ]
   );
 
   // ==========================================

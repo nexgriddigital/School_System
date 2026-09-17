@@ -45,8 +45,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
     currentUser,
     isAuthenticated,
     logout,
-    resetUserPassword,
-    setShowTemplatesModal
+    resetUserPassword
   } = useSchool();
 
   const [showNoticeDropdown, setShowNoticeDropdown] = useState(false);
@@ -327,15 +326,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
                     <span>System Manual</span>
                   </button>
                 )}
-
-                <button
-                  onClick={() => setShowTemplatesModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow transition cursor-pointer"
-                  title="Browse all 8 institutional templates"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">System Templates</span>
-                </button>
 
                 <button
                   onClick={logout}

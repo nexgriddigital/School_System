@@ -221,3 +221,166 @@ export async function sendOtpEmailViaGmail({
   const data = await response.json();
   return { success: true, messageId: data.id };
 }
+
+/**
+ * Dispatches an official Account Provisioning email with an Automatic Temporary Password via Gmail REST API
+ */
+export async function sendTemporaryPasswordEmailViaGmail({
+  recipientEmail,
+  recipientName,
+  roleName,
+  positionTitle,
+  tempPassword,
+  schoolName,
+  senderName,
+}: {
+  recipientEmail: string;
+  recipientName: string;
+  roleName: string;
+  positionTitle: string;
+  tempPassword: string;
+  schoolName: string;
+  senderName?: string;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  if (!cachedAccessToken) {
+    throw new Error('Gmail authorization required. Please connect your Gmail sender account first.');
+  }
+
+  const subject = `${schoolName} - Account Credentials: Temporary Password for ${positionTitle}`;
+
+  const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${subject}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; padding: 30px 10px;">
+    <tr>
+      <td align="center">
+        <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;">
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #0B192C 0%, #1E3E62 100%); padding: 32px 30px; text-align: center;">
+              <h1 style="margin: 0; font-size: 24px; color: #ffffff; font-weight: 700; letter-spacing: 0.5px;">${schoolName}</h1>
+              <p style="margin: 6px 0 0 0; font-size: 13px; color: #93c5fd; font-weight: 500;">Executive Office of the Principal • User Credential Provisioning</p>
+            </td>
+          </tr>
+          
+          <!-- Content Body -->
+          <tr>
+            <td style="padding: 32px 36px;">
+              <p style="font-size: 16px; margin: 0 0 16px 0; color: #1e293b; font-weight: 600;">Dear ${recipientName},</p>
+              <p style="font-size: 14px; margin: 0 0 20px 0; color: #475569; line-height: 1.6;">
+                The Office of the Principal has provisioned an authorized institutional account for you at <strong>${schoolName}</strong>. Your position and initial access credentials are provided below.
+              </p>
+              
+              <!-- Credentials Summary Box -->
+              <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; margin: 20px 0;">
+                <table width="100%" border="0" cellspacing="0" cellpadding="6">
+                  <tr>
+                    <td width="38%" style="font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase;">Assigned Role:</td>
+                    <td style="font-size: 14px; color: #0f172a; font-weight: 700;">${roleName}</td>
+                  </tr>
+                  <tr>
+                    <td style="font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase;">Official Position:</td>
+                    <td style="font-size: 14px; color: #0f172a; font-weight: 600;">${positionTitle}</td>
+                  </tr>
+                  <tr>
+                    <td style="font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase;">Login Identifier / Email:</td>
+                    <td style="font-size: 14px; color: #0284c7; font-weight: 700; font-family: monospace;">${recipientEmail}</td>
+                  </tr>
+                </table>
+              </div>
+
+              <!-- Automatic Temporary Password Display -->
+              <div style="background-color: #eff6ff; border: 2px dashed #60a5fa; border-radius: 12px; padding: 22px; text-align: center; margin: 24px 0;">
+                <span style="display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #2563eb; font-weight: 700; margin-bottom: 8px;">
+                  Automatic Temporary Password
+                </span>
+                <span style="display: inline-block; font-family: 'Courier New', Courier, monospace; font-size: 28px; font-weight: 800; color: #1e3a8a; letter-spacing: 3px; padding: 6px 14px; background: #ffffff; border-radius: 8px; border: 1px solid #bfdbfe;">
+                  ${tempPassword}
+                </span>
+                <p style="margin: 12px 0 0 0; font-size: 12px; color: #1e40af; font-weight: 500;">
+                  Copy or memorize this temporary password for your initial sign-in.
+                </p>
+              </div>
+
+              <!-- First Login Policy Notice -->
+              <div style="background-color: #fefce8; border-left: 4px solid #eab308; padding: 14px 18px; border-radius: 6px; margin: 24px 0;">
+                <p style="margin: 0 0 6px 0; font-size: 13px; color: #713f12; font-weight: 700;">
+                  ⚠️ Mandatory First-Login Password Change Protocol
+                </p>
+                <p style="margin: 0; font-size: 12px; color: #854d0e; line-height: 1.5;">
+                  For institutional information security, <strong>you must change this temporary password immediately upon your first login</strong>. You will be prompted to choose a permanent, secure personal password after passing Gmail OTP verification.
+                </p>
+              </div>
+
+              <!-- Instructions -->
+              <div style="margin: 20px 0;">
+                <p style="font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 8px;">First-Time Sign-In Steps:</p>
+                <ol style="font-size: 12px; color: #475569; padding-left: 20px; line-height: 1.7; margin: 0;">
+                  <li>Visit the <strong>${schoolName}</strong> Unified Portal.</li>
+                  <li>Enter your assigned email (<strong>${recipientEmail}</strong>) and your temporary password.</li>
+                  <li>Check your Gmail inbox for the live 6-digit OTP verification code.</li>
+                  <li>When prompted on screen, enter your new personal password to unlock your workspace.</li>
+                </ol>
+              </div>
+
+              <p style="font-size: 12px; color: #94a3b8; margin: 28px 0 0 0; line-height: 1.5;">
+                If you have any questions regarding your role or department assignment, please contact the Office of the Principal directly.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0;">
+              <p style="margin: 0; font-size: 11px; color: #94a3b8;">
+                Dispatched via Google Workspace Gmail API integration &bull; ${schoolName} &bull; NexGrid Digital Systems
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
+
+  const emailLines = [
+    `To: ${recipientEmail}`,
+    ...(senderName ? [`From: "${senderName}" <me>`] : ['From: <me>']),
+    `Subject: =?utf-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=UTF-8',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    htmlBody,
+  ];
+
+  const rawEmail = emailLines.join('\r\n');
+  const encodedRaw = base64UrlEncode(rawEmail);
+
+  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${cachedAccessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      raw: encodedRaw,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    console.error('Gmail API credential send error:', errorData);
+    throw new Error(errorData?.error?.message || `Failed to dispatch temporary password email via Gmail (Status: ${response.status})`);
+  }
+
+  const data = await response.json();
+  return { success: true, messageId: data.id };
+}

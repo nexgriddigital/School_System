@@ -281,3 +281,28 @@ export interface BankStatementRow {
   matchedInvoiceId?: string;
   status: 'UNMATCHED' | 'MATCHED_PENDING' | 'RECONCILED';
 }
+
+export interface InstitutionalUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  position: string;
+  department?: string;
+  password?: string;
+  temporaryPassword?: string;
+  isTemporaryPassword?: boolean;
+  mustChangePasswordOnFirstLogin?: boolean;
+  createdAt: string;
+  createdBy: string;
+  phone?: string;
+  extraCredentials?: {
+    subject?: string;
+    grade?: AcademicGrade;
+    stream?: AcademicStream;
+    section?: string;
+    studentId?: string;
+    homeroomSection?: string;
+    officeLocation?: string;
+  };
+}
