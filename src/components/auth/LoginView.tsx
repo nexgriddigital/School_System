@@ -92,9 +92,11 @@ export const LoginView: React.FC = () => {
         setGoogleUser(result.user);
         setIsGoogleConnected(true);
       }
+      // If result is null, the user cancelled or closed the popup without signing in
     } catch (error: any) {
-      console.error('Failed to connect Google account:', error);
-      setErrorMsg(error?.message || 'Could not connect Google account. Check permissions.');
+      if (error?.message && !error.message.includes('popup-closed')) {
+        setErrorMsg(error.message);
+      }
     } finally {
       setIsConnectingGoogle(false);
     }

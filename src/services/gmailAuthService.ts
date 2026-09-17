@@ -50,8 +50,18 @@ export const signInWithGoogle = async (): Promise<{ user: User; accessToken: str
     }
     cachedAccessToken = credential.accessToken;
     return { user: result.user, accessToken: cachedAccessToken };
-  } catch (error) {
-    console.error('Google Sign-in error:', error);
+  } catch (error: any) {
+    // Gracefully handle user closing or dismissing the popup
+    if (error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/cancelled-popup-request') {
+      return null;
+    }
+    if (error?.code === 'auth/popup-blocked') {
+      throw new Error('Google sign-in popup was blocked by browser. Please allow popups or open in a new tab.');
+    }
+    if (error?.code === 'auth/unauthorized-domain') {
+      throw new Error('This preview domain is awaiting authorization in Firebase Console. You can use instant OTP passcodes in preview mode.');
+    }
+    console.warn('Google sign-in notification:', error?.message || error);
     throw error;
   } finally {
     isSigningIn = false;
