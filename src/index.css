@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .font-oskar {
+    font-family: 'Big Shoulders Display', 'Syne', system-ui, sans-serif;
+    letter-spacing: 0.04em;
+  }
+  .font-oskar-vintage {
+    font-family: 'Big Shoulders Display', 'Josefin Sans', 'Syne', system-ui, sans-serif;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .font-specimen {
+    font-family: 'Big Shoulders Display', 'Cinzel', 'Josefin Sans', sans-serif;
+    letter-spacing: 0.06em;
+  }
+}
+
+/* Custom scrollbar and print styles for certificates and receipts */
+@media print {
+  body {
+    background: white !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}
