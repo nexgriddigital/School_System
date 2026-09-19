@@ -18,9 +18,11 @@ import {
   Edit3,
   Eye,
   FileText,
-  UserPlus
+  UserPlus,
+  ShieldAlert
 } from 'lucide-react';
 import { UserProvisioningTab } from './UserProvisioningTab';
+import { MasterResetModal } from './MasterResetModal';
 
 export const PrincipalView: React.FC = () => {
   const { 
@@ -45,6 +47,8 @@ export const PrincipalView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'AUTHORIZATIONS' | 'USER_PROVISIONING' | 'BROADCAST' | 'TEACHER_MANAGEMENT' | 'DISCIPLINARY_REVERSAL' | 'INSTITUTION_SETTINGS'>('AUTHORIZATIONS');
   const [customNameInput, setCustomNameInput] = useState(schoolName);
   const [savedNameNotice, setSavedNameNotice] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [resetSuccessBanner, setResetSuccessBanner] = useState(false);
 
   // Broadcast Notice Form State
   const [noticeTitle, setNoticeTitle] = useState('');
@@ -86,6 +90,19 @@ export const PrincipalView: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* System Master Reset Success Banner */}
+      {resetSuccessBanner && (
+        <div className="p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-500 shadow-sm flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-emerald-950">
+            <p className="font-bold text-sm text-emerald-900">System Master Reset Successfully Executed!</p>
+            <p className="mt-0.5 text-emerald-800">
+              All student enrollments, sections, marks, tuition invoices, CBE/Telebirr reconciliations, notices, and user accounts have been restored to initial factory defaults at the Principal&apos;s touch.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Principal Header */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
@@ -166,6 +183,16 @@ export const PrincipalView: React.FC = () => {
             >
               <Settings className="w-3.5 h-3.5" />
               School Name & Branding
+            </button>
+
+            {/* Principal Touch: Master Reset Everything */}
+            <button
+              onClick={() => setIsResetModalOpen(true)}
+              className="px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 bg-rose-50 text-rose-700 hover:bg-rose-600 hover:text-white border border-rose-200 hover:border-rose-600 transition shadow-xs cursor-pointer ml-auto active:scale-95 group"
+              title="Principal Executive Touch: Reset Entire System to Factory Defaults"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-rose-500 group-hover:text-white group-hover:rotate-180 transition-transform duration-300" />
+              <span>Reset Everything</span>
             </button>
           </div>
         </div>
@@ -704,15 +731,60 @@ export const PrincipalView: React.FC = () => {
                 </p>
               </div>
             </div>
+
+            {/* Master System Reset & Factory Disaster Recovery Card */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-rose-200 space-y-4">
+              <div className="flex items-center justify-between border-b border-rose-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center">
+                    <ShieldAlert className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-oskar text-base font-bold text-slate-900 tracking-wide">
+                      Master System Reset & Institutional Rollback
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Principal exclusive touch command to wipe all active changes and restore factory demonstration defaults.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-rose-50/70 rounded-xl border border-rose-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1 max-w-xl text-xs text-rose-950">
+                  <p className="font-bold">Need a complete clean slate or term re-initialization?</p>
+                  <p className="text-rose-800 text-[11px]">
+                    This action immediately clears all registered scholars, grades, bank reconciliations, custom passwords, notices, and homeroom allocations back to pristine initial state.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setIsResetModalOpen(true)}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition active:scale-98 whitespace-nowrap cursor-pointer"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Reset Everything Now</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {/* TAB 0: USER PROVISIONING & TEMPORARY PASSWORD MANAGEMENT */}
       {activeTab === 'USER_PROVISIONING' && (
-        <UserProvisioningTab />
+        <UserProvisioningTab onOpenResetModal={() => setIsResetModalOpen(true)} />
       )}
 
+      {/* Principal Touch: Master Reset Modal */}
+      <MasterResetModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onSuccess={() => {
+          setResetSuccessBanner(true);
+          setTimeout(() => setResetSuccessBanner(false), 7000);
+        }}
+      />
     </div>
   );
 };

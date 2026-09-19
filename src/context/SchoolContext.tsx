@@ -173,6 +173,9 @@ interface SchoolContextType {
   }) => void;
   closeDocumentViewer: () => void;
 
+  // Principal Touch: Executive Master System Reset
+  resetEverything: (options?: { keepPrincipalLoggedIn?: boolean }) => void;
+
   // View Helper / Alias methods
   markAttendance?: (studentId: string, date: string, status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED', sectionId: string) => void;
   saveGrade?: (gradeData: any) => void;
@@ -259,6 +262,180 @@ export const getRolePersona = (role: UserRole) => {
       };
   }
 };
+
+export const INITIAL_CHAT_MESSAGES: ChatMessage[] = [
+  // 1. Homeroom Teacher Thread (Ato Dawit Lemma)
+  {
+    id: 'CM-01',
+    senderRole: 'PARENT',
+    senderName: 'Melaku Tadesse Gebre',
+    recipientRole: 'TEACHER',
+    recipientName: 'Ato Dawit Lemma (Homeroom 9A)',
+    studentId: 'OSK-2026-0901',
+    channelId: 'TEACHER_HOMEROOM',
+    timestamp: 'Sep 14, 10:15 AM',
+    text: 'Good morning Ato Dawit, I wanted to inquire how Yared is adjusting to the new 9th Grade Algebra curriculum?',
+    status: 'read',
+    isRead: true,
+  },
+  {
+    id: 'CM-02',
+    senderRole: 'TEACHER',
+    senderName: 'Ato Dawit Lemma (Homeroom 9A)',
+    recipientRole: 'PARENT',
+    recipientName: 'Melaku Tadesse Gebre',
+    studentId: 'OSK-2026-0901',
+    channelId: 'TEACHER_HOMEROOM',
+    timestamp: 'Sep 14, 11:30 AM',
+    text: 'Greetings Ato Melaku. Yared scored 23/25 on Test 1 and participates actively in class. He is demonstrating excellent focus and analytical capability!',
+    status: 'read',
+    isRead: true,
+  },
+  {
+    id: 'CM-03',
+    senderRole: 'PARENT',
+    senderName: 'Melaku Tadesse Gebre',
+    recipientRole: 'TEACHER',
+    recipientName: 'Ato Dawit Lemma (Homeroom 9A)',
+    studentId: 'OSK-2026-0901',
+    channelId: 'TEACHER_HOMEROOM',
+    timestamp: 'Today, 09:10 AM',
+    text: 'Thank you for the reassuring feedback! Will there be any supplemental reading material provided for next week’s mid-term prep?',
+    status: 'delivered',
+    isRead: false,
+  },
+
+  // 2. Principal & Headmaster Office Thread (Prof. Mengistu Haile)
+  {
+    id: 'CM-PR-01',
+    senderRole: 'PRINCIPAL',
+    senderName: 'Prof. Mengistu Haile (Headmaster & Principal)',
+    recipientRole: 'PARENT',
+    recipientName: 'Melaku Tadesse Gebre',
+    studentId: 'OSK-2026-0901',
+    channelId: 'OFFICE_PRINCIPAL',
+    timestamp: 'Sep 10, 08:30 AM',
+    text: 'Welcome to the 2026/27 Academic Year! The Executive Office is committed to academic rigor and character building. Please review our institutional guidelines and feel free to reach out for formal administrative consultations.',
+    status: 'read',
+    isRead: true,
+  },
+
+  // 3. Finance & Bursar Office Thread (Ato Tamrat Bekele)
+  {
+    id: 'CM-FN-01',
+    senderRole: 'FINANCE',
+    senderName: 'Ato Tamrat Bekele (Chief Bursar & Finance)',
+    recipientRole: 'PARENT',
+    recipientName: 'Melaku Tadesse Gebre',
+    studentId: 'OSK-2026-0901',
+    channelId: 'OFFICE_FINANCE',
+    timestamp: 'Sep 12, 11:00 AM',
+    text: 'Finance Office Notice: Term 1 tuition invoice (4,200 ETB) has been billed. Bank deposit slips from CBE or Telebirr can be submitted directly here or via the Tuition tab. Digital stamped receipts will be released immediately upon reconciliation.',
+    status: 'read',
+    isRead: true,
+  },
+
+  // 4. Admissions & Registrar Office Thread (W/ro Genet Assefa)
+  {
+    id: 'CM-RG-01',
+    senderRole: 'REGISTRAR',
+    senderName: 'W/ro Genet Assefa (Chief Admissions Officer)',
+    recipientRole: 'PARENT',
+    recipientName: 'Melaku Tadesse Gebre',
+    studentId: 'OSK-2026-0901',
+    channelId: 'OFFICE_REGISTRAR',
+    timestamp: 'Sep 08, 02:15 PM',
+    text: 'Admissions & Records: Yared Melaku’s 8th-grade national certification documents have been officially authenticated and cataloged in the SIS archive. Digital student ID card is fully active.',
+    status: 'read',
+    isRead: true,
+  },
+
+  // 5. Academic Program Office Thread (Dr. Yared Kassa)
+  {
+    id: 'CM-PO-01',
+    senderRole: 'PROGRAM_OFFICE',
+    senderName: 'Dr. Yared Kassa (Head of Academic Program)',
+    recipientRole: 'PARENT',
+    recipientName: 'Melaku Tadesse Gebre',
+    studentId: 'OSK-2026-0901',
+    channelId: 'OFFICE_PROGRAM_OFFICE',
+    timestamp: 'Sep 13, 04:00 PM',
+    text: 'Curriculum Advisory: The Grade 9 Semester 1 examination timetable and laboratory rotation schedules are finalized. All scholars must adhere to the 15-day stream assignment policy.',
+    status: 'read',
+    isRead: true,
+  },
+
+  // 6. Guidance & Counselling Office Thread (Dr. Bethlehem Tadesse)
+  {
+    id: 'CM-CS-01',
+    senderRole: 'COUNSELLOR',
+    senderName: 'Dr. Bethlehem Tadesse (Lead Guidance Counsellor)',
+    recipientRole: 'PARENT',
+    recipientName: 'Melaku Tadesse Gebre',
+    studentId: 'OSK-2026-0901',
+    channelId: 'OFFICE_COUNSELLOR',
+    timestamp: 'Sep 11, 03:20 PM',
+    text: 'Warm greetings from Pastoral Care. We are here to support your scholar’s personal wellbeing, study habits, and transition into high school. Feel free to request confidential consultations at any time.',
+    status: 'read',
+    isRead: true,
+  },
+
+  // 7. 24/7 Smart School AI Assistant Thread
+  {
+    id: 'CM-AI-01',
+    senderRole: 'REGISTRAR',
+    senderName: '🤖 Oskar Smart School SIS Bot',
+    recipientRole: 'PARENT',
+    recipientName: 'Melaku Tadesse Gebre',
+    studentId: 'OSK-2026-0901',
+    channelId: 'AI_SCHOOL_BOT',
+    timestamp: 'Today, 08:00 AM',
+    text: 'Hello Ato Melaku! I am the Oskar Academy 24/7 SIS Assistant Bot. You can ask me about Yared’s tuition balance, latest exam scores, attendance records, school bus schedules, or request me to route a message to his teachers or any school office!',
+    status: 'read',
+    isRead: true,
+  },
+
+  // Additional Teacher / Class Parents sample threads
+  {
+    id: 'CM-04',
+    senderRole: 'PARENT',
+    senderName: 'Hailemariam Mengistu',
+    recipientRole: 'TEACHER',
+    recipientName: 'Ato Dawit Lemma',
+    studentId: 'OSK-2026-0902',
+    channelId: 'PARENT_OSK-2026-0902',
+    timestamp: 'Yesterday, 04:20 PM',
+    text: 'Ato Dawit, Sara informed us she was selected for the Inter-School Science Olympiad squad. We are very proud and appreciate your mentorship!',
+    status: 'read',
+    isRead: true,
+  },
+  {
+    id: 'CM-05',
+    senderRole: 'TEACHER',
+    senderName: 'Ato Dawit Lemma (Homeroom 9A)',
+    recipientRole: 'PARENT',
+    recipientName: 'Hailemariam Mengistu',
+    studentId: 'OSK-2026-0902',
+    channelId: 'PARENT_OSK-2026-0902',
+    timestamp: 'Yesterday, 05:05 PM',
+    text: 'Indeed, Ato Hailemariam! Sara demonstrated exceptional scientific problem-solving in the lab assessments. Practice sessions will be on Tuesdays.',
+    status: 'read',
+    isRead: true,
+  },
+  {
+    id: 'CM-06',
+    senderRole: 'PARENT',
+    senderName: 'Martha Gebeyehu',
+    recipientRole: 'TEACHER',
+    recipientName: 'Ato Dawit Lemma',
+    studentId: 'OSK-2026-1101',
+    channelId: 'PARENT_OSK-2026-1101',
+    timestamp: 'Sep 12, 02:45 PM',
+    text: 'Greetings teacher. Dawit confirmed his Natural Science stream allocation. Thank you for signing the approval advisory.',
+    status: 'read',
+    isRead: true,
+  },
+];
 
 export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load initial states from LocalStorage or seed defaults
@@ -363,179 +540,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // fallback
       }
     }
-    return [
-      // 1. Homeroom Teacher Thread (Ato Dawit Lemma)
-      {
-        id: 'CM-01',
-        senderRole: 'PARENT',
-        senderName: 'Melaku Tadesse Gebre',
-        recipientRole: 'TEACHER',
-        recipientName: 'Ato Dawit Lemma (Homeroom 9A)',
-        studentId: 'OSK-2026-0901',
-        channelId: 'TEACHER_HOMEROOM',
-        timestamp: 'Sep 14, 10:15 AM',
-        text: 'Good morning Ato Dawit, I wanted to inquire how Yared is adjusting to the new 9th Grade Algebra curriculum?',
-        status: 'read',
-        isRead: true,
-      },
-      {
-        id: 'CM-02',
-        senderRole: 'TEACHER',
-        senderName: 'Ato Dawit Lemma (Homeroom 9A)',
-        recipientRole: 'PARENT',
-        recipientName: 'Melaku Tadesse Gebre',
-        studentId: 'OSK-2026-0901',
-        channelId: 'TEACHER_HOMEROOM',
-        timestamp: 'Sep 14, 11:30 AM',
-        text: 'Greetings Ato Melaku. Yared scored 23/25 on Test 1 and participates actively in class. He is demonstrating excellent focus and analytical capability!',
-        status: 'read',
-        isRead: true,
-      },
-      {
-        id: 'CM-03',
-        senderRole: 'PARENT',
-        senderName: 'Melaku Tadesse Gebre',
-        recipientRole: 'TEACHER',
-        recipientName: 'Ato Dawit Lemma (Homeroom 9A)',
-        studentId: 'OSK-2026-0901',
-        channelId: 'TEACHER_HOMEROOM',
-        timestamp: 'Today, 09:10 AM',
-        text: 'Thank you for the reassuring feedback! Will there be any supplemental reading material provided for next week’s mid-term prep?',
-        status: 'delivered',
-        isRead: false,
-      },
-
-      // 2. Principal & Headmaster Office Thread (Prof. Mengistu Haile)
-      {
-        id: 'CM-PR-01',
-        senderRole: 'PRINCIPAL',
-        senderName: 'Prof. Mengistu Haile (Headmaster & Principal)',
-        recipientRole: 'PARENT',
-        recipientName: 'Melaku Tadesse Gebre',
-        studentId: 'OSK-2026-0901',
-        channelId: 'OFFICE_PRINCIPAL',
-        timestamp: 'Sep 10, 08:30 AM',
-        text: 'Welcome to the 2026/27 Academic Year! The Executive Office is committed to academic rigor and character building. Please review our institutional guidelines and feel free to reach out for formal administrative consultations.',
-        status: 'read',
-        isRead: true,
-      },
-
-      // 3. Finance & Bursar Office Thread (Ato Tamrat Bekele)
-      {
-        id: 'CM-FN-01',
-        senderRole: 'FINANCE',
-        senderName: 'Ato Tamrat Bekele (Chief Bursar & Finance)',
-        recipientRole: 'PARENT',
-        recipientName: 'Melaku Tadesse Gebre',
-        studentId: 'OSK-2026-0901',
-        channelId: 'OFFICE_FINANCE',
-        timestamp: 'Sep 12, 11:00 AM',
-        text: 'Finance Office Notice: Term 1 tuition invoice (4,200 ETB) has been billed. Bank deposit slips from CBE or Telebirr can be submitted directly here or via the Tuition tab. Digital stamped receipts will be released immediately upon reconciliation.',
-        status: 'read',
-        isRead: true,
-      },
-
-      // 4. Admissions & Registrar Office Thread (W/ro Genet Assefa)
-      {
-        id: 'CM-RG-01',
-        senderRole: 'REGISTRAR',
-        senderName: 'W/ro Genet Assefa (Chief Admissions Officer)',
-        recipientRole: 'PARENT',
-        recipientName: 'Melaku Tadesse Gebre',
-        studentId: 'OSK-2026-0901',
-        channelId: 'OFFICE_REGISTRAR',
-        timestamp: 'Sep 08, 02:15 PM',
-        text: 'Admissions & Records: Yared Melaku’s 8th-grade national certification documents have been officially authenticated and cataloged in the SIS archive. Digital student ID card is fully active.',
-        status: 'read',
-        isRead: true,
-      },
-
-      // 5. Academic Program Office Thread (Dr. Yared Kassa)
-      {
-        id: 'CM-PO-01',
-        senderRole: 'PROGRAM_OFFICE',
-        senderName: 'Dr. Yared Kassa (Head of Academic Program)',
-        recipientRole: 'PARENT',
-        recipientName: 'Melaku Tadesse Gebre',
-        studentId: 'OSK-2026-0901',
-        channelId: 'OFFICE_PROGRAM_OFFICE',
-        timestamp: 'Sep 13, 04:00 PM',
-        text: 'Curriculum Advisory: The Grade 9 Semester 1 examination timetable and laboratory rotation schedules are finalized. All scholars must adhere to the 15-day stream assignment policy.',
-        status: 'read',
-        isRead: true,
-      },
-
-      // 6. Guidance & Counselling Office Thread (Dr. Bethlehem Tadesse)
-      {
-        id: 'CM-CS-01',
-        senderRole: 'COUNSELLOR',
-        senderName: 'Dr. Bethlehem Tadesse (Lead Guidance Counsellor)',
-        recipientRole: 'PARENT',
-        recipientName: 'Melaku Tadesse Gebre',
-        studentId: 'OSK-2026-0901',
-        channelId: 'OFFICE_COUNSELLOR',
-        timestamp: 'Sep 11, 03:20 PM',
-        text: 'Warm greetings from Pastoral Care. We are here to support your scholar’s personal wellbeing, study habits, and transition into high school. Feel free to request confidential consultations at any time.',
-        status: 'read',
-        isRead: true,
-      },
-
-      // 7. 24/7 Smart School AI Assistant Thread
-      {
-        id: 'CM-AI-01',
-        senderRole: 'REGISTRAR',
-        senderName: '🤖 Oskar Smart School SIS Bot',
-        recipientRole: 'PARENT',
-        recipientName: 'Melaku Tadesse Gebre',
-        studentId: 'OSK-2026-0901',
-        channelId: 'AI_SCHOOL_BOT',
-        timestamp: 'Today, 08:00 AM',
-        text: 'Hello Ato Melaku! I am the Oskar Academy 24/7 SIS Assistant Bot. You can ask me about Yared’s tuition balance, latest exam scores, attendance records, school bus schedules, or request me to route a message to his teachers or any school office!',
-        status: 'read',
-        isRead: true,
-      },
-
-      // Additional Teacher / Class Parents sample threads
-      {
-        id: 'CM-04',
-        senderRole: 'PARENT',
-        senderName: 'Hailemariam Mengistu',
-        recipientRole: 'TEACHER',
-        recipientName: 'Ato Dawit Lemma',
-        studentId: 'OSK-2026-0902',
-        channelId: 'PARENT_OSK-2026-0902',
-        timestamp: 'Yesterday, 04:20 PM',
-        text: 'Ato Dawit, Sara informed us she was selected for the Inter-School Science Olympiad squad. We are very proud and appreciate your mentorship!',
-        status: 'read',
-        isRead: true,
-      },
-      {
-        id: 'CM-05',
-        senderRole: 'TEACHER',
-        senderName: 'Ato Dawit Lemma (Homeroom 9A)',
-        recipientRole: 'PARENT',
-        recipientName: 'Hailemariam Mengistu',
-        studentId: 'OSK-2026-0902',
-        channelId: 'PARENT_OSK-2026-0902',
-        timestamp: 'Yesterday, 05:05 PM',
-        text: 'Indeed, Ato Hailemariam! Sara demonstrated exceptional scientific problem-solving in the lab assessments. Practice sessions will be on Tuesdays.',
-        status: 'read',
-        isRead: true,
-      },
-      {
-        id: 'CM-06',
-        senderRole: 'PARENT',
-        senderName: 'Martha Gebeyehu',
-        recipientRole: 'TEACHER',
-        recipientName: 'Ato Dawit Lemma',
-        studentId: 'OSK-2026-1101',
-        channelId: 'PARENT_OSK-2026-1101',
-        timestamp: 'Sep 12, 02:45 PM',
-        text: 'Greetings teacher. Dawit confirmed his Natural Science stream allocation. Thank you for signing the approval advisory.',
-        status: 'read',
-        isRead: true,
-      },
-    ];
+    return INITIAL_CHAT_MESSAGES;
   });
 
   // Modal selections
@@ -1871,6 +1876,116 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const resetEverything = (options?: { keepPrincipalLoggedIn?: boolean }) => {
+    // 1. Clear all LocalStorage keys used across the app
+    const keysToRemove = [
+      'oskar_school_students',
+      'oskar_school_sections',
+      'oskar_school_teachers',
+      'oskar_school_invoices',
+      'oskar_school_notices',
+      'oskar_school_dayoffs',
+      'oskar_school_disciplinary',
+      'oskar_school_recommendations',
+      'oskar_school_grades',
+      'oskar_school_evaluations',
+      'oskar_school_attendance',
+      'oskar_school_bankstatements',
+      'oskar_school_chat_messages',
+      'oskar_school_users',
+      'academy_school_name',
+      'oskar_school_auth',
+      'oskar_school_role',
+      'oskar_school_user',
+      'oskar_school_remember'
+    ];
+
+    keysToRemove.forEach(k => {
+      try {
+        localStorage.removeItem(k);
+      } catch (e) {
+        console.error(e);
+      }
+    });
+
+    // 2. Reset all in-memory React state to pristine clones of initial mock data
+    const cleanStudents = JSON.parse(JSON.stringify(INITIAL_STUDENTS));
+    const cleanSections = JSON.parse(JSON.stringify(INITIAL_SECTIONS));
+    const cleanTeachers = JSON.parse(JSON.stringify(INITIAL_TEACHERS));
+    const cleanInvoices = JSON.parse(JSON.stringify(INITIAL_INVOICES));
+    const cleanNotices = JSON.parse(JSON.stringify(INITIAL_NOTICES));
+    const cleanDayOffs = JSON.parse(JSON.stringify(INITIAL_TEACHER_DAY_OFFS));
+    const cleanDisciplinary = JSON.parse(JSON.stringify(INITIAL_DISCIPLINARY));
+    const cleanRecommendations = JSON.parse(JSON.stringify(INITIAL_RECOMMENDATIONS));
+    const cleanGrades = JSON.parse(JSON.stringify(INITIAL_GRADES));
+    const cleanEvaluations = JSON.parse(JSON.stringify(INITIAL_EVALUATIONS));
+    const cleanAttendance = JSON.parse(JSON.stringify(INITIAL_ATTENDANCE));
+    const cleanBank = JSON.parse(JSON.stringify(INITIAL_BANK_STATEMENT));
+    const cleanChat = JSON.parse(JSON.stringify(INITIAL_CHAT_MESSAGES));
+    const cleanUsers = JSON.parse(JSON.stringify(INITIAL_USERS));
+
+    setStudents(cleanStudents);
+    setSections(cleanSections);
+    setTeachers(cleanTeachers);
+    setInvoices(cleanInvoices);
+    setNotices(cleanNotices);
+    setDayOffRequests(cleanDayOffs);
+    setDisciplinaryActions(cleanDisciplinary);
+    setRecommendations(cleanRecommendations);
+    setGrades(cleanGrades);
+    setEvaluations(cleanEvaluations);
+    setAttendanceRecords(cleanAttendance);
+    setBankStatements(cleanBank);
+    setChatMessages(cleanChat);
+    setInstitutionalUsers(cleanUsers);
+    setSchoolNameState('Academy of Excellence');
+    setActiveStudentId('OSK-2026-0901');
+    setActiveTeacherId('TCH-01');
+    setSelectedStudentForIdCard(null);
+    setSelectedInvoiceForReceipt(null);
+    setActiveDocumentModal(null);
+
+    // 3. Re-seed clean defaults into localStorage immediately
+    try {
+      localStorage.setItem('oskar_school_students', JSON.stringify(cleanStudents));
+      localStorage.setItem('oskar_school_sections', JSON.stringify(cleanSections));
+      localStorage.setItem('oskar_school_teachers', JSON.stringify(cleanTeachers));
+      localStorage.setItem('oskar_school_invoices', JSON.stringify(cleanInvoices));
+      localStorage.setItem('oskar_school_notices', JSON.stringify(cleanNotices));
+      localStorage.setItem('oskar_school_dayoffs', JSON.stringify(cleanDayOffs));
+      localStorage.setItem('oskar_school_disciplinary', JSON.stringify(cleanDisciplinary));
+      localStorage.setItem('oskar_school_recommendations', JSON.stringify(cleanRecommendations));
+      localStorage.setItem('oskar_school_grades', JSON.stringify(cleanGrades));
+      localStorage.setItem('oskar_school_evaluations', JSON.stringify(cleanEvaluations));
+      localStorage.setItem('oskar_school_attendance', JSON.stringify(cleanAttendance));
+      localStorage.setItem('oskar_school_bankstatements', JSON.stringify(cleanBank));
+      localStorage.setItem('oskar_school_chat_messages', JSON.stringify(cleanChat));
+      localStorage.setItem('oskar_school_users', JSON.stringify(cleanUsers));
+      localStorage.setItem('academy_school_name', 'Academy of Excellence');
+    } catch (e) {
+      console.error(e);
+    }
+
+    // 4. Handle session: keep Principal authenticated unless explicitly requested otherwise
+    const keepPrincipal = options?.keepPrincipalLoggedIn !== false;
+    if (keepPrincipal) {
+      setCurrentRoleState('PRINCIPAL');
+      const principalUser = getRolePersona('PRINCIPAL');
+      setCurrentUser(principalUser);
+      setIsAuthenticated(true);
+      try {
+        localStorage.setItem('oskar_school_role', 'PRINCIPAL');
+        localStorage.setItem('oskar_school_user', JSON.stringify(principalUser));
+        localStorage.setItem('oskar_school_auth', 'true');
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+    }
+  };
+
   const launchTemplate = (role: UserRole) => {
     setCurrentRole(role);
     setShowTemplatesModal(false);
@@ -1969,6 +2084,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       activeDocumentModal,
       openDocumentViewer,
       closeDocumentViewer,
+      resetEverything,
     }}>
       {children}
     </SchoolContext.Provider>

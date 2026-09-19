@@ -25,12 +25,17 @@ import {
   Sparkles,
   Phone,
   Briefcase,
-  GraduationCap
+  GraduationCap,
+  RotateCcw
 } from 'lucide-react';
 import { downloadInstructionsManualPdf } from '../../services/manualPdfService';
 import { sendTemporaryPasswordEmailViaGmail } from '../../services/gmailAuthService';
 
-export const UserProvisioningTab: React.FC = () => {
+interface UserProvisioningTabProps {
+  onOpenResetModal?: () => void;
+}
+
+export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpenResetModal }) => {
   const { 
     schoolName, 
     currentUser, 
@@ -292,6 +297,17 @@ export const UserProvisioningTab: React.FC = () => {
               <Download className="w-4 h-4" />
               <span>Download Official Manual (PDF)</span>
             </button>
+
+            {onOpenResetModal && (
+              <button
+                onClick={onOpenResetModal}
+                className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-rose-700/80 hover:bg-rose-600 text-white font-bold text-xs shadow-md border border-rose-400/40 transition cursor-pointer"
+                title="Principal Executive Touch: Reset entire institution to factory demonstration state"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Reset Everything</span>
+              </button>
+            )}
           </div>
         </div>
 
