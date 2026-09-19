@@ -2,6 +2,7 @@ import React from 'react';
 import { useSchool } from '../../context/SchoolContext';
 import { Invoice } from '../../types';
 import { X, Download, Printer, CheckCircle, ShieldCheck } from 'lucide-react';
+import { SchoolMascotLogo } from './SchoolMascotLogo';
 
 interface ReceiptModalProps {
   invoice?: Invoice | null;
@@ -56,12 +57,15 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ invoice: propInvoice
 
             {/* School Receipt Top Brand */}
             <div className="flex items-start justify-between border-b-2 border-slate-900 pb-5">
-              <div>
-                <h1 className="font-oskar-vintage text-2xl font-black tracking-widest text-slate-900">
-                  {(schoolName || 'ACADEMY').toUpperCase()}
-                </h1>
-                <p className="text-xs text-slate-500 font-medium">Bole Sub-City, Addis Ababa, Ethiopia</p>
-                <p className="text-xs text-slate-400 font-mono">finance@school.edu • +251 11 551 2026</p>
+              <div className="flex items-center gap-3.5">
+                <SchoolMascotLogo size="lg" withBackground />
+                <div>
+                  <h1 className="font-oskar-vintage text-2xl font-black tracking-widest text-slate-900">
+                    {(schoolName || 'ACADEMY').toUpperCase()}
+                  </h1>
+                  <p className="text-xs text-slate-500 font-medium">Bole Sub-City, Addis Ababa, Ethiopia</p>
+                  <p className="text-xs text-slate-400 font-mono">finance@school.edu • +251 11 551 2026</p>
+                </div>
               </div>
               <div className="text-right">
                 <span className="inline-block px-2.5 py-1 bg-emerald-100 text-emerald-800 font-semibold text-xs rounded-full uppercase tracking-wider mb-1">

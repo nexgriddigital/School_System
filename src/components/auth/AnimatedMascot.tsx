@@ -108,10 +108,10 @@ export const AnimatedMascot: React.FC<AnimatedMascotProps> = ({
           <circle cx="96" cy="52" r="1.2" fill="#FFFFFF" />
         </motion.g>
 
-        {/* Glasses / Golden Scholar Rim */}
-        <circle cx="62" cy="50" r="14" stroke="#F59E0B" strokeWidth="2.5" fill="none" opacity="0.9" />
-        <circle cx="98" cy="50" r="14" stroke="#F59E0B" strokeWidth="2.5" fill="none" opacity="0.9" />
-        <line x1="76" y1="50" x2="84" y2="50" stroke="#F59E0B" strokeWidth="2.5" />
+        {/* Glasses / Golden Scholar Rim (Matching official mascot) */}
+        <circle cx="62" cy="50" r="14.5" stroke="#F59E0B" strokeWidth="2.6" fill="none" />
+        <circle cx="98" cy="50" r="14.5" stroke="#F59E0B" strokeWidth="2.6" fill="none" />
+        <path d="M 76 50 Q 80 47 84 50" stroke="#F59E0B" strokeWidth="2.8" strokeLinecap="round" fill="none" />
 
         {/* Cute Beak */}
         <motion.polygon

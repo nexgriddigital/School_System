@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Shield, FileText, Check, Download, Printer, X, Building2, Sparkles, AlertCircle } from 'lucide-react';
 import { useSchool } from '../../context/SchoolContext';
+import { SchoolMascotLogo } from './SchoolMascotLogo';
 
 interface TermsAndConditionsModalProps {
   isOpen: boolean;
@@ -34,9 +35,7 @@ export const TermsAndConditionsModal: React.FC<TermsAndConditionsModalProps> = (
           {/* Top Decorative Banner */}
           <div className="bg-linear-to-r from-[#0B192C] via-[#1E3E62] to-[#0B192C] px-6 py-5 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-600/90 text-white flex items-center justify-center border border-blue-400/30 shadow-md">
-                <Shield className="w-5 h-5" />
-              </div>
+              <SchoolMascotLogo size="md" withBackground showGlow />
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-base sm:text-lg font-bold font-oskar tracking-wide">

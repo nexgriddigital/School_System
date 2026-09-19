@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { Student } from '../../types';
 import { Download, Printer, X, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useSchool } from '../../context/SchoolContext';
+import { SchoolMascotLogo } from './SchoolMascotLogo';
 
 interface IdCardModalProps {
   student?: Student | null;
@@ -187,11 +188,14 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ student: propStudent, 
             className="w-80 rounded-2xl bg-white shadow-xl overflow-hidden border-2 border-slate-300 relative text-slate-800"
           >
             {/* ID Header */}
-            <div className="bg-[#0B192C] text-white pt-5 pb-4 px-4 text-center relative">
-              <div className="inline-block px-2 py-0.5 bg-blue-600/30 border border-blue-400/40 rounded-full text-[10px] tracking-widest text-blue-200 mb-1 font-mono uppercase">
-                Academic Year 2026/27
+            <div className="bg-[#0B192C] text-white pt-4 pb-3 px-4 text-center relative">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <SchoolMascotLogo size="xs" />
+                <span className="inline-block px-2 py-0.5 bg-blue-600/30 border border-blue-400/40 rounded-full text-[10px] tracking-widest text-blue-200 font-mono uppercase">
+                  Academic Year 2026/27
+                </span>
               </div>
-              <h2 className="font-oskar-vintage text-xl font-bold tracking-widest text-white">
+              <h2 className="font-oskar-vintage text-lg font-bold tracking-widest text-white">
                 {(schoolName || 'ACADEMY').toUpperCase()}
               </h2>
               <p className="text-[10px] tracking-wider text-slate-300 uppercase font-medium">

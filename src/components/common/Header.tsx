@@ -23,6 +23,7 @@ import {
   Shield,
   Download
 } from 'lucide-react';
+import { SchoolMascotLogo } from './SchoolMascotLogo';
 
 interface HeaderProps {
   onOpenTerms?: () => void;
@@ -101,11 +102,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
       {/* Top institution bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 border-b border-slate-800/80">
-          {/* Logo with vintage specimen font branding */}
+          {/* Logo with official mascot guy & vintage specimen font branding */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-oskar text-white font-bold text-xl shadow-md border border-blue-400/40">
-              {schoolName.charAt(0) || 'A'}
-            </div>
+            <SchoolMascotLogo size="lg" withBackground showGlow interactive />
             <div>
               <div className="flex items-center gap-2">
                 {isEditingSchoolName ? (

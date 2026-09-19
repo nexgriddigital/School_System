@@ -25,6 +25,7 @@ import {
   Crown
 } from 'lucide-react';
 import { AnimatedMascot } from './AnimatedMascot';
+import { SchoolMascotLogo } from '../common/SchoolMascotLogo';
 import { PasswordResetRequestModal } from './PasswordResetRequestModal';
 import { EmailOtpView } from './EmailOtpView';
 import { GoogleSignInButton } from './GoogleSignInButton';
@@ -506,9 +507,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
           {/* Institution Header Banner */}
           <div className="relative bg-linear-to-r from-[#0B192C] via-[#1E3E62] to-[#0B192C] px-6 py-5 text-white text-center border-b border-slate-800">
             <div className="flex items-center justify-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-600/90 text-white flex items-center justify-center font-oskar font-bold text-xl shadow-md border border-blue-400/30">
-                {schoolName.charAt(0) || 'A'}
-              </div>
+              <SchoolMascotLogo size="lg" withBackground showGlow interactive />
               <div className="text-left">
                 <h2 className="text-lg font-bold font-oskar tracking-wide leading-tight">{schoolName}</h2>
                 <p className="text-[11px] text-blue-200 font-medium">Unified Security & Portal Authentication</p>
