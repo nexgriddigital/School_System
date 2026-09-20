@@ -123,6 +123,7 @@ export const TermsAndConditionsModal: React.FC<TermsAndConditionsModalProps> = (
               <ul className="list-disc pl-5 space-y-1 text-slate-600">
                 <li><strong>Leadership 2FA OTP:</strong> Administrative roles mandate 2-Step Email Verification through the integrated Google Workspace Gmail API.</li>
                 <li><strong>Restricted Password Resets:</strong> In compliance with security standards, student and teacher password resets cannot be performed by regular staff. Resets are strictly permitted only via the <strong>Finance Office</strong>, <strong>Registrar</strong>, or <strong>Principal</strong> upon positive identity verification.</li>
+                <li><strong>Automatic Inactivity Session Timeout:</strong> Workstations automatically terminate authenticated sessions after a period of inactivity (standard 15 minutes; configurable) to safeguard student transcripts, medical records, and financial transaction data on unattended terminals in compliance with institutional data security policies.</li>
               </ul>
             </section>
 

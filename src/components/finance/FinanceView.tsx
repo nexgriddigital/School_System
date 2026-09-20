@@ -13,9 +13,18 @@ import {
   LogOut, 
   AlertTriangle,
   Eye,
-  FileText
+  FileText,
+  Mail,
+  History,
+  Users,
+  Download
 } from 'lucide-react';
-import { BankStatementRow } from '../../types';
+import { BankStatementRow, Invoice } from '../../types';
+import { UrgentFeeAlertModal } from './UrgentFeeAlertModal';
+import { BatchFeeAlertModal } from './BatchFeeAlertModal';
+import { ParentEmailLogsModal } from '../common/ParentEmailLogsModal';
+import { ExportDataModal } from '../common/ExportDataModal';
+import { exportInvoicesCsv, exportBankStatementsCsv } from '../../utils/csvExport';
 
 export const FinanceView: React.FC = () => {
   const { 
@@ -34,6 +43,12 @@ export const FinanceView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'INVOICES' | 'BULK_RECONCILE' | 'CLEARANCES'>('INVOICES');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const [showExportModal, setShowExportModal] = useState(false);
+
+  // Modals for automated parent email alerts via Gmail
+  const [selectedInvoiceForAlert, setSelectedInvoiceForAlert] = useState<Invoice | null>(null);
+  const [showBatchAlertModal, setShowBatchAlertModal] = useState(false);
+  const [showLogsModal, setShowLogsModal] = useState(false);
 
   // Bulk Reconciliation simulation feedback
   const [reconciliationResult, setReconciliationResult] = useState<{ matchedCount: number; approvedTotal: number } | null>(null);
@@ -136,7 +151,34 @@ export const FinanceView: React.FC = () => {
               className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm transition"
             >
               <Send className="w-3.5 h-3.5" />
-              Broadcast Payment Due Notice
+              Broadcast Notice
+            </button>
+
+            <button
+              onClick={() => setShowBatchAlertModal(true)}
+              className="px-4 py-2 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+              title="Send batch urgent fee deadline alerts to all unpaid parents via Gmail"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              Bulk Urgent Fee Alerts (Gmail)
+            </button>
+
+            <button
+              onClick={() => setShowLogsModal(true)}
+              className="px-3.5 py-2 bg-slate-900 text-blue-300 hover:bg-slate-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition cursor-pointer"
+              title="Audit parent email dispatch logs"
+            >
+              <History className="w-3.5 h-3.5 text-blue-400" />
+              Email Audit Logs
+            </button>
+
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer active:scale-95"
+              title="Export financial records, filtered invoices or bank statements to CSV"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              Export Data (CSV)
             </button>
           </div>
         </div>
@@ -244,7 +286,7 @@ export const FinanceView: React.FC = () => {
               />
             </div>
 
-            <div className="flex items-center gap-2 self-end">
+            <div className="flex flex-wrap items-center gap-2 self-end">
               <span className="text-xs text-slate-500 font-medium">Status:</span>
               <select
                 value={filterStatus}
@@ -256,6 +298,16 @@ export const FinanceView: React.FC = () => {
                 <option value="PENDING_APPROVAL">Pending Bank Slip Verification</option>
                 <option value="UNPAID">Unpaid / Due</option>
               </select>
+
+              <button
+                type="button"
+                onClick={() => exportInvoicesCsv(filteredInvoices, { filterLabel: filterStatus !== 'ALL' ? filterStatus : 'Ledger' })}
+                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer active:scale-95"
+                title={`Export ${filteredInvoices.length} currently filtered invoices as CSV`}
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-700" />
+                Export CSV ({filteredInvoices.length})
+              </button>
             </div>
           </div>
 
@@ -352,18 +404,36 @@ export const FinanceView: React.FC = () => {
                       {inv.status === 'PAID' ? (
                         <button
                           onClick={() => setSelectedInvoiceForReceipt(inv)}
-                          className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold flex items-center gap-1.5 ml-auto border border-emerald-200 transition"
+                          className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold flex items-center gap-1.5 ml-auto border border-emerald-200 transition cursor-pointer"
                         >
                           <Receipt className="w-3.5 h-3.5 text-emerald-600" />
                           View Receipt (Watermarked)
                         </button>
                       ) : (
-                        <button
-                          onClick={() => approvePayment(inv.id)}
-                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition ml-auto block"
-                        >
-                          Approve Payment
-                        </button>
+                        <div className="flex flex-col items-end gap-1">
+                          <button
+                            onClick={() => approvePayment(inv.id)}
+                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition block cursor-pointer"
+                          >
+                            Approve Payment
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setSelectedInvoiceForAlert(inv)}
+                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-[11px] font-semibold transition flex items-center gap-1 cursor-pointer"
+                            title="Send urgent fee deadline email notification to scholar's parents via Gmail"
+                          >
+                            <Mail className="w-3 h-3 text-amber-700" />
+                            {inv.parentAlertSent ? 'Resend Gmail Alert' : 'Urgent Parent Alert (Gmail)'}
+                          </button>
+
+                          {inv.parentAlertSent && (
+                            <span className="text-[10px] text-emerald-700 font-medium flex items-center gap-0.5">
+                              <CheckCircle2 className="w-2.5 h-2.5" /> Notice sent via Gmail
+                            </span>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -433,9 +503,20 @@ export const FinanceView: React.FC = () => {
 
           {/* Statement Rows Table */}
           <div>
-            <h4 className="font-oskar-vintage text-base font-bold text-slate-900 mb-3">
-              Bank Transaction Feed & Cross-Check Status
-            </h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-oskar-vintage text-base font-bold text-slate-900">
+                Bank Transaction Feed & Cross-Check Status
+              </h4>
+              <button
+                type="button"
+                onClick={() => exportBankStatementsCsv(bankStatements, { filterLabel: 'Feed' })}
+                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer active:scale-95"
+                title={`Export ${bankStatements.length} bank feed records as CSV`}
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-700" />
+                Export Feed CSV ({bankStatements.length})
+              </button>
+            </div>
 
             <div className="overflow-x-auto border border-slate-200 rounded-xl">
               <table className="w-full text-xs text-left">
@@ -603,6 +684,42 @@ export const FinanceView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Single Invoice Urgent Fee Alert Modal */}
+      {selectedInvoiceForAlert && (
+        <UrgentFeeAlertModal
+          isOpen={!!selectedInvoiceForAlert}
+          onClose={() => setSelectedInvoiceForAlert(null)}
+          invoice={selectedInvoiceForAlert}
+        />
+      )}
+
+      {/* Batch Fee Alert Modal */}
+      <BatchFeeAlertModal
+        isOpen={showBatchAlertModal}
+        onClose={() => setShowBatchAlertModal(false)}
+      />
+
+      {/* Parent Email Notification Logs Modal */}
+      <ParentEmailLogsModal
+        isOpen={showLogsModal}
+        onClose={() => setShowLogsModal(false)}
+        defaultFilter="FINANCE"
+      />
+
+      {/* Global Export Data Modal */}
+      <ExportDataModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        exportType="FINANCE_INVOICES"
+        filteredInvoices={filteredInvoices}
+        allInvoices={invoices}
+        bankStatements={bankStatements}
+        financeFilterSummary={{
+          searchQuery,
+          filterStatus,
+        }}
+      />
 
     </div>
   );

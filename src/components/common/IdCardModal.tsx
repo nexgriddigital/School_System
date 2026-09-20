@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Student } from '../../types';
-import { Download, Printer, X, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Download, Printer, X, ShieldCheck, AlertCircle, Barcode, Check } from 'lucide-react';
 import { useSchool } from '../../context/SchoolContext';
 import { SchoolMascotLogo } from './SchoolMascotLogo';
 
@@ -19,6 +19,7 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ student: propStudent, 
     setSelectedStudentForIdCard 
   } = useSchool();
   const cardRef = useRef<HTMLDivElement>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
 
   const student = propStudent || selectedStudentForIdCard;
   const onClose = propOnClose || (() => setSelectedStudentForIdCard(null));
@@ -35,6 +36,48 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ student: propStudent, 
     !student.lostIdRequest.principalOverride;
 
   const canDownload = !isLostAndPending || currentRole === 'PRINCIPAL';
+
+  // Specific print stylesheet trigger for physical ID cards with barcodes
+  const handlePrintPhysicalIdCard = () => {
+    setIsPrinting(true);
+    document.body.classList.add('printing-id-card');
+    
+    // Give DOM a frame to ensure styling class is applied before print dialog initiates
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        window.print();
+        
+        // Remove print modifier after print dialog resolves
+        const handleAfterPrint = () => {
+          document.body.classList.remove('printing-id-card');
+          setIsPrinting(false);
+          window.removeEventListener('afterprint', handleAfterPrint);
+        };
+        window.addEventListener('afterprint', handleAfterPrint);
+
+        // Fallback cleanup in case afterprint isn't fired
+        setTimeout(() => {
+          document.body.classList.remove('printing-id-card');
+          setIsPrinting(false);
+        }, 1500);
+      }, 50);
+    });
+  };
+
+  // Generate a deterministic barcode pattern based on student ID characters
+  const generateBarcodePattern = (idStr: string) => {
+    const bars: { width: number; margin: number }[] = [];
+    const seed = idStr.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    for (let i = 0; i < 48; i++) {
+      const pseudoVal = (seed * (i + 13) * 7) % 100;
+      const width = pseudoVal < 35 ? 1 : pseudoVal < 75 ? 2 : 3;
+      const margin = pseudoVal % 2 === 0 ? 1 : 2;
+      bars.push({ width, margin });
+    }
+    return bars;
+  };
+
+  const barcodeBars = generateBarcodePattern(student.id);
 
   // Export card as PNG using HTML Canvas
   const handleDownloadImage = () => {
@@ -138,18 +181,18 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ student: propStudent, 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
           <div>
-            <h3 className="font-oskar-vintage text-base font-bold text-slate-900 tracking-wider">
+            <h3 className="font-oskar-vintage text-base font-bold text-slate-900 dark:text-white tracking-wider">
               Student Official ID Card
             </h3>
-            <p className="text-xs text-slate-500">Auto-Generated Badge with 3x4 Photo & Security Credentials</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Auto-Generated Badge with 3x4 Photo, Barcode & Security Credentials</p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-200/60 transition"
+            className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-800 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -181,14 +224,15 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ student: propStudent, 
           </div>
         )}
 
-        {/* ID Card Visual */}
-        <div className="p-6 flex justify-center bg-slate-100/70">
+        {/* ID Card Visual (Targeted for physical print stylesheet via #printable-id-card) */}
+        <div className="p-6 flex justify-center bg-slate-100/70 dark:bg-slate-950/60">
           <div 
             ref={cardRef}
+            id="printable-id-card"
             className="w-80 rounded-2xl bg-white shadow-xl overflow-hidden border-2 border-slate-300 relative text-slate-800"
           >
             {/* ID Header */}
-            <div className="bg-[#0B192C] text-white pt-4 pb-3 px-4 text-center relative">
+            <div className="id-card-header bg-[#0B192C] text-white pt-4 pb-3 px-4 text-center relative">
               <div className="flex items-center justify-center gap-2 mb-1">
                 <SchoolMascotLogo size="xs" />
                 <span className="inline-block px-2 py-0.5 bg-blue-600/30 border border-blue-400/40 rounded-full text-[10px] tracking-widest text-blue-200 font-mono uppercase">
@@ -201,7 +245,7 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ student: propStudent, 
               <p className="text-[10px] tracking-wider text-slate-300 uppercase font-medium">
                 High School Student Badge
               </p>
-              <div className="h-1 w-full bg-blue-600 absolute bottom-0 left-0" />
+              <div className="id-card-accent h-1 w-full bg-blue-600 absolute bottom-0 left-0" />
             </div>
 
             {/* Photo & Badge Body */}
@@ -265,17 +309,21 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ student: propStudent, 
                 </div>
               </div>
 
-              {/* Barcode representation */}
-              <div className="w-full mt-4 pt-2 border-t border-dashed border-slate-200 text-center">
-                <div className="h-7 w-48 mx-auto flex items-center justify-between px-1">
-                  {Array.from({ length: 42 }).map((_, i) => (
+              {/* Barcode representation with scanner-scannable bars */}
+              <div className="id-barcode-container w-full mt-4 pt-2 border-t border-dashed border-slate-200 text-center">
+                <div className="h-8 w-52 mx-auto flex items-center justify-center gap-[2px] px-1 bg-white">
+                  {barcodeBars.map((bar, i) => (
                     <div 
                       key={i} 
-                      className={`bg-slate-800 h-full ${i % 3 === 0 ? 'w-1' : i % 5 === 0 ? 'w-1.5' : 'w-0.5'}`} 
+                      className="id-card-barcode-bar bg-slate-900 h-full"
+                      style={{ 
+                        width: `${bar.width}px`,
+                        marginRight: `${bar.margin}px` 
+                      }}
                     />
                   ))}
                 </div>
-                <p className="text-[10px] font-mono text-slate-400 mt-1">
+                <p className="text-[10px] font-mono tracking-widest text-slate-600 mt-1 font-bold">
                   *{student.id}*
                 </p>
               </div>
@@ -292,12 +340,12 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ student: propStudent, 
         </div>
 
         {/* Modal Actions */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
           <div>
             {!student.idCardCollected && currentRole === 'REGISTRAR' && (
               <button
                 onClick={() => markIdCardCollected(student.id)}
-                className="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-lg transition"
+                className="px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-950/80 hover:bg-blue-200 dark:hover:bg-blue-900 rounded-lg transition cursor-pointer"
               >
                 Mark ID as Collected
               </button>
@@ -306,11 +354,13 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ student: propStudent, 
 
           <div className="flex gap-2">
             <button
-              onClick={() => window.print()}
-              className="px-3.5 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition"
+              onClick={handlePrintPhysicalIdCard}
+              disabled={isPrinting}
+              className="px-3.5 py-2 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95"
+              title="Print physical ID badge with barcode scanner alignment"
             >
-              <Printer className="w-3.5 h-3.5" />
-              Print
+              <Printer className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" />
+              {isPrinting ? 'Preparing Print...' : 'Print'}
             </button>
             
             <button
@@ -319,7 +369,7 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({ student: propStudent, 
               className={`px-4 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-sm transition ${
                 canDownload 
                   ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer' 
-                  : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                  : 'bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed'
               }`}
             >
               <Download className="w-3.5 h-3.5" />

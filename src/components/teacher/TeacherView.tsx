@@ -19,9 +19,11 @@ import {
   FileText,
   Eye,
   Download,
-  Sparkles
+  Sparkles,
+  TrendingUp
 } from 'lucide-react';
 import { TelegramInbox } from '../common/TelegramInbox';
+import { StudentPerformanceWidget } from './StudentPerformanceWidget';
 // Types inferred from SchoolContext
 
 export const TeacherView: React.FC = () => {
@@ -47,7 +49,7 @@ export const TeacherView: React.FC = () => {
     openDocumentViewer
   } = useSchool();
 
-  const [activeTab, setActiveTab] = useState<'ATTENDANCE' | 'GRADEBOOK' | 'DAY_OFF' | 'RECOMMENDATIONS' | 'EVALUATIONS' | 'PARENT_CHAT'>('ATTENDANCE');
+  const [activeTab, setActiveTab] = useState<'STUDENT_PERFORMANCE' | 'ATTENDANCE' | 'GRADEBOOK' | 'DAY_OFF' | 'RECOMMENDATIONS' | 'EVALUATIONS' | 'PARENT_CHAT'>('STUDENT_PERFORMANCE');
 
   const teacher = currentTeacher || teachers?.find(t => t.id === activeTeacherId) || teachers?.[0];
   const teacherSections: string[] = (Array.isArray(teacher?.assignedSections) && teacher.assignedSections.length > 0)
@@ -221,6 +223,19 @@ export const TeacherView: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setActiveTab('STUDENT_PERFORMANCE')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                activeTab === 'STUDENT_PERFORMANCE'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              Student Performance
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            </button>
+
             {isHomeroom && (
               <button
                 onClick={() => setActiveTab('ATTENDANCE')}
@@ -291,6 +306,19 @@ export const TeacherView: React.FC = () => {
         )}
       </div>
 
+      {/* TAB 0: STUDENT PERFORMANCE WIDGET (RECHARTS GRADE TRENDS & ATTENDANCE CONSISTENCY) */}
+      {activeTab === 'STUDENT_PERFORMANCE' && (
+        <StudentPerformanceWidget
+          defaultSectionId={teacherSections[0]}
+          onSelectStudentForGrading={(stId) => {
+            setSelectedStudentForGrading(stId);
+            setActiveTab('GRADEBOOK');
+          }}
+          onNavigateToGradebook={() => setActiveTab('GRADEBOOK')}
+          onNavigateToAttendance={() => isHomeroom ? setActiveTab('ATTENDANCE') : undefined}
+        />
+      )}
+
       {/* TAB 1: HOMEROOM ATTENDANCE */}
       {activeTab === 'ATTENDANCE' && isHomeroom && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -305,6 +333,14 @@ export const TeacherView: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('STUDENT_PERFORMANCE')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                View Attendance Consistency
+              </button>
               <label className="text-xs font-semibold text-slate-600">Attendance Date:</label>
               <input
                 type="date"
@@ -494,9 +530,19 @@ export const TeacherView: React.FC = () => {
 
           {/* Gradebook Table */}
           <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-            <h3 className="font-oskar-vintage text-base font-bold text-slate-900">
-              Recorded Subject Grades ({grades.length} entries)
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h3 className="font-oskar-vintage text-base font-bold text-slate-900">
+                Recorded Subject Grades ({grades.length} entries)
+              </h3>
+              <button
+                type="button"
+                onClick={() => setActiveTab('STUDENT_PERFORMANCE')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                View Analytics & Trends
+              </button>
+            </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">

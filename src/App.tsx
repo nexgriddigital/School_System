@@ -15,6 +15,7 @@ import { TeacherView } from './components/teacher/TeacherView';
 import { StudentView } from './components/student/StudentView';
 import { ParentView } from './components/parent/ParentView';
 import { LoginView } from './components/auth/LoginView';
+import { SessionTimeoutManager } from './components/common/SessionTimeoutManager';
 import { Sparkles, Shield, BookOpen, Download } from 'lucide-react';
 import { downloadInstructionsManualPdf } from './services/manualPdfService';
 
@@ -78,64 +79,64 @@ const AppFooter: React.FC<{
   };
 
   return (
-    <footer className="bg-white border-t border-slate-200 py-8 mt-12 text-center text-xs text-slate-500">
+    <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-8 mt-12 text-center text-xs text-slate-500 dark:text-slate-400 transition-colors">
       <div className="max-w-7xl mx-auto px-4 flex flex-col gap-4">
         {/* Quick Access Badges for Customer Presentation */}
         <div className="flex flex-wrap items-center justify-center gap-2">
           <button
             onClick={onOpenManual}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold text-xs border border-amber-200 transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 font-semibold text-xs border border-amber-200 dark:border-amber-800 transition cursor-pointer"
           >
-            <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+            <BookOpen className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
             <span>Instructions Manual</span>
           </button>
 
           <button
             onClick={handleDownloadManual}
             disabled={isDownloading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold text-xs border border-emerald-200 transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-semibold text-xs border border-emerald-200 dark:border-emerald-800 transition cursor-pointer"
             title="Download PDF Manual with NexGrid Digital Letterhead on each page"
           >
-            <Download className="w-3.5 h-3.5 text-emerald-600" />
+            <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span>Download PDF Manual</span>
           </button>
 
           <button
             onClick={onOpenTerms}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs border border-slate-300 transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs border border-slate-300 dark:border-slate-700 transition cursor-pointer"
           >
-            <Shield className="w-3.5 h-3.5 text-slate-600" />
+            <Shield className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
             <span>Terms & Conditions</span>
           </button>
         </div>
 
         {/* Primary Attribution & System Info */}
-        <div className="py-2 border-y border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+        <div className="py-2 border-y border-slate-100 dark:border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-900 tracking-wide">
+            <span className="font-bold text-slate-900 dark:text-white tracking-wide">
               {schoolName.toUpperCase()} • SCHOOL MANAGEMENT SYSTEM (SIS)
             </span>
-            <span className="text-[10px] bg-blue-100 text-blue-800 font-mono px-2 py-0.5 rounded-md font-bold">
+            <span className="text-[10px] bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300 font-mono px-2 py-0.5 rounded-md font-bold border border-blue-200 dark:border-blue-700/50">
               v2.4 Production
             </span>
           </div>
 
-          <div className="flex items-center gap-2 text-slate-500 font-medium">
+          <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-medium">
             <span>Institutional Operations & Governance Portal</span>
           </div>
         </div>
 
         {/* Policy & Legal Footnotes */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-400">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-400 dark:text-slate-500">
           <p>
             Compliant with Grade-Specific Verification, 15-Day Stream Policies, Bulk Bank Statement Cross-Checking & Pastoral Care
           </p>
           <div className="flex items-center gap-3">
-            <button onClick={onOpenTerms} className="hover:text-blue-600 underline cursor-pointer">
+            <button onClick={onOpenTerms} className="hover:text-blue-600 dark:hover:text-blue-400 underline cursor-pointer">
               Terms & Conditions
             </button>
             <span>&bull;</span>
-            <button onClick={onOpenManual} className="hover:text-blue-600 underline cursor-pointer">
+            <button onClick={onOpenManual} className="hover:text-blue-600 dark:hover:text-blue-400 underline cursor-pointer">
               System Documentation
             </button>
           </div>
@@ -151,8 +152,12 @@ const MainApp: React.FC = () => {
   const [showManualModal, setShowManualModal] = useState(false);
 
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-800 font-sans flex flex-col relative">
+    <div className="min-h-screen bg-slate-100/70 dark:bg-[#090d16] text-slate-800 dark:text-slate-100 font-sans flex flex-col relative transition-colors duration-200">
       <Header onOpenTerms={() => setShowTermsModal(true)} onOpenManual={() => setShowManualModal(true)} />
+      
+      {/* Institutional Session Security Inactivity Monitor & Modal */}
+      <SessionTimeoutManager />
+
       <div className="flex-1">
         {isAuthenticated ? (
           <>

@@ -81,10 +81,14 @@ export const signOutGoogle = async () => {
   cachedAccessToken = null;
 };
 
+export const isGmailAuthorized = (): boolean => {
+  return !!cachedAccessToken;
+};
+
 /**
  * Encodes a string to RFC 4648 Base64URL without padding
  */
-function base64UrlEncode(str: string): string {
+export function base64UrlEncode(str: string): string {
   // UTF-8 safe base64
   const utf8Bytes = new TextEncoder().encode(str);
   let binary = '';
@@ -95,6 +99,59 @@ function base64UrlEncode(str: string): string {
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
+}
+
+/**
+ * Core function to send an RFC 2822 HTML email via Gmail REST API
+ */
+export async function sendRawHtmlEmailViaGmail({
+  recipientEmail,
+  subject,
+  htmlBody,
+  senderName,
+}: {
+  recipientEmail: string;
+  subject: string;
+  htmlBody: string;
+  senderName?: string;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  if (!cachedAccessToken) {
+    throw new Error('Gmail authorization required. Please connect your Gmail account to dispatch emails.');
+  }
+
+  const emailLines = [
+    `To: ${recipientEmail}`,
+    ...(senderName ? [`From: "${senderName}" <me>`] : ['From: <me>']),
+    `Subject: =?utf-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=UTF-8',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    htmlBody,
+  ];
+
+  const rawEmail = emailLines.join('\r\n');
+  const encodedRaw = base64UrlEncode(rawEmail);
+
+  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${cachedAccessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      raw: encodedRaw,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    console.error('Gmail API send error:', errorData);
+    throw new Error(errorData?.error?.message || `Failed to send email via Gmail (Status: ${response.status})`);
+  }
+
+  const data = await response.json();
+  return { success: true, messageId: data.id };
 }
 
 /**

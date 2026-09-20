@@ -30,7 +30,6 @@ import { PasswordResetRequestModal } from './PasswordResetRequestModal';
 import { EmailOtpView } from './EmailOtpView';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { GmailSendConfirmationModal } from './GmailSendConfirmationModal';
-import { AllTemplatesBottomSection } from '../common/AllTemplatesBottomSection';
 import { 
   initGoogleAuth, 
   signInWithGoogle, 
@@ -53,17 +52,30 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     students, 
     teachers, 
     institutionalUsers, 
+    createPrincipalAccount,
     getUserByEmailOrId, 
-    changeUserPassword 
+    changeUserPassword,
+    sessionExpiredNotification,
+    clearSessionExpiredNotification
   } = useSchool();
   
-  // Auth Mode: Sign In or Principal Sign Up (Gated by Mastercode System_Principal)
-  const [authMode, setAuthMode] = useState<AuthMode>('SIGN_IN');
+  const hasPrincipal = institutionalUsers.some(u => u.role === 'PRINCIPAL');
+  const existingPrincipal = institutionalUsers.find(u => u.role === 'PRINCIPAL');
+
+  // Auth Mode: Default to PRINCIPAL_SIGN_UP if no Principal exists yet!
+  const [authMode, setAuthMode] = useState<AuthMode>(() => {
+    return institutionalUsers.some(u => u.role === 'PRINCIPAL') ? 'SIGN_IN' : 'PRINCIPAL_SIGN_UP';
+  });
 
   // Sign In States
-  const [selectedRole, setSelectedRole] = useState<UserRole>('REGISTRAR');
-  const [identifier, setIdentifier] = useState('registrar@oskaracademy.edu');
-  const [password, setPassword] = useState('Admin@2026');
+  const [selectedRole, setSelectedRole] = useState<UserRole>(() => {
+    return institutionalUsers.some(u => u.role === 'PRINCIPAL') ? 'PRINCIPAL' : 'REGISTRAR';
+  });
+  const [identifier, setIdentifier] = useState(() => {
+    const p = institutionalUsers.find(u => u.role === 'PRINCIPAL');
+    return p ? p.email : '';
+  });
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -84,10 +96,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
   const [isSavingPermanentPassword, setIsSavingPermanentPassword] = useState(false);
 
   // Principal Sign Up States
-  const [principalMasterCode, setPrincipalMasterCode] = useState('');
+  const [principalMasterCode, setPrincipalMasterCode] = useState('System_Principal');
   const [showMasterCode, setShowMasterCode] = useState(false);
-  const [principalName, setPrincipalName] = useState('Prof. Mengistu Haile');
-  const [principalEmail, setPrincipalEmail] = useState('principal@oskaracademy.edu');
+  const [principalName, setPrincipalName] = useState('');
+  const [principalEmail, setPrincipalEmail] = useState('');
   const [principalPassword, setPrincipalPassword] = useState('');
   const [principalConfirmPassword, setPrincipalConfirmPassword] = useState('');
   const [showPrincipalPassword, setShowPrincipalPassword] = useState(false);
@@ -225,9 +237,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     setTimeout(() => setIsShaking(false), 500);
   };
 
-  // Sign in submit: validates inputs, connects Gmail if needed, sends real OTP code
+  // Sign in submit: validates credentials and logs in
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
+
     if (!identifier.trim()) {
       setErrorMsg('Please enter your institutional email or account identifier.');
       triggerShake();
@@ -240,38 +254,65 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
       return;
     }
 
-    // Prepare code
-    const code = generateOtp();
-
-    // Check if Gmail sender is connected
-    if (!isGoogleConnected || !googleUser) {
-      setErrorMsg('Connecting to Gmail to dispatch real 6-digit verification code...');
-      const user = await handleConnectGoogle();
-      if (!user) {
-        setErrorMsg('Gmail connection is required to dispatch the real OTP verification code. Please connect your Gmail account.');
-        triggerShake();
-        return;
-      }
+    // If Gmail sender is connected, dispatch real OTP code via Gmail
+    if (isGoogleConnected && googleUser) {
+      generateOtp();
+      setShowGmailConfirmModal(true);
+      return;
     }
 
-    // Show confirmation modal to confirm sending actual email
-    setShowGmailConfirmModal(true);
+    // Direct password authentication
+    setIsLoading(true);
+    try {
+      const loginResult = login(selectedRole, identifier.trim(), password);
+      if (!loginResult.success) {
+        setErrorMsg(loginResult.error || 'Invalid identifier or password. Please verify your credentials.');
+        triggerShake();
+        setIsLoading(false);
+        return;
+      }
+
+      // Check mandatory first-time password update
+      const matchInst = getUserByEmailOrId(identifier);
+      const matchStudent = students.find(s => 
+        s.id.toLowerCase() === identifier.trim().toLowerCase() || 
+        s.accountNumber.toLowerCase() === identifier.trim().toLowerCase() ||
+        (s.parents?.email && s.parents.email.toLowerCase() === identifier.trim().toLowerCase())
+      );
+
+      const mustChange = Boolean(matchInst?.mustChangePasswordOnFirstLogin) || Boolean(matchStudent?.mustChangePasswordOnLogin);
+
+      if (mustChange) {
+        setFirstLoginTargetUser({
+          id: matchInst?.id || matchStudent?.id || identifier,
+          name: matchInst?.name || matchStudent?.fullName || 'Institutional User',
+          email: matchInst?.email || (matchStudent?.parents?.email || identifier),
+          role: matchInst?.role || selectedRole,
+          position: matchInst?.position || currentRoleMeta.label,
+          tempPasswordProvided: password,
+        });
+        setIsFirstLoginPasswordStep(true);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsSuccess(true);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Authentication error.');
+      triggerShake();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Principal Sign Up submit: strictly checks Mastercode === "System_Principal"
+  // Principal Sign Up submit: registers the Executive Principal and logs them in
   const handlePrincipalSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    // Strict Mastercode check
-    if (!principalMasterCode.trim()) {
-      setErrorMsg('Principal Master Authorization Code is required.');
-      triggerShake();
-      return;
-    }
-
-    if (principalMasterCode.trim() !== 'System_Principal') {
-      setErrorMsg('Invalid Master Authorization Code. Registration is strictly restricted to authorized Principal leadership with mastercode "System_Principal".');
+    // Verify master code if provided (or if not initial setup)
+    if (principalMasterCode.trim() && principalMasterCode.trim() !== 'System_Principal') {
+      setErrorMsg('Invalid Master Authorization Code. Use "System_Principal" to authorize Principal registration.');
       triggerShake();
       return;
     }
@@ -283,7 +324,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     }
 
     if (!principalEmail.trim() || !principalEmail.includes('@')) {
-      setErrorMsg('Please enter a valid institutional email to receive the live Gmail OTP.');
+      setErrorMsg('Please enter a valid institutional email address.');
       triggerShake();
       return;
     }
@@ -300,22 +341,45 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
       return;
     }
 
-    // Generate real code
-    generateOtp();
-
-    // Check Gmail sender connection
-    if (!isGoogleConnected || !googleUser) {
-      setErrorMsg('Connecting to Gmail to dispatch real 6-digit verification code...');
-      const user = await handleConnectGoogle();
-      if (!user) {
-        setErrorMsg('Gmail connection is required to dispatch the real OTP verification code. Please connect your Gmail account.');
-        triggerShake();
-        return;
-      }
+    // If Google/Gmail is connected, we can send confirmation OTP
+    if (isGoogleConnected && googleUser) {
+      generateOtp();
+      setShowGmailConfirmModal(true);
+      return;
     }
 
-    // Open confirmation modal
-    setShowGmailConfirmModal(true);
+    // Direct registration and initialization
+    setIsLoading(true);
+    try {
+      const res = createPrincipalAccount({
+        name: principalName.trim(),
+        email: principalEmail.trim(),
+        password: principalPassword,
+      });
+
+      if (!res.success) {
+        setErrorMsg(res.error || 'Failed to initialize Principal account.');
+        triggerShake();
+        setIsLoading(false);
+        return;
+      }
+
+      // Automatically authenticate as Principal
+      const loginRes = login('PRINCIPAL', principalEmail.trim(), principalPassword, principalName.trim());
+      if (loginRes.success) {
+        setIsSuccess(true);
+      } else {
+        setErrorMsg(loginRes.error || 'Principal created. Please sign in with your credentials.');
+        setAuthMode('SIGN_IN');
+        setIdentifier(principalEmail.trim());
+        setPassword(principalPassword);
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to create Principal account.');
+      triggerShake();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Dispatches the actual live OTP email through the Gmail API
@@ -353,6 +417,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     setIsSuccess(true);
 
     if (authMode === 'PRINCIPAL_SIGN_UP') {
+      createPrincipalAccount({
+        name: principalName.trim(),
+        email: principalEmail.trim(),
+        password: principalPassword,
+      });
       setTimeout(() => {
         login('PRINCIPAL', principalEmail, principalPassword, principalName);
       }, 700);
@@ -492,6 +561,42 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
           isSuccess={isSuccess}
           hasError={Boolean(errorMsg)}
         />
+
+        {/* Session Inactivity Timeout Institutional Notification */}
+        {sessionExpiredNotification && (
+          <div 
+            id="session-timeout-login-banner"
+            className="mb-4 p-4 rounded-2xl bg-amber-50 border-2 border-amber-400/90 shadow-lg flex items-start gap-3 text-amber-900 animate-in fade-in slide-in-from-top-3"
+          >
+            <div className="p-2 bg-amber-500/20 rounded-xl border border-amber-400 text-amber-800 shrink-0 mt-0.5">
+              <ShieldAlert className="w-5 h-5 text-amber-700" />
+            </div>
+            <div className="flex-1 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-amber-950 uppercase tracking-wide text-[11px] flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping inline-block" />
+                  Institutional Security Lockout
+                </span>
+                <button
+                  type="button"
+                  onClick={clearSessionExpiredNotification}
+                  className="text-amber-700 hover:text-amber-950 font-bold text-sm px-1.5 py-0.5 rounded cursor-pointer"
+                  title="Dismiss notice"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="mt-1 font-medium text-amber-900 leading-relaxed">
+                {sessionExpiredNotification}
+              </p>
+              <div className="mt-2 flex items-center gap-2 text-[10px] text-amber-800 font-mono">
+                <span>FERPA/GDPR Compliance</span>
+                <span>•</span>
+                <span>Workstation secured against unauthorized record inspection</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Form Card */}
         <motion.div
@@ -1298,11 +1403,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
         onClose={() => setShowResetModal(false)}
         defaultIdentifier={identifier}
       />
-
-      {/* Institutional Templates & Portals Bottom Catalog - STRICTLY UNDER LOGIN ONLY */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
-        <AllTemplatesBottomSection />
-      </div>
     </div>
   );
 };

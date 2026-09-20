@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer utilities {
   .font-oskar {
     font-family: 'Big Shoulders Display', 'Syne', system-ui, sans-serif;
@@ -16,15 +18,125 @@
   }
 }
 
-/* Custom scrollbar and print styles for certificates and receipts */
+/* Global Dark Mode Base & Overrides */
+html.dark {
+  color-scheme: dark;
+}
+
+body.dark {
+  background-color: #090d16;
+  color: #f1f5f9;
+}
+
+/* Smooth transition for theme switching */
+body {
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Dark mode scrollbars */
+html.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+html.dark ::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Custom scrollbar and print styles for certificates, receipts, and physical ID cards */
 @media print {
   body {
     background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
   .no-print {
     display: none !important;
   }
   .print-only {
     display: block !important;
+  }
+
+  /* When printing an ID Card specifically with the dedicated physical ID stylesheet */
+  body.printing-id-card {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.printing-id-card * {
+    visibility: hidden;
+  }
+
+  body.printing-id-card #printable-id-card,
+  body.printing-id-card #printable-id-card * {
+    visibility: visible;
+  }
+
+  body.printing-id-card #printable-id-card {
+    position: fixed !important;
+    top: 15mm !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 65mm !important; /* Standard physical pocket/lanyard badge width */
+    max-width: 65mm !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
+    border: 1.5px solid #0f172a !important;
+    border-radius: 4.5mm !important;
+    background-color: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    page-break-inside: avoid !important;
+    overflow: hidden !important;
+  }
+
+  /* High contrast barcode for physical laser & barcode scanners */
+  body.printing-id-card .id-barcode-container {
+    background-color: #ffffff !important;
+    padding: 2mm 0 !important;
+  }
+
+  body.printing-id-card .id-barcode-bar {
+    background-color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    display: inline-block !important;
+  }
+
+  body.printing-id-card .id-card-header {
+    background-color: #0b192c !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.printing-id-card .id-card-accent {
+    background-color: #2563eb !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Physical cutting & alignment guides */
+  body.printing-id-card #printable-id-card::before {
+    content: "✂ CUT ALONG OUTER BORDER — CR80 STANDARD FORMAT";
+    position: absolute;
+    top: -6mm;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 7pt;
+    font-family: monospace;
+    color: #64748b;
+    visibility: visible;
   }
 }

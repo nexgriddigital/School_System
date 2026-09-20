@@ -12,9 +12,16 @@ import {
   RotateCcw,
   Eye,
   Sparkles,
-  Download
+  Download,
+  Calendar,
+  Clock,
+  MapPin,
+  History,
+  Users
 } from 'lucide-react';
 import { DisciplinaryAction, StudentEvaluation } from '../../types';
+import { DisciplinaryHearingModal } from './DisciplinaryHearingModal';
+import { ParentEmailLogsModal } from '../common/ParentEmailLogsModal';
 
 export const CounsellorView: React.FC = () => {
   const { 
@@ -38,6 +45,14 @@ export const CounsellorView: React.FC = () => {
   const [description, setDescription] = useState('');
   const [actionTaken, setActionTaken] = useState('Parent Conference & 1-Week Counseling Check-in');
   const [disciplinarySuccess, setDisciplinarySuccess] = useState(false);
+  const [scheduleHearingInForm, setScheduleHearingInForm] = useState(false);
+  const [formHearingDate, setFormHearingDate] = useState(
+    new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0]
+  );
+  const [formHearingTime, setFormHearingTime] = useState('10:30 AM');
+  const [formHearingLocation, setFormHearingLocation] = useState('Academic Disciplinary Board Room (Hall B, Rm 204)');
+  const [selectedActionForHearing, setSelectedActionForHearing] = useState<DisciplinaryAction | null>(null);
+  const [showLogsModal, setShowLogsModal] = useState(false);
 
   // Evaluation Form State
   const [evalStudentId, setEvalStudentId] = useState<string>(students[0]?.id || '');
@@ -51,12 +66,12 @@ export const CounsellorView: React.FC = () => {
   const [mailMessage, setMailMessage] = useState('');
   const [mailSentSuccess, setMailSentSuccess] = useState(false);
 
-  const handleSubmitDisciplinary = (e: React.FormEvent) => {
+  const handleSubmitDisciplinary = async (e: React.FormEvent) => {
     e.preventDefault();
     const st = students.find(s => s.id === selectedStudentId);
     if (!st) return;
 
-    recordDisciplinaryAction({
+    await recordDisciplinaryAction({
       studentId: st.id,
       studentName: st.fullName,
       grade: st.grade,
@@ -66,10 +81,18 @@ export const CounsellorView: React.FC = () => {
       description,
       actionTaken,
       counsellorName: 'Sister Marta Wolde (Head Counselor)',
+      autoNotifyParent: scheduleHearingInForm,
+      hearingScheduled: scheduleHearingInForm,
+      hearingDate: scheduleHearingInForm ? formHearingDate : undefined,
+      hearingTime: scheduleHearingInForm ? formHearingTime : undefined,
+      hearingLocation: scheduleHearingInForm ? formHearingLocation : undefined,
+      hearingCommittee: scheduleHearingInForm ? ['Prof. Mengistu Haile (Principal)', 'Sister Marta Wolde (Counsellor)'] : undefined,
+      hearingStatus: scheduleHearingInForm ? 'SCHEDULED' : undefined,
     });
 
     setDisciplinarySuccess(true);
     setDescription('');
+    setScheduleHearingInForm(false);
     setTimeout(() => setDisciplinarySuccess(false), 5000);
   };
 
@@ -161,6 +184,15 @@ export const CounsellorView: React.FC = () => {
             >
               <Mail className="w-3.5 h-3.5" />
               Direct Parent Mail
+            </button>
+
+            <button
+              onClick={() => setShowLogsModal(true)}
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-slate-900 text-blue-300 hover:bg-slate-800 transition border border-slate-700"
+              title="View automated Gmail parent alert dispatch audit history"
+            >
+              <History className="w-3.5 h-3.5 text-blue-400" />
+              Parent Alert Logs (Gmail)
             </button>
           </div>
         </div>
@@ -258,6 +290,65 @@ export const CounsellorView: React.FC = () => {
               />
             </div>
 
+            {/* Hearing Scheduling Checkbox */}
+            <div className="pt-2 border-t border-slate-200">
+              <label className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50/70 border border-amber-200/80 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={scheduleHearingInForm}
+                  onChange={(e) => setScheduleHearingInForm(e.target.checked)}
+                  className="mt-0.5 rounded text-amber-600 focus:ring-amber-500"
+                />
+                <div>
+                  <span className="text-xs font-bold text-amber-900 block">
+                    Schedule Formal Hearing & Auto-Summons Parent via Gmail
+                  </span>
+                  <span className="text-[11px] text-amber-800 leading-tight block mt-0.5">
+                    Transmits an official summons notice with date, committee, and protocol directly to the parent's email.
+                  </span>
+                </div>
+              </label>
+
+              {scheduleHearingInForm && (
+                <div className="mt-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3 animate-fade-in">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 block mb-1">Hearing Date</label>
+                      <input
+                        type="date"
+                        required={scheduleHearingInForm}
+                        value={formHearingDate}
+                        onChange={(e) => setFormHearingDate(e.target.value)}
+                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 block mb-1">Hearing Time</label>
+                      <input
+                        type="text"
+                        required={scheduleHearingInForm}
+                        value={formHearingTime}
+                        onChange={(e) => setFormHearingTime(e.target.value)}
+                        placeholder="e.g. 10:30 AM"
+                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700 block mb-1">Hearing Location</label>
+                    <input
+                      type="text"
+                      required={scheduleHearingInForm}
+                      value={formHearingLocation}
+                      onChange={(e) => setFormHearingLocation(e.target.value)}
+                      placeholder="e.g. Academic Board Room (Hall B, Rm 204)"
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
               type="submit"
               className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
@@ -276,7 +367,7 @@ export const CounsellorView: React.FC = () => {
               {disciplinaryActions.map((action) => (
                 <div 
                   key={action.id} 
-                  className={`p-4 rounded-xl border text-xs space-y-2 transition ${
+                  className={`p-4 rounded-xl border text-xs space-y-2.5 transition ${
                     action.reversedByPrincipal 
                       ? 'bg-emerald-50/50 border-emerald-200' 
                       : 'bg-rose-50/40 border-rose-200'
@@ -309,11 +400,53 @@ export const CounsellorView: React.FC = () => {
                     {action.description}
                   </p>
 
-                  <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-200/80 text-[11px] text-slate-500">
-                    <span>Action: <strong className="text-slate-800">{action.actionTaken}</strong></span>
-                    <span className="text-emerald-700 font-semibold">
-                      ✓ Homeroom Teacher Notified
-                    </span>
+                  {action.hearingScheduled && (
+                    <div className="p-2.5 rounded-lg bg-amber-50/90 border border-amber-200/90 text-amber-950 space-y-1">
+                      <div className="flex items-center justify-between font-bold text-[11px]">
+                        <span className="flex items-center gap-1.5 text-amber-900">
+                          <Calendar className="w-3.5 h-3.5 text-amber-700" />
+                          Hearing Scheduled: {action.hearingDate} at {action.hearingTime}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200/80 border border-amber-300 text-amber-900 font-mono font-bold">
+                          {action.hearingStatus || 'SCHEDULED'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] text-amber-800">
+                        <MapPin className="w-3 h-3 text-amber-600" />
+                        {action.hearingLocation}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-200/80 text-[11px]">
+                    <div className="flex items-center gap-2">
+                      <span>Action: <strong className="text-slate-800">{action.actionTaken}</strong></span>
+                      <span className="text-emerald-700 font-semibold flex items-center gap-0.5">
+                        <CheckCircle2 className="w-3 h-3" /> Homeroom Alerted
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-1 sm:mt-0">
+                      {action.parentNotified ? (
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          Parent Summons Sent (Gmail)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                          Parent Notice Pending
+                        </span>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedActionForHearing(action)}
+                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-semibold transition flex items-center gap-1 shadow-xs cursor-pointer"
+                      >
+                        <Mail className="w-3 h-3" />
+                        {action.hearingScheduled ? 'Manage Summons' : 'Schedule Hearing & Email'}
+                      </button>
+                    </div>
                   </div>
 
                   {action.reversedByPrincipal && (
@@ -624,6 +757,22 @@ export const CounsellorView: React.FC = () => {
           </button>
         </form>
       )}
+
+      {/* Disciplinary Hearing & Parent Summons Modal */}
+      {selectedActionForHearing && (
+        <DisciplinaryHearingModal
+          isOpen={!!selectedActionForHearing}
+          onClose={() => setSelectedActionForHearing(null)}
+          action={selectedActionForHearing}
+        />
+      )}
+
+      {/* Parent Email Notification Logs Modal */}
+      <ParentEmailLogsModal
+        isOpen={showLogsModal}
+        onClose={() => setShowLogsModal(false)}
+        defaultFilter="DISCIPLINARY"
+      />
 
     </div>
   );

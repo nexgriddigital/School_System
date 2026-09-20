@@ -8,6 +8,8 @@ export type UserRole =
   | 'STUDENT' 
   | 'PARENT';
 
+export type ThemeMode = 'light' | 'dark';
+
 export type AcademicGrade = 9 | 10 | 11 | 12;
 export type AcademicStream = 'Natural Sciences' | 'Social Sciences';
 
@@ -201,6 +203,10 @@ export interface Invoice {
   slipUrl?: string;
   paidWatermark: boolean;
   receiptNumber?: string;
+  parentAlertSent?: boolean;
+  parentAlertSentAt?: string;
+  parentAlertMessageId?: string;
+  urgencyLevel?: 'NORMAL' | 'URGENT' | 'FINAL_OVERDUE';
 }
 
 export interface RecommendationRequest {
@@ -238,6 +244,31 @@ export interface DisciplinaryAction {
   reversedByPrincipal: boolean;
   reversalReason?: string;
   reversalDate?: string;
+  hearingScheduled?: boolean;
+  hearingDate?: string;
+  hearingTime?: string;
+  hearingLocation?: string;
+  hearingCommittee?: string[];
+  hearingStatus?: 'SCHEDULED' | 'CONCLUDED' | 'RESCHEDULED' | 'PENDING_SCHEDULING';
+  parentNoticeSent?: boolean;
+  parentNoticeSentAt?: string;
+  parentNoticeMessageId?: string;
+}
+
+export interface ParentEmailAlertLog {
+  id: string;
+  type: 'DISCIPLINARY_HEARING' | 'URGENT_FEE_DEADLINE';
+  studentId: string;
+  studentName: string;
+  parentName: string;
+  parentEmail: string;
+  subject: string;
+  dispatchedAt: string;
+  status: 'SENT' | 'FAILED' | 'QUEUED';
+  messageId?: string;
+  senderEmail?: string;
+  details?: string;
+  referenceId: string;
 }
 
 export interface SchoolNotice {

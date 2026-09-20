@@ -21,9 +21,14 @@ import {
   Search,
   BookOpen,
   Shield,
-  Download
+  Download,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { SchoolMascotLogo } from './SchoolMascotLogo';
+import { SessionSecurityIndicator } from './SessionSecurityIndicator';
+import { GmailNotificationIndicator } from './GmailNotificationIndicator';
+import { GlobalSearchBar } from './GlobalSearchBar';
 
 interface HeaderProps {
   onOpenTerms?: () => void;
@@ -34,6 +39,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
   const { 
     schoolName,
     setSchoolName,
+    theme,
+    toggleTheme,
     currentRole, 
     setCurrentRole, 
     activeStudentId, 
@@ -152,9 +159,20 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
             </div>
           </div>
 
+          {/* Desktop & Tablet Global Search Bar */}
+          {isAuthenticated && (
+            <div className="flex-1 max-w-sm lg:max-w-md mx-2 lg:mx-4 hidden md:block">
+              <GlobalSearchBar />
+            </div>
+          )}
+
           {/* Right side persona selector & actions - CLEARED UNTIL LOGIN */}
           {isAuthenticated ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+              {/* Mobile Search Trigger Button */}
+              <div className="md:hidden">
+                <GlobalSearchBar isMobileTrigger />
+              </div>
               
               {/* Quick Context Switcher: Student or Teacher selection based on role */}
               {(currentRole === 'STUDENT' || currentRole === 'PARENT') && (
@@ -205,21 +223,21 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
                   </button>
 
                   {showResetModal && (
-                    <div className="absolute right-0 mt-2 w-80 bg-white text-slate-900 rounded-xl shadow-2xl border border-slate-200 p-4 z-50 text-xs animate-in fade-in zoom-in-95">
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
+                    <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50 text-xs animate-in fade-in zoom-in-95">
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2 mb-2">
                         <div>
-                          <p className="font-bold text-slate-800">Issue Temporary Login</p>
-                          <p className="text-[10px] text-blue-600 font-semibold uppercase">Authorized: {currentRole}</p>
+                          <p className="font-bold text-slate-800 dark:text-white">Issue Temporary Login</p>
+                          <p className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold uppercase">Authorized: {currentRole}</p>
                         </div>
                         <button 
                           onClick={() => setShowResetModal(false)}
-                          className="text-slate-400 hover:text-slate-600 font-bold p-1"
+                          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold p-1 cursor-pointer"
                         >
                           ✕
                         </button>
                       </div>
 
-                      <p className="text-[11px] text-slate-500 mb-2">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
                         Finance, Registrar, and Principal have sole authority to issue one-time passwords upon student/parent verification.
                       </p>
 
@@ -229,17 +247,17 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
                           value={resetSearchTerm}
                           onChange={(e) => setResetSearchTerm(e.target.value)}
                           placeholder="Search scholar name or ID..."
-                          className="w-full pl-7 pr-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-full pl-7 pr-2 py-1 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                         <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-1.5" />
                       </div>
 
                       <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
                         {filteredStudentsForReset.map((s) => (
-                          <div key={s.id} className="flex items-center justify-between p-2 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200">
+                          <div key={s.id} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
                             <div>
-                              <p className="font-semibold text-slate-800">{s.fullName}</p>
-                              <p className="text-[10px] font-mono text-slate-500">{s.id} • Gr. {s.grade}</p>
+                              <p className="font-semibold text-slate-800 dark:text-white">{s.fullName}</p>
+                              <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400">{s.id} • Gr. {s.grade}</p>
                             </div>
                             <button
                               onClick={() => {
@@ -258,6 +276,27 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
                 </div>
               )}
 
+              {/* Global Light / Dark Mode Toggle */}
+              <button
+                id="global-theme-toggle-btn"
+                onClick={toggleTheme}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition cursor-pointer active:scale-95"
+                title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+                aria-label={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+              >
+                {theme === 'dark' ? (
+                  <>
+                    <Sun className="w-4 h-4 text-amber-400" />
+                    <span className="text-[11px] font-semibold hidden sm:inline">Light</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon className="w-4 h-4 text-sky-300" />
+                    <span className="text-[11px] font-semibold hidden sm:inline">Dark</span>
+                  </>
+                )}
+              </button>
+
               {/* Notifications Dropdown */}
               <div className="relative">
                 <button
@@ -272,24 +311,24 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
                 </button>
 
                 {showNoticeDropdown && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white text-slate-800 rounded-xl shadow-2xl border border-slate-200 p-4 z-50 animate-in fade-in zoom-in-95">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
-                      <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500">School Notices</h4>
-                      <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-semibold">
+                  <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50 animate-in fade-in zoom-in-95">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2 mb-3">
+                      <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">School Notices</h4>
+                      <span className="text-[10px] bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-900 px-1.5 py-0.5 rounded font-semibold">
                         {notices.length} Updates
                       </span>
                     </div>
                     <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
                       {notices.map((n) => (
-                        <div key={n.id} className="p-2 bg-slate-50 rounded-lg border border-slate-100 text-xs">
+                        <div key={n.id} className="p-2 bg-slate-50 dark:bg-slate-800/70 rounded-lg border border-slate-100 dark:border-slate-800 text-xs">
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-800">{n.title}</span>
+                            <span className="font-bold text-slate-800 dark:text-white">{n.title}</span>
                             <span className="text-[10px] text-slate-400">{n.date}</span>
                           </div>
-                          <p className="text-slate-600 mt-1 text-[11px] leading-relaxed">{n.content}</p>
+                          <p className="text-slate-600 dark:text-slate-300 mt-1 text-[11px] leading-relaxed">{n.content}</p>
                           <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-400">
                             <span>By: {n.postedBy}</span>
-                            <span className="px-1.5 py-0.5 bg-slate-200/80 text-slate-700 rounded font-medium">
+                            <span className="px-1.5 py-0.5 bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded font-medium">
                               {n.category}
                             </span>
                           </div>
@@ -314,6 +353,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
                 <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs border border-blue-400/50 shrink-0">
                   {currentUser?.name?.charAt(0) || 'A'}
                 </div>
+
+                {/* Gmail Automated Parent Notification Service Status */}
+                <GmailNotificationIndicator />
+
+                {/* Institutional Session Security Inactivity Indicator */}
+                <SessionSecurityIndicator />
 
                 {onOpenManual && (
                   <button
@@ -340,6 +385,25 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
           ) : (
             /* Top Nav Bar presentation badges */
             <div className="flex items-center gap-2">
+              <button
+                id="unauth-theme-toggle-btn"
+                onClick={toggleTheme}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold transition cursor-pointer active:scale-95"
+                title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+                aria-label={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+              >
+                {theme === 'dark' ? (
+                  <>
+                    <Sun className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="hidden sm:inline">Light</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon className="w-3.5 h-3.5 text-sky-300" />
+                    <span className="hidden sm:inline">Dark</span>
+                  </>
+                )}
+              </button>
               {onOpenManual && (
                 <button
                   onClick={onOpenManual}

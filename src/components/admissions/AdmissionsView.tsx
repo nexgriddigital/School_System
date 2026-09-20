@@ -22,8 +22,11 @@ import {
   ShieldAlert,
   Eye,
   Download,
-  Sparkles
+  Sparkles,
+  FileSpreadsheet
 } from 'lucide-react';
+import { ExportDataModal } from '../common/ExportDataModal';
+import { exportStudentsCsv } from '../../utils/csvExport';
 
 export const AdmissionsView: React.FC = () => {
   const { 
@@ -40,6 +43,7 @@ export const AdmissionsView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'REGISTER' | 'STUDENT_LIST' | 'STREAM_REQUESTS' | 'ID_COLLECTION'>('REGISTER');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterGrade, setFilterGrade] = useState<string>('ALL');
+  const [showExportModal, setShowExportModal] = useState(false);
   
   // Registration Form State
   const [selectedGrade, setSelectedGrade] = useState<AcademicGrade>(9);
@@ -333,6 +337,15 @@ export const AdmissionsView: React.FC = () => {
             >
               <CreditCard className="w-3.5 h-3.5" />
               ID Badge Handover
+            </button>
+
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer active:scale-95"
+              title="Export filtered student records or full directory to CSV"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              Export Data (CSV)
             </button>
           </div>
         </div>
@@ -1105,7 +1118,7 @@ export const AdmissionsView: React.FC = () => {
               />
             </div>
 
-            <div className="flex items-center gap-2 self-end">
+            <div className="flex flex-wrap items-center gap-2 self-end">
               <span className="text-xs text-slate-500 font-medium">Filter Grade:</span>
               <select
                 value={filterGrade}
@@ -1118,6 +1131,16 @@ export const AdmissionsView: React.FC = () => {
                 <option value="11">Grade 11</option>
                 <option value="12">Grade 12</option>
               </select>
+
+              <button
+                type="button"
+                onClick={() => exportStudentsCsv(filteredStudents, { filterLabel: filterGrade !== 'ALL' ? `Grade_${filterGrade}` : 'Directory' })}
+                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer active:scale-95"
+                title={`Export ${filteredStudents.length} currently filtered student records as CSV`}
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-700" />
+                Export CSV ({filteredStudents.length})
+              </button>
             </div>
           </div>
 
@@ -1400,6 +1423,19 @@ export const AdmissionsView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Global Export Data Modal */}
+      <ExportDataModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        exportType="STUDENTS"
+        filteredStudents={filteredStudents}
+        allStudents={students}
+        admissionsFilterSummary={{
+          searchQuery,
+          filterGrade,
+        }}
+      />
 
     </div>
   );

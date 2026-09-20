@@ -16,7 +16,9 @@ import {
   ChatMessage,
   AcademicGrade,
   AcademicStream,
-  InstitutionalUser
+  InstitutionalUser,
+  ParentEmailAlertLog,
+  ThemeMode
 } from '../types';
 import { 
   INITIAL_STUDENTS, 
@@ -33,7 +35,12 @@ import {
   INITIAL_BANK_STATEMENT,
   INITIAL_USERS
 } from '../mockData';
-import { sendTemporaryPasswordEmailViaGmail } from '../services/gmailAuthService';
+import { sendTemporaryPasswordEmailViaGmail, isGmailAuthorized } from '../services/gmailAuthService';
+import { 
+  sendDisciplinaryHearingEmailViaGmail, 
+  sendUrgentFeeDeadlineEmailViaGmail, 
+  sendBatchUrgentFeeEmailsViaGmail 
+} from '../services/parentEmailNotificationService';
 
 interface SchoolContextType {
   // Navigation & Persona State
@@ -61,9 +68,18 @@ interface SchoolContextType {
   attendanceRecords: AttendanceRecord[];
   bankStatements: BankStatementRow[];
   chatMessages: ChatMessage[];
+  parentEmailAlertLogs: ParentEmailAlertLog[];
+  clearParentEmailAlertLogs: () => void;
   
   // Institutional Users & Principal Provisioning State
   institutionalUsers: InstitutionalUser[];
+  createPrincipalAccount: (params: {
+    name: string;
+    email: string;
+    password: string;
+    phone?: string;
+    position?: string;
+  }) => { success: boolean; user?: InstitutionalUser; error?: string };
   createInstitutionalUser: (params: { 
     name: string; 
     email: string; 
@@ -81,16 +97,23 @@ interface SchoolContextType {
   currentUser: { id: string; name: string; role: UserRole; email?: string; title?: string } | null;
   login: (role: UserRole, identifier?: string, password?: string, customName?: string) => { success: boolean; error?: string };
   logout: () => void;
-  isDemoTemplateMode: boolean;
-  setIsDemoTemplateMode: (val: boolean) => void;
-  showTemplatesModal: boolean;
-  setShowTemplatesModal: (show: boolean) => void;
-  launchTemplate: (role: UserRole) => void;
-  exitDemoMode: () => void;
 
-  // Institution Branding
+  // Session Security & Inactivity Timeout
+  sessionTimeoutMinutes: number;
+  setSessionTimeoutMinutes: (minutes: number) => void;
+  sessionExpiredNotification: string | null;
+  setSessionExpiredNotification: (msg: string | null) => void;
+  clearSessionExpiredNotification: () => void;
+  triggerSessionTimeout: (customMessage?: string) => void;
+  lastActivityTimestamp: number;
+  recordUserActivity: () => void;
+
+  // Institution Branding & Theme
   schoolName: string;
   setSchoolName: (name: string) => void;
+  theme: ThemeMode;
+  setTheme: (theme: ThemeMode) => void;
+  toggleTheme: () => void;
 
   // Modals & Active View Helpers
   selectedStudentForIdCard: Student | null;
@@ -110,6 +133,8 @@ interface SchoolContextType {
   grantLeavingClearance: (studentId: string) => void;
   clearLostIdFinance: (studentId: string) => void;
   payInvoiceOnline: (invoiceId: string, reference: string) => void;
+  sendUrgentFeeDeadlineEmail: (invoiceId: string, customDetails?: { recipientEmail?: string; customMessage?: string }) => Promise<{ success: boolean; messageId?: string; error?: string }>;
+  sendBatchUrgentFeeEmails: (invoiceIds?: string[]) => Promise<{ total: number; successful: number; failed: number; results: any[] }>;
   
   // Actions: Program Office
   createOrUpdateSection: (section: Section) => void;
@@ -118,7 +143,9 @@ interface SchoolContextType {
   assignHomeroomTeacher: (sectionId: string, teacherId: string) => void;
   
   // Actions: Counsellor
-  recordDisciplinaryAction: (action: Omit<DisciplinaryAction, 'id' | 'homeroomTeacherNotified' | 'reversedByPrincipal'>) => void;
+  recordDisciplinaryAction: (action: Omit<DisciplinaryAction, 'id' | 'homeroomTeacherNotified' | 'reversedByPrincipal'> & { autoNotifyParent?: boolean }) => Promise<void> | void;
+  scheduleDisciplinaryHearing: (actionId: string, hearingData: { hearingDate: string; hearingTime: string; hearingLocation: string; hearingCommittee?: string[] }) => void;
+  sendDisciplinaryHearingEmail: (disciplinaryId: string, customDetails?: { hearingDate?: string; hearingTime?: string; hearingLocation?: string; recipientEmail?: string; hearingCommittee?: string[] }) => Promise<{ success: boolean; messageId?: string; error?: string }>;
   submitCounsellorEvaluation: (evalData: Omit<StudentEvaluation, 'id'>) => void;
   
   // Actions: Principal
@@ -543,6 +570,20 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return INITIAL_CHAT_MESSAGES;
   });
 
+  const [parentEmailAlertLogs, setParentEmailAlertLogs] = useState<ParentEmailAlertLog[]>(() => {
+    const saved = localStorage.getItem('oskar_school_parent_email_logs');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('oskar_school_parent_email_logs', JSON.stringify(parentEmailAlertLogs));
+  }, [parentEmailAlertLogs]);
+
+  const clearParentEmailAlertLogs = () => {
+    setParentEmailAlertLogs([]);
+    localStorage.removeItem('oskar_school_parent_email_logs');
+  };
+
   // Modal selections
   const [selectedStudentForIdCard, setSelectedStudentForIdCard] = useState<Student | null>(null);
   const [selectedInvoiceForReceipt, setSelectedInvoiceForReceipt] = useState<Invoice | null>(null);
@@ -552,12 +593,23 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const saved = localStorage.getItem('oskar_school_users');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // If all users are legacy demo users, clear them to start with a pristine clean slate
+          const hasLegacyDemo = parsed.some((u: any) => u.id === 'USR-REG-01' || u.id === 'USR-FIN-01');
+          if (hasLegacyDemo) {
+            localStorage.removeItem('oskar_school_users');
+            localStorage.removeItem('oskar_school_auth');
+            localStorage.removeItem('oskar_school_user');
+            return [];
+          }
+          return parsed;
+        }
       } catch {
-        return INITIAL_USERS;
+        return [];
       }
     }
-    return INITIAL_USERS;
+    return [];
   });
 
   useEffect(() => {
@@ -570,15 +622,132 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Authentication & Session State (False until login)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    // If no institutional users have been created yet, user must be logged out to create Principal
+    const saved = localStorage.getItem('oskar_school_users');
+    if (!saved || saved === '[]') {
+      return false;
+    }
     return localStorage.getItem('oskar_school_auth') === 'true';
   });
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; role: UserRole; email?: string; title?: string } | null>(() => {
-    return getRolePersona(currentRole);
+    const savedUser = localStorage.getItem('oskar_school_user');
+    if (savedUser) {
+      try {
+        return JSON.parse(savedUser);
+      } catch {
+        // fallback
+      }
+    }
+    return null;
   });
-  const [isDemoTemplateMode, setIsDemoTemplateMode] = useState<boolean>(false);
-  const [showTemplatesModal, setShowTemplatesModal] = useState<boolean>(false);
 
-  // Institution Customization
+  // Session Security & Inactivity Timeout (Institutional Standard: 15 minutes)
+  const [sessionTimeoutMinutes, setSessionTimeoutMinutesState] = useState<number>(() => {
+    const saved = localStorage.getItem('oskar_session_timeout_mins');
+    if (saved) {
+      const parsed = parseInt(saved, 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    return 15;
+  });
+
+  const setSessionTimeoutMinutes = useCallback((mins: number) => {
+    const validMins = Math.max(1, mins);
+    setSessionTimeoutMinutesState(validMins);
+    try {
+      localStorage.setItem('oskar_session_timeout_mins', validMins.toString());
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const [sessionExpiredNotification, setSessionExpiredNotification] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem('oskar_session_expired_msg') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [lastActivityTimestamp, setLastActivityTimestamp] = useState<number>(() => Date.now());
+
+  const recordUserActivity = useCallback(() => {
+    setLastActivityTimestamp(Date.now());
+  }, []);
+
+  const clearSessionExpiredNotification = useCallback(() => {
+    setSessionExpiredNotification(null);
+    try {
+      sessionStorage.removeItem('oskar_session_expired_msg');
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const triggerSessionTimeout = useCallback((customMessage?: string) => {
+    const timeoutMins = sessionTimeoutMinutes;
+    const msg = customMessage || `Session Timed Out: You were automatically signed out after ${timeoutMins} minute${timeoutMins === 1 ? '' : 's'} of inactivity to protect institutional records and ensure compliance with data security policies.`;
+    setSessionExpiredNotification(msg);
+    try {
+      sessionStorage.setItem('oskar_session_expired_msg', msg);
+      localStorage.removeItem('oskar_school_auth');
+    } catch (e) {
+      console.error(e);
+    }
+    setIsAuthenticated(false);
+  }, [sessionTimeoutMinutes]);
+
+  // Institution Customization & Global Theme Mode (Light / Dark)
+  const [theme, setThemeState] = useState<ThemeMode>(() => {
+    try {
+      const savedTheme = localStorage.getItem('oskar_school_theme');
+      if (savedTheme === 'dark' || savedTheme === 'light') {
+        return savedTheme;
+      }
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
+      }
+    } catch {
+      // fallback
+    }
+    return 'light';
+  });
+
+  const setTheme = useCallback((newTheme: ThemeMode) => {
+    setThemeState(newTheme);
+    try {
+      localStorage.setItem('oskar_school_theme', newTheme);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setThemeState(prev => {
+      const nextTheme = prev === 'dark' ? 'light' : 'dark';
+      try {
+        localStorage.setItem('oskar_school_theme', nextTheme);
+      } catch (e) {
+        console.error(e);
+      }
+      return nextTheme;
+    });
+  }, []);
+
+  // Synchronize document.documentElement and document.body class list with active theme
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      document.body.classList.add('dark');
+      root.style.colorScheme = 'dark';
+    } else {
+      root.classList.remove('dark');
+      document.body.classList.remove('dark');
+      root.style.colorScheme = 'light';
+    }
+  }, [theme]);
+
   const [schoolName, setSchoolNameState] = useState<string>(() => {
     return localStorage.getItem('academy_school_name') || 'Academy of Excellence';
   });
@@ -712,6 +881,38 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     return { success: true };
   }, []);
+
+  const createPrincipalAccount = (params: {
+    name: string;
+    email: string;
+    password: string;
+    phone?: string;
+    position?: string;
+  }): { success: boolean; user?: InstitutionalUser; error?: string } => {
+    const cleanEmail = params.email.trim().toLowerCase();
+    const existing = institutionalUsers.find(u => u.email.toLowerCase() === cleanEmail);
+    if (existing) {
+      return { success: false, error: 'An account with this email address already exists.' };
+    }
+
+    const newPrincipalUser: InstitutionalUser = {
+      id: `USR-PRN-${Date.now().toString().slice(-4)}`,
+      name: params.name.trim(),
+      email: params.email.trim(),
+      role: 'PRINCIPAL',
+      position: params.position || 'Headmaster & Executive Principal',
+      department: 'Office of the Principal',
+      password: params.password,
+      isTemporaryPassword: false,
+      mustChangePasswordOnFirstLogin: false,
+      createdAt: new Date().toISOString().split('T')[0],
+      createdBy: 'Manual School Initialization',
+      phone: params.phone || '+251 91 100 0001',
+    };
+
+    setInstitutionalUsers(prev => [newPrincipalUser, ...prev]);
+    return { success: true, user: newPrincipalUser };
+  };
 
   const createInstitutionalUser = async (params: {
     name: string;
@@ -1082,6 +1283,149 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }));
   };
 
+  const sendUrgentFeeDeadlineEmail = async (
+    invoiceId: string,
+    customDetails?: {
+      recipientEmail?: string;
+      customMessage?: string;
+    }
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> => {
+    const invoice = invoices.find(inv => inv.id === invoiceId);
+    if (!invoice) {
+      return { success: false, error: 'Invoice record not found.' };
+    }
+
+    const student = students.find(s => s.id === invoice.studentId);
+    const recipientEmail = customDetails?.recipientEmail || student?.parents?.email || 'nexgriddigital@gmail.com';
+    const recipientName = student?.parents?.fatherName || student?.parents?.motherName || 'Parent / Legal Guardian';
+    const isOverdue = new Date(invoice.dueDate) < new Date();
+
+    try {
+      const res = await sendUrgentFeeDeadlineEmailViaGmail({
+        recipientEmail,
+        recipientName,
+        studentName: invoice.studentName,
+        studentId: invoice.studentId,
+        grade: invoice.grade,
+        accountNumber: invoice.accountNumber,
+        invoiceTitle: invoice.title,
+        amount: invoice.amount,
+        dueDate: invoice.dueDate,
+        paymentReference: invoice.paymentReference,
+        isOverdue,
+        schoolName,
+        customMessage: customDetails?.customMessage,
+      });
+
+      const nowIso = new Date().toISOString();
+      setInvoices(prev => prev.map(inv => {
+        if (inv.id === invoiceId) {
+          return {
+            ...inv,
+            parentAlertSent: true,
+            parentAlertSentAt: nowIso,
+            parentAlertMessageId: res.messageId,
+            urgencyLevel: isOverdue ? 'FINAL_OVERDUE' : 'URGENT',
+          };
+        }
+        return inv;
+      }));
+
+      const logItem: ParentEmailAlertLog = {
+        id: `LOG-FEE-${Date.now()}`,
+        type: 'URGENT_FEE_DEADLINE',
+        studentId: invoice.studentId,
+        studentName: invoice.studentName,
+        parentName: recipientName,
+        parentEmail: recipientEmail,
+        subject: `${schoolName} - ${isOverdue ? 'FINAL NOTICE: Tuition Past Due' : 'URGENT: Fee Deadline Alert'}: ${invoice.studentName} (${invoice.accountNumber})`,
+        dispatchedAt: nowIso,
+        status: 'SENT',
+        messageId: res.messageId,
+        referenceId: invoice.id,
+        details: `${invoice.title} - ${invoice.amount.toLocaleString()} ETB (Due: ${invoice.dueDate})`,
+      };
+      setParentEmailAlertLogs(prev => [logItem, ...prev]);
+
+      return { success: true, messageId: res.messageId };
+    } catch (err: any) {
+      const errorMsg = err?.message || 'Failed to dispatch urgent fee alert email via Gmail';
+      const logItem: ParentEmailAlertLog = {
+        id: `LOG-FEE-${Date.now()}`,
+        type: 'URGENT_FEE_DEADLINE',
+        studentId: invoice.studentId,
+        studentName: invoice.studentName,
+        parentName: recipientName,
+        parentEmail: recipientEmail,
+        subject: `${schoolName} - Urgent Fee Alert: ${invoice.studentName}`,
+        dispatchedAt: new Date().toISOString(),
+        status: 'FAILED',
+        referenceId: invoice.id,
+        details: errorMsg,
+      };
+      setParentEmailAlertLogs(prev => [logItem, ...prev]);
+      return { success: false, error: errorMsg };
+    }
+  };
+
+  const sendBatchUrgentFeeEmails = async (
+    invoiceIds?: string[]
+  ): Promise<{ total: number; successful: number; failed: number; results: any[] }> => {
+    const targetInvoices = invoices.filter(inv => {
+      if (invoiceIds && invoiceIds.length > 0) {
+        return invoiceIds.includes(inv.id);
+      }
+      return inv.status === 'UNPAID' || inv.status === 'PENDING_APPROVAL';
+    });
+
+    const payload = targetInvoices.map(inv => {
+      const s = students.find(st => st.id === inv.studentId);
+      return {
+        invoice: inv,
+        parentEmail: s?.parents?.email || 'nexgriddigital@gmail.com',
+        parentName: s?.parents?.fatherName || s?.parents?.motherName || 'Parent / Guardian',
+        schoolName,
+      };
+    });
+
+    const batchRes = await sendBatchUrgentFeeEmailsViaGmail(payload);
+
+    const nowIso = new Date().toISOString();
+    const successfulIds = new Set(batchRes.results.filter(r => r.success).map(r => r.invoiceId));
+    if (successfulIds.size > 0) {
+      setInvoices(prev => prev.map(inv => {
+        if (successfulIds.has(inv.id)) {
+          const matchingResult = batchRes.results.find(r => r.invoiceId === inv.id);
+          return {
+            ...inv,
+            parentAlertSent: true,
+            parentAlertSentAt: nowIso,
+            parentAlertMessageId: matchingResult?.messageId,
+          };
+        }
+        return inv;
+      }));
+    }
+
+    const newLogs: ParentEmailAlertLog[] = batchRes.results.map(r => ({
+      id: `LOG-BATCH-${Date.now()}-${r.invoiceId}`,
+      type: 'URGENT_FEE_DEADLINE',
+      studentId: r.invoiceId,
+      studentName: r.studentName,
+      parentName: 'Parent / Legal Guardian',
+      parentEmail: r.recipientEmail,
+      subject: `${schoolName} - URGENT: Fee Deadline Alert: ${r.studentName}`,
+      dispatchedAt: nowIso,
+      status: r.success ? 'SENT' : 'FAILED',
+      messageId: r.messageId,
+      referenceId: r.invoiceId,
+      details: r.error || 'Batch dispatched successfully via Gmail',
+    }));
+    setParentEmailAlertLogs(prev => [...newLogs, ...prev]);
+
+    return batchRes;
+  };
+
   // 3. Program Office Actions
   const createOrUpdateSection = (section: Section) => {
     setSections(prev => {
@@ -1173,10 +1517,135 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // 4. Counsellor Actions
-  const recordDisciplinaryAction = (actionData: Omit<DisciplinaryAction, 'id' | 'homeroomTeacherNotified' | 'reversedByPrincipal'>) => {
+  const scheduleDisciplinaryHearing = (
+    actionId: string,
+    hearingData: {
+      hearingDate: string;
+      hearingTime: string;
+      hearingLocation: string;
+      hearingCommittee?: string[];
+    }
+  ) => {
+    setDisciplinaryActions(prev => prev.map(act => {
+      if (act.id === actionId) {
+        return {
+          ...act,
+          hearingScheduled: true,
+          hearingDate: hearingData.hearingDate,
+          hearingTime: hearingData.hearingTime,
+          hearingLocation: hearingData.hearingLocation,
+          hearingCommittee: hearingData.hearingCommittee || act.hearingCommittee,
+          hearingStatus: 'SCHEDULED',
+        };
+      }
+      return act;
+    }));
+  };
+
+  const sendDisciplinaryHearingEmail = async (
+    disciplinaryId: string,
+    customDetails?: {
+      hearingDate?: string;
+      hearingTime?: string;
+      hearingLocation?: string;
+      recipientEmail?: string;
+      hearingCommittee?: string[];
+    }
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> => {
+    const action = disciplinaryActions.find(a => a.id === disciplinaryId);
+    if (!action) {
+      return { success: false, error: 'Disciplinary record not found.' };
+    }
+
+    const student = students.find(s => s.id === action.studentId);
+    const recipientEmail = customDetails?.recipientEmail || student?.parents?.email || 'nexgriddigital@gmail.com';
+    const recipientName = student?.parents?.fatherName || student?.parents?.motherName || 'Parent / Legal Guardian';
+
+    const hearingDate = customDetails?.hearingDate || action.hearingDate || new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0];
+    const hearingTime = customDetails?.hearingTime || action.hearingTime || '10:00 AM';
+    const hearingLocation = customDetails?.hearingLocation || action.hearingLocation || 'Academic Disciplinary Board Room (Hall B, Rm 204)';
+    const hearingCommittee = customDetails?.hearingCommittee || action.hearingCommittee || ['Prof. Mengistu Haile (Principal)', 'Sister Marta Wolde (Counsellor)'];
+
+    try {
+      const res = await sendDisciplinaryHearingEmailViaGmail({
+        recipientEmail,
+        recipientName,
+        studentName: action.studentName,
+        studentId: action.studentId,
+        grade: action.grade,
+        sectionId: action.sectionId,
+        incidentType: action.incidentType,
+        incidentDate: action.incidentDate,
+        description: action.description,
+        hearingDate,
+        hearingTime,
+        hearingLocation,
+        hearingCommittee,
+        schoolName,
+        counsellorName: action.counsellorName,
+      });
+
+      const nowIso = new Date().toISOString();
+      setDisciplinaryActions(prev => prev.map(a => {
+        if (a.id === disciplinaryId) {
+          return {
+            ...a,
+            hearingScheduled: true,
+            hearingDate,
+            hearingTime,
+            hearingLocation,
+            hearingCommittee,
+            hearingStatus: 'SCHEDULED',
+            parentNoticeSent: true,
+            parentNoticeSentAt: nowIso,
+            parentNoticeMessageId: res.messageId,
+          };
+        }
+        return a;
+      }));
+
+      const logItem: ParentEmailAlertLog = {
+        id: `LOG-DISC-${Date.now()}`,
+        type: 'DISCIPLINARY_HEARING',
+        studentId: action.studentId,
+        studentName: action.studentName,
+        parentName: recipientName,
+        parentEmail: recipientEmail,
+        subject: `${schoolName} - Disciplinary Hearing Notice: ${action.studentName} (${action.studentId})`,
+        dispatchedAt: nowIso,
+        status: 'SENT',
+        messageId: res.messageId,
+        referenceId: action.id,
+        details: `Hearing set for ${hearingDate} at ${hearingTime} (${hearingLocation})`,
+      };
+      setParentEmailAlertLogs(prev => [logItem, ...prev]);
+
+      return { success: true, messageId: res.messageId };
+    } catch (err: any) {
+      const errorMsg = err?.message || 'Failed to dispatch disciplinary hearing email via Gmail';
+      const logItem: ParentEmailAlertLog = {
+        id: `LOG-DISC-${Date.now()}`,
+        type: 'DISCIPLINARY_HEARING',
+        studentId: action.studentId,
+        studentName: action.studentName,
+        parentName: recipientName,
+        parentEmail: recipientEmail,
+        subject: `${schoolName} - Disciplinary Hearing Notice: ${action.studentName} (${action.studentId})`,
+        dispatchedAt: new Date().toISOString(),
+        status: 'FAILED',
+        referenceId: action.id,
+        details: errorMsg,
+      };
+      setParentEmailAlertLogs(prev => [logItem, ...prev]);
+      return { success: false, error: errorMsg };
+    }
+  };
+
+  const recordDisciplinaryAction = async (actionData: Omit<DisciplinaryAction, 'id' | 'homeroomTeacherNotified' | 'reversedByPrincipal'> & { autoNotifyParent?: boolean }) => {
+    const actionId = `DISC-${Math.floor(1000 + Math.random() * 9000)}`;
     const newAction: DisciplinaryAction = {
       ...actionData,
-      id: `DISC-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: actionId,
       homeroomTeacherNotified: true, // "the system must automattically inform them"
       reversedByPrincipal: false,
     };
@@ -1201,6 +1670,19 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           isUrgent: true,
         };
         setNotices(prev => [autoNotice, ...prev]);
+      }
+    }
+
+    if (actionData.autoNotifyParent && actionData.hearingScheduled) {
+      try {
+        await sendDisciplinaryHearingEmail(actionId, {
+          hearingDate: actionData.hearingDate,
+          hearingTime: actionData.hearingTime,
+          hearingLocation: actionData.hearingLocation,
+          hearingCommittee: actionData.hearingCommittee,
+        });
+      } catch (e) {
+        console.error('Auto notify parent email error:', e);
       }
     }
   };
@@ -1857,6 +2339,8 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     setCurrentUser(userObj);
     setIsAuthenticated(true);
+    clearSessionExpiredNotification();
+    setLastActivityTimestamp(Date.now());
     try {
       localStorage.setItem('oskar_school_role', role);
       localStorage.setItem('oskar_school_user', JSON.stringify(userObj));
@@ -1869,6 +2353,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const logout = () => {
     setIsAuthenticated(false);
+    clearSessionExpiredNotification();
     try {
       localStorage.removeItem('oskar_school_auth');
     } catch (e) {
@@ -1897,7 +2382,9 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       'oskar_school_auth',
       'oskar_school_role',
       'oskar_school_user',
-      'oskar_school_remember'
+      'oskar_school_remember',
+      'oskar_session_timeout_mins',
+      'oskar_school_parent_email_logs'
     ];
 
     keysToRemove.forEach(k => {
@@ -1907,6 +2394,14 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.error(e);
       }
     });
+
+    setParentEmailAlertLogs([]);
+
+    try {
+      sessionStorage.removeItem('oskar_session_expired_msg');
+    } catch (e) {
+      console.error(e);
+    }
 
     // 2. Reset all in-memory React state to pristine clones of initial mock data
     const cleanStudents = JSON.parse(JSON.stringify(INITIAL_STUDENTS));
@@ -1922,7 +2417,16 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const cleanAttendance = JSON.parse(JSON.stringify(INITIAL_ATTENDANCE));
     const cleanBank = JSON.parse(JSON.stringify(INITIAL_BANK_STATEMENT));
     const cleanChat = JSON.parse(JSON.stringify(INITIAL_CHAT_MESSAGES));
-    const cleanUsers = JSON.parse(JSON.stringify(INITIAL_USERS));
+    
+    // Preserve Principal if keepPrincipalLoggedIn is requested
+    const keepPrincipal = options?.keepPrincipalLoggedIn !== false;
+    let cleanUsers: InstitutionalUser[] = [];
+    if (keepPrincipal) {
+      const existingPrincipal = institutionalUsers.find(u => u.role === 'PRINCIPAL');
+      if (existingPrincipal) {
+        cleanUsers = [existingPrincipal];
+      }
+    }
 
     setStudents(cleanStudents);
     setSections(cleanSections);
@@ -1967,10 +2471,15 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     // 4. Handle session: keep Principal authenticated unless explicitly requested otherwise
-    const keepPrincipal = options?.keepPrincipalLoggedIn !== false;
-    if (keepPrincipal) {
+    if (keepPrincipal && cleanUsers.length > 0) {
       setCurrentRoleState('PRINCIPAL');
-      const principalUser = getRolePersona('PRINCIPAL');
+      const principalUser = {
+        id: cleanUsers[0].id,
+        name: cleanUsers[0].name,
+        role: 'PRINCIPAL' as UserRole,
+        email: cleanUsers[0].email,
+        title: cleanUsers[0].position || 'Executive Principal',
+      };
       setCurrentUser(principalUser);
       setIsAuthenticated(true);
       try {
@@ -1983,19 +2492,9 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } else {
       setIsAuthenticated(false);
       setCurrentUser(null);
+      localStorage.removeItem('oskar_school_auth');
+      localStorage.removeItem('oskar_school_user');
     }
-  };
-
-  const launchTemplate = (role: UserRole) => {
-    setCurrentRole(role);
-    setShowTemplatesModal(false);
-    if (typeof window !== 'undefined') {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-  const exitDemoMode = () => {
-    // No-op: all portals are open directly with no login barrier
   };
 
   return (
@@ -2004,12 +2503,14 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       currentUser,
       login,
       logout,
-      isDemoTemplateMode,
-      setIsDemoTemplateMode,
-      showTemplatesModal,
-      setShowTemplatesModal,
-      launchTemplate,
-      exitDemoMode,
+      sessionTimeoutMinutes,
+      setSessionTimeoutMinutes,
+      sessionExpiredNotification,
+      setSessionExpiredNotification,
+      clearSessionExpiredNotification,
+      triggerSessionTimeout,
+      lastActivityTimestamp,
+      recordUserActivity,
       currentRole,
       setCurrentRole,
       activeStudentId,
@@ -2032,12 +2533,18 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       attendanceRecords,
       bankStatements,
       chatMessages,
+      parentEmailAlertLogs,
+      clearParentEmailAlertLogs,
       institutionalUsers,
+      createPrincipalAccount,
       createInstitutionalUser,
       changeUserPassword,
       getUserByEmailOrId,
       schoolName,
       setSchoolName,
+      theme,
+      setTheme,
+      toggleTheme,
       selectedStudentForIdCard,
       setSelectedStudentForIdCard,
       selectedInvoiceForReceipt,
@@ -2051,11 +2558,15 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       grantLeavingClearance,
       clearLostIdFinance,
       payInvoiceOnline,
+      sendUrgentFeeDeadlineEmail,
+      sendBatchUrgentFeeEmails,
       createOrUpdateSection,
       assignStudentToSection,
       autoBalanceGradeSections,
       assignHomeroomTeacher,
       recordDisciplinaryAction,
+      scheduleDisciplinaryHearing,
+      sendDisciplinaryHearingEmail,
       submitCounsellorEvaluation,
       reverseDisciplinaryAction,
       reviewTeacherDayOff,
