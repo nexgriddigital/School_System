@@ -17,8 +17,13 @@ import {
   Mail,
   History,
   Users,
-  Download
+  Download,
+  RotateCcw,
+  BadgeCheck,
+  ArrowRight,
+  Clock
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { BankStatementRow, Invoice } from '../../types';
 import { UrgentFeeAlertModal } from './UrgentFeeAlertModal';
 import { BatchFeeAlertModal } from './BatchFeeAlertModal';
@@ -32,6 +37,8 @@ export const FinanceView: React.FC = () => {
     approvePayment, 
     setSelectedInvoiceForReceipt, 
     bulkReconcileBankStatement, 
+    reconcileSingleBankStatement,
+    resetBankStatementsDemoFeed,
     bankStatements,
     students,
     grantLeavingClearance,
@@ -86,6 +93,41 @@ export const FinanceView: React.FC = () => {
     const res = bulkReconcileBankStatement();
     setReconciliationResult(res);
   };
+
+  // Bank Statement Reconciliation Metrics
+  const totalBankStatements = bankStatements.length;
+  const reconciledBankStatements = bankStatements.filter(b => b.status === 'RECONCILED');
+  const matchedPendingBankStatements = bankStatements.filter(b => b.status === 'MATCHED_PENDING');
+  const unmatchedBankStatements = bankStatements.filter(b => b.status === 'UNMATCHED');
+
+  const reconciledCount = reconciledBankStatements.length;
+  const matchedPendingCount = matchedPendingBankStatements.length;
+  const unmatchedCount = unmatchedBankStatements.length;
+
+  const reconciliationRate = totalBankStatements > 0 
+    ? Math.round((reconciledCount / totalBankStatements) * 100) 
+    : 0;
+  const matchReadyRate = totalBankStatements > 0 
+    ? Math.round((matchedPendingCount / totalBankStatements) * 100) 
+    : 0;
+  const unmatchedRate = totalBankStatements > 0 
+    ? Math.round((unmatchedCount / totalBankStatements) * 100) 
+    : 0;
+
+  const totalBankAmount = bankStatements.reduce((sum, b) => sum + b.amount, 0);
+  const reconciledAmount = reconciledBankStatements.reduce((sum, b) => sum + b.amount, 0);
+  const matchedPendingAmount = matchedPendingBankStatements.reduce((sum, b) => sum + b.amount, 0);
+  const unmatchedAmount = unmatchedBankStatements.reduce((sum, b) => sum + b.amount, 0);
+  const amountReconciledPercent = totalBankAmount > 0 
+    ? Math.round((reconciledAmount / totalBankAmount) * 100) 
+    : 0;
+
+  // Deposit slip verification metrics
+  const invoicesWithSlip = invoices.filter(i => !!i.paymentSlipUrl || !!i.paymentReference);
+  const invoicesSlipApproved = invoicesWithSlip.filter(i => i.status === 'PAID');
+  const slipVerificationRate = invoicesWithSlip.length > 0 
+    ? Math.round((invoicesSlipApproved.length / invoicesWithSlip.length) * 100) 
+    : 0;
 
   const filteredInvoices = invoices.filter(inv => {
     const matchesSearch = inv.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -213,6 +255,119 @@ export const FinanceView: React.FC = () => {
             </p>
           </div>
         </div>
+
+        {/* Institutional Bank Statement Reconciliation Progress Bar */}
+        <div className="mt-5 p-4 bg-slate-50/90 rounded-2xl border border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <CreditCard className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-oskar-vintage text-sm font-bold text-slate-900 tracking-wide">
+                    Bank Statement Reconciliation & Ledger Cross-Check Progress
+                  </h4>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    reconciliationRate === 100
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : reconciliationRate >= 50
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {reconciliationRate}% Reconciled
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  {reconciledCount} of {totalBankStatements} Transactions Cleared • {reconciledAmount.toLocaleString()} ETB of {totalBankAmount.toLocaleString()} ETB ({amountReconciledPercent}%)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              {matchedPendingCount > 0 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('BULK_RECONCILE')}
+                    className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
+                  >
+                    Open Desk ({matchedPendingCount} Ready)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRunReconciliation}
+                    className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-xs cursor-pointer active:scale-95"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Batch Approve Matches
+                  </button>
+                </>
+              ) : (
+                <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Bank Ledger Reconciled
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Segmented Visual Animated Progress Bar Track */}
+          <div className="relative h-2.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${reconciliationRate}%` }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+              className="h-full bg-emerald-500 rounded-l-full"
+              title={`Reconciled: ${reconciliationRate}%`}
+            />
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${matchReadyRate}%` }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+              className="h-full bg-blue-500"
+              title={`Match Ready: ${matchReadyRate}%`}
+            />
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${unmatchedRate}%` }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+              className="h-full bg-slate-300 rounded-r-full"
+              title={`Manual Review: ${unmatchedRate}%`}
+            />
+          </div>
+
+          {/* Reconciliation Sub-Metrics Legend */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-3 pt-3 border-t border-slate-200 text-xs">
+            <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-lg border border-slate-200/80">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                <span className="text-slate-600 font-medium">Reconciled</span>
+              </div>
+              <span className="font-mono font-bold text-slate-900">
+                {reconciledCount}/{totalBankStatements} ({reconciledAmount.toLocaleString()} ETB)
+              </span>
+            </div>
+            <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-lg border border-slate-200/80">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                <span className="text-slate-600 font-medium">Match Ready</span>
+              </div>
+              <span className="font-mono font-bold text-slate-900">
+                {matchedPendingCount}/{totalBankStatements} ({matchedPendingAmount.toLocaleString()} ETB)
+              </span>
+            </div>
+            <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-lg border border-slate-200/80">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
+                <span className="text-slate-600 font-medium">Manual Review</span>
+              </div>
+              <span className="font-mono font-bold text-slate-900">
+                {unmatchedCount}/{totalBankStatements} ({unmatchedAmount.toLocaleString()} ETB)
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* NOTICE DISPATCH MODAL */}
@@ -274,6 +429,48 @@ export const FinanceView: React.FC = () => {
       {/* TAB 1: INVOICES & LEDGER */}
       {activeTab === 'INVOICES' && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+          {/* Tuition Deposit Slip Cross-Check & Verification Progress */}
+          <div className="p-3.5 bg-gradient-to-r from-blue-50/80 to-indigo-50/50 rounded-xl border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                <Receipt className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-oskar-vintage text-xs font-bold text-slate-900 tracking-wide">
+                    Bank Deposit Slip Verification & Approval Progress
+                  </h4>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    slipVerificationRate === 100 
+                      ? 'bg-emerald-100 text-emerald-800' 
+                      : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {slipVerificationRate}% Verified
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {invoicesSlipApproved.length} of {invoicesWithSlip.length} student deposit slips cross-referenced and cleared by finance bursars
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 w-full sm:w-56">
+              <div className="flex-1">
+                <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${slipVerificationRate}%` }}
+                    transition={{ duration: 0.6, ease: 'easeOut' }}
+                    className={`h-full rounded-full ${slipVerificationRate === 100 ? 'bg-emerald-500' : 'bg-blue-600'}`}
+                  />
+                </div>
+              </div>
+              <span className="font-mono text-xs font-bold text-slate-700 shrink-0">
+                {invoicesSlipApproved.length}/{invoicesWithSlip.length}
+              </span>
+            </div>
+          </div>
+
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -447,13 +644,195 @@ export const FinanceView: React.FC = () => {
       {/* TAB 2: BULK BANK STATEMENT CROSS-CHECK */}
       {activeTab === 'BULK_RECONCILE' && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
-          <div className="border-b border-slate-100 pb-4">
-            <h3 className="font-oskar-vintage text-lg font-bold text-slate-900 tracking-wider">
-              Bulk Bank Statement Cross-Checking Engine
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              "Bulk approvals Can be made by uploading a bank statement of the school. (The system will approve each Student's payment by crosschecking The reference Number they specified with the attached slip)"
-            </p>
+          <div className="border-b border-slate-100 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h3 className="font-oskar-vintage text-lg font-bold text-slate-900 tracking-wider">
+                Bulk Bank Statement Cross-Checking Engine
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                "Bulk approvals Can be made by uploading a bank statement of the school. (The system will approve each Student's payment by crosschecking The reference Number they specified with the attached slip)"
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 self-start md:self-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  resetBankStatementsDemoFeed();
+                  setReconciliationResult(null);
+                }}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer active:scale-95"
+                title="Reset bank statements to initial state with mixed pending transactions to test the reconciliation progress workflow"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset Feed for Testing
+              </button>
+            </div>
+          </div>
+
+          {/* Visual Bank Statement Reconciliation Task Completion Tracker */}
+          <div className="p-5 bg-gradient-to-br from-slate-50 to-blue-50/30 rounded-2xl border border-slate-200 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-2xs">
+                  <BadgeCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-oskar-vintage text-base font-bold text-slate-900">
+                      Bank Reconciliation Task Completion
+                    </h4>
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                      reconciliationRate === 100
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-blue-100 text-blue-800 border border-blue-300'
+                    }`}>
+                      {reconciliationRate}% Reconciled
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {reconciledCount} of {totalBankStatements} bank transaction records cleared & matched with student tuition invoices
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm font-bold text-slate-900">
+                  {reconciledAmount.toLocaleString()} ETB <span className="text-slate-400 font-normal text-xs">/ {totalBankAmount.toLocaleString()} ETB</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Visual Animated Segmented Progress Bar */}
+            <div className="space-y-1.5">
+              <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden flex shadow-inner">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${reconciliationRate}%` }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
+                  className="h-full bg-emerald-500 rounded-l-full relative"
+                  title={`Reconciled: ${reconciliationRate}%`}
+                />
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${matchReadyRate}%` }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
+                  className="h-full bg-blue-500 relative"
+                  title={`Match Ready: ${matchReadyRate}%`}
+                />
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${unmatchedRate}%` }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
+                  className="h-full bg-slate-300 rounded-r-full relative"
+                  title={`Manual Review: ${unmatchedRate}%`}
+                />
+              </div>
+
+              <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium">
+                <span>0% Ingested</span>
+                <span>{matchReadyRate + reconciliationRate}% Auto-Matched</span>
+                <span>100% Fully Cleared</span>
+              </div>
+            </div>
+
+            {/* 3 Interactive KPI Progress Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+              {/* Card 1: Reconciled */}
+              <div className="p-3 bg-white rounded-xl border border-emerald-200 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span className="text-xs font-bold text-slate-800">Reconciled</span>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-emerald-700">{reconciliationRate}%</span>
+                </div>
+                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div style={{ width: `${reconciliationRate}%` }} className="h-full bg-emerald-500 rounded-full transition-all duration-300" />
+                </div>
+                <div className="flex justify-between items-center text-[11px] text-slate-500">
+                  <span>{reconciledCount} transactions</span>
+                  <span className="font-mono font-semibold text-slate-700">{reconciledAmount.toLocaleString()} ETB</span>
+                </div>
+              </div>
+
+              {/* Card 2: Match Ready */}
+              <div className="p-3 bg-white rounded-xl border border-blue-200 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    <span className="text-xs font-bold text-slate-800">Match Ready</span>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-blue-700">{matchReadyRate}%</span>
+                </div>
+                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div style={{ width: `${matchReadyRate}%` }} className="h-full bg-blue-500 rounded-full transition-all duration-300" />
+                </div>
+                <div className="flex justify-between items-center text-[11px] text-slate-500">
+                  <span>{matchedPendingCount} transactions</span>
+                  <span className="font-mono font-semibold text-slate-700">{matchedPendingAmount.toLocaleString()} ETB</span>
+                </div>
+              </div>
+
+              {/* Card 3: Manual Review */}
+              <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-slate-500" />
+                    <span className="text-xs font-bold text-slate-800">Manual Review</span>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-slate-600">{unmatchedRate}%</span>
+                </div>
+                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div style={{ width: `${unmatchedRate}%` }} className="h-full bg-slate-400 rounded-full transition-all duration-300" />
+                </div>
+                <div className="flex justify-between items-center text-[11px] text-slate-500">
+                  <span>{unmatchedCount} transactions</span>
+                  <span className="font-mono font-semibold text-slate-700">{unmatchedAmount.toLocaleString()} ETB</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Sequential 3-Step Verification Flow */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-200/80 text-xs">
+              <div className="flex items-center gap-2 p-2 bg-white/70 rounded-lg">
+                <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[10px] flex items-center justify-center shrink-0">
+                  ✓
+                </span>
+                <div>
+                  <p className="font-bold text-slate-800 text-[11px]">1. Ingest Bank Statement</p>
+                  <p className="text-[10px] text-slate-500">{totalBankStatements} rows parsed (100%)</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 p-2 bg-white/70 rounded-lg">
+                <span className={`w-5 h-5 rounded-full font-bold text-[10px] flex items-center justify-center shrink-0 ${
+                  matchReadyRate + reconciliationRate === 100
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {matchReadyRate + reconciliationRate === 100 ? '✓' : '2'}
+                </span>
+                <div>
+                  <p className="font-bold text-slate-800 text-[11px]">2. Cross-Check Reference</p>
+                  <p className="text-[10px] text-slate-500">{reconciledCount + matchedPendingCount} of {totalBankStatements} matched</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 p-2 bg-white/70 rounded-lg">
+                <span className={`w-5 h-5 rounded-full font-bold text-[10px] flex items-center justify-center shrink-0 ${
+                  reconciliationRate === 100
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {reconciliationRate === 100 ? '✓' : '3'}
+                </span>
+                <div>
+                  <p className="font-bold text-slate-800 text-[11px]">3. Reconcile & Clear</p>
+                  <p className="text-[10px] text-slate-500">{reconciliationRate}% completed</p>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Upload Dropzone */}
@@ -527,7 +906,8 @@ export const FinanceView: React.FC = () => {
                     <th className="py-2.5 px-3">Amount</th>
                     <th className="py-2.5 px-3">Payer Details & Description</th>
                     <th className="py-2.5 px-3">Cross-Check Match</th>
-                    <th className="py-2.5 px-3 text-right">Status</th>
+                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -549,19 +929,49 @@ export const FinanceView: React.FC = () => {
                           <span className="text-slate-400 italic">No exact account match</span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-right">
+                      <td className="py-2.5 px-3">
                         {row.status === 'RECONCILED' ? (
-                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold text-[10px]">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold text-[10px]">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             RECONCILED
                           </span>
                         ) : row.status === 'MATCHED_PENDING' ? (
-                          <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-bold text-[10px]">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-bold text-[10px]">
+                            <Clock className="w-3 h-3 text-blue-600" />
                             MATCH READY
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded font-bold text-[10px]">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-600 rounded font-bold text-[10px]">
+                            <AlertTriangle className="w-3 h-3 text-slate-500" />
                             MANUAL REVIEW
                           </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        {row.status === 'RECONCILED' ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            Cleared
+                          </span>
+                        ) : row.status === 'MATCHED_PENDING' ? (
+                          <button
+                            type="button"
+                            onClick={() => reconcileSingleBankStatement(row.id)}
+                            className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] font-bold transition shadow-2xs cursor-pointer active:scale-95 inline-flex items-center gap-1"
+                            title="Approve matched fee invoice and mark bank statement as reconciled"
+                          >
+                            <CheckCircle2 className="w-3 h-3" />
+                            Approve
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => reconcileSingleBankStatement(row.id)}
+                            className="px-2 py-1 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-300 hover:border-emerald-300 rounded text-[11px] font-semibold transition cursor-pointer active:scale-95 inline-flex items-center gap-1"
+                            title="Mark statement row as manually reconciled"
+                          >
+                            Reconcile
+                          </button>
                         )}
                       </td>
                     </tr>

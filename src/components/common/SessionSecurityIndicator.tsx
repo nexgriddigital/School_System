@@ -59,8 +59,11 @@ export const SessionSecurityIndicator: React.FC = () => {
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 group-hover:text-emerald-300 transition" />
           <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ring-1 ring-slate-900" />
         </div>
-        <span className="hidden sm:inline text-[11px] font-mono font-semibold text-emerald-300">
+        <span className="hidden 2xl:inline text-[11px] font-mono font-semibold text-emerald-300">
           {sessionTimeoutMinutes}m Auto-Lock
+        </span>
+        <span className="hidden sm:inline 2xl:hidden text-[11px] font-mono font-semibold text-emerald-300">
+          {sessionTimeoutMinutes}m
         </span>
         <ChevronDown className="w-3 h-3 text-slate-400 group-hover:text-slate-200 transition" />
       </button>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'motion/react';
 
 interface SchoolMascotLogoProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
@@ -20,7 +21,7 @@ const sizeMap = {
 
 /**
  * Official School Mascot Guy (Scholar Blue Owl with Graduation Cap & Round Spectacles)
- * Static / Dormant branding icon.
+ * Animated branding icon with continuous gentle floating motion.
  */
 export const SchoolMascotLogo: React.FC<SchoolMascotLogoProps> = ({
   size = 'md',
@@ -32,7 +33,16 @@ export const SchoolMascotLogo: React.FC<SchoolMascotLogoProps> = ({
   const sizeClasses = sizeMap[size] || sizeMap.md;
 
   return (
-    <div
+    <motion.div
+      animate={{
+        y: [-2, 2.5, -2],
+        rotate: [-1, 1.2, -1],
+      }}
+      transition={{
+        repeat: Infinity,
+        duration: 3,
+        ease: 'easeInOut',
+      }}
       className={`relative inline-flex items-center justify-center shrink-0 select-none ${sizeClasses} ${
         withBackground
           ? 'rounded-2xl bg-gradient-to-br from-blue-900/40 via-slate-900/60 to-blue-950/80 p-1.5 border border-blue-400/30 shadow-md'
@@ -80,28 +90,40 @@ export const SchoolMascotLogo: React.FC<SchoolMascotLogoProps> = ({
         <ellipse cx="26" cy="56" rx="4.5" ry="3.2" fill="#F472B6" fillOpacity="0.75" />
         <ellipse cx="74" cy="56" rx="4.5" ry="3.2" fill="#F472B6" fillOpacity="0.75" />
 
-        {/* Cute Raised Wings / Paws (Excited scholarly pose) */}
+        {/* Cute Raised Wings / Paws (Excited scholarly pose with subtle flap) */}
         {/* Left Wing */}
-        <path
-          d="M 18 64 C 18 57, 28 55, 33 60 C 34 65, 30 72, 22 71 C 18 70, 18 67, 18 64 Z"
-          fill="#2563EB"
-          stroke="#1D4ED8"
-          strokeWidth="1.2"
-        />
-        <circle cx="27" cy="58" r="2" fill="#60A5FA" fillOpacity="0.6" />
-        <circle cx="31" cy="61" r="1.8" fill="#60A5FA" fillOpacity="0.6" />
+        <motion.g
+          animate={{ rotate: [-2, 3, -2] }}
+          transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
+          style={{ transformOrigin: '22px 68px' }}
+        >
+          <path
+            d="M 18 64 C 18 57, 28 55, 33 60 C 34 65, 30 72, 22 71 C 18 70, 18 67, 18 64 Z"
+            fill="#2563EB"
+            stroke="#1D4ED8"
+            strokeWidth="1.2"
+          />
+          <circle cx="27" cy="58" r="2" fill="#60A5FA" fillOpacity="0.6" />
+          <circle cx="31" cy="61" r="1.8" fill="#60A5FA" fillOpacity="0.6" />
+        </motion.g>
 
         {/* Right Wing */}
-        <path
-          d="M 82 64 C 82 57, 72 55, 67 60 C 66 65, 70 72, 78 71 C 82 70, 82 67, 82 64 Z"
-          fill="#2563EB"
-          stroke="#1D4ED8"
-          strokeWidth="1.2"
-        />
-        <circle cx="73" cy="58" r="2" fill="#60A5FA" fillOpacity="0.6" />
-        <circle cx="69" cy="61" r="1.8" fill="#60A5FA" fillOpacity="0.6" />
+        <motion.g
+          animate={{ rotate: [2, -3, 2] }}
+          transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
+          style={{ transformOrigin: '78px 68px' }}
+        >
+          <path
+            d="M 82 64 C 82 57, 72 55, 67 60 C 66 65, 70 72, 78 71 C 82 70, 82 67, 82 64 Z"
+            fill="#2563EB"
+            stroke="#1D4ED8"
+            strokeWidth="1.2"
+          />
+          <circle cx="73" cy="58" r="2" fill="#60A5FA" fillOpacity="0.6" />
+          <circle cx="69" cy="61" r="1.8" fill="#60A5FA" fillOpacity="0.6" />
+        </motion.g>
 
-        {/* Golden Spectacles Frame Background White Eyes (Dormant static eyes) */}
+        {/* Golden Spectacles Frame Background White Eyes */}
         <circle cx="38" cy="49" r="14.5" fill="#FFFFFF" />
         <circle cx="62" cy="49" r="14.5" fill="#FFFFFF" />
 
@@ -132,13 +154,22 @@ export const SchoolMascotLogo: React.FC<SchoolMascotLogoProps> = ({
           <polygon points="50,12 79,22 50,30 21,22" fill="#0F172A" />
           {/* Center Gold Button */}
           <circle cx="50" cy="21" r="2.8" fill="#F59E0B" stroke="#D97706" strokeWidth="0.8" />
-          {/* Arched Orange Tassel Cord */}
-          <path d="M 50 21 C 60 17, 72 20, 71 34" fill="none" stroke="#F59E0B" strokeWidth="2.2" strokeLinecap="round" />
+          {/* Arched Orange Tassel Cord with gentle motion */}
+          <motion.path
+            d="M 50 21 C 60 17, 72 20, 71 34"
+            fill="none"
+            stroke="#F59E0B"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            animate={{ rotate: [-2, 3, -2] }}
+            transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+            style={{ transformOrigin: '50px 21px' }}
+          />
           {/* Tassel Fringe Pendant */}
           <circle cx="71" cy="35" r="1.8" fill="#D97706" />
           <path d="M 70 36 L 72 36 L 73 42 L 69 42 Z" fill="#F59E0B" />
         </g>
       </svg>
-    </div>
+    </motion.div>
   );
 };

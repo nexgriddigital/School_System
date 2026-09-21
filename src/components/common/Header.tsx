@@ -93,21 +93,24 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
   return (
     <header className="sticky top-0 z-40 bg-[#0B192C] text-white shadow-lg border-b border-slate-800">
       {/* Top institution bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 border-b border-slate-800/80">
-          {/* Logo with official mascot guy & vintage specimen font branding */}
-          <div className="flex items-center gap-3">
-            <SchoolMascotLogo size="lg" withBackground showGlow interactive />
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-oskar-vintage text-2xl font-bold tracking-widest text-white select-none">
+      <div className="w-full max-w-[1720px] mx-auto px-3 sm:px-5 lg:px-6">
+        <div className="flex items-center justify-between min-h-[4rem] py-2 border-b border-slate-800/80 gap-2 sm:gap-4">
+          {/* Logo with official mascot & vintage specimen font branding */}
+          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 min-w-0">
+            <SchoolMascotLogo size="md" withBackground showGlow interactive />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span 
+                  className="font-oskar-vintage text-base sm:text-lg md:text-xl font-bold tracking-wide text-white truncate max-w-[160px] sm:max-w-[220px] md:max-w-[260px] lg:max-w-xs select-none" 
+                  title={schoolName}
+                >
                   {schoolName}
                 </span>
-                <span className="font-oskar text-xs font-semibold tracking-wider text-blue-400 uppercase bg-blue-950/60 px-2 py-0.5 rounded border border-blue-800/50 select-none">
+                <span className="font-oskar text-[10px] font-semibold tracking-wider text-blue-400 uppercase bg-blue-950/70 px-1.5 py-0.5 rounded border border-blue-800/60 shrink-0 select-none">
                   SIS
                 </span>
               </div>
-              <p className="text-[10px] tracking-wider text-slate-400 uppercase select-none">
+              <p className="text-[10px] tracking-wider text-slate-400 uppercase truncate select-none hidden xl:block">
                 Integrated School Administration & Learning System
               </p>
             </div>
@@ -115,14 +118,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
 
           {/* Desktop & Tablet Global Search Bar */}
           {isAuthenticated && (
-            <div className="flex-1 max-w-sm lg:max-w-md mx-2 lg:mx-4 hidden md:block">
+            <div className="flex-1 max-w-xs md:max-w-sm lg:max-w-md mx-2 hidden md:block">
               <GlobalSearchBar />
             </div>
           )}
 
           {/* Right side persona selector & actions - CLEARED UNTIL LOGIN */}
           {isAuthenticated ? (
-            <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               {/* Mobile Search Trigger Button */}
               <div className="md:hidden">
                 <GlobalSearchBar isMobileTrigger />
@@ -130,16 +133,16 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
               
               {/* Quick Context Switcher: Student or Teacher selection based on role */}
               {(currentRole === 'STUDENT' || currentRole === 'PARENT') && (
-                <div className="hidden sm:flex items-center gap-2 bg-slate-800/70 px-3 py-1.5 rounded-lg border border-slate-700 text-xs">
-                  <span className="text-slate-400">Viewing as:</span>
+                <div className="hidden sm:flex items-center gap-1.5 bg-slate-800/70 px-2 py-1 rounded-lg border border-slate-700 text-xs">
+                  <span className="text-slate-400 text-[11px]">Viewing:</span>
                   <select
                     value={activeStudentId}
                     onChange={(e) => setActiveStudentId(e.target.value)}
-                    className="bg-slate-900 text-white font-medium border border-slate-600 rounded px-2 py-1 outline-none text-xs"
+                    className="bg-slate-900 text-white font-medium border border-slate-600 rounded px-1.5 py-0.5 outline-none text-xs max-w-[130px] truncate"
                   >
                     {students.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.fullName} (Grade {s.grade}{s.stream ? ` - ${s.stream === 'Natural Sciences' ? 'NAT' : 'SOC'}` : ''})
+                        {s.fullName} (Gr. {s.grade})
                       </option>
                     ))}
                   </select>
@@ -147,16 +150,16 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
               )}
 
               {currentRole === 'TEACHER' && (
-                <div className="hidden sm:flex items-center gap-2 bg-slate-800/70 px-3 py-1.5 rounded-lg border border-slate-700 text-xs">
-                  <span className="text-slate-400">Active Teacher:</span>
+                <div className="hidden sm:flex items-center gap-1.5 bg-slate-800/70 px-2 py-1 rounded-lg border border-slate-700 text-xs">
+                  <span className="text-slate-400 text-[11px]">Teacher:</span>
                   <select
                     value={activeTeacherId}
                     onChange={(e) => setActiveTeacherId(e.target.value)}
-                    className="bg-slate-900 text-white font-medium border border-slate-600 rounded px-2 py-1 outline-none text-xs"
+                    className="bg-slate-900 text-white font-medium border border-slate-600 rounded px-1.5 py-0.5 outline-none text-xs max-w-[130px] truncate"
                   >
                     {teachers.map((t) => (
                       <option key={t.id} value={t.id}>
-                        {t.name} {t.isHomeroom ? `(Homeroom: ${t.assignedSectionId})` : '(Subject Teacher)'}
+                        {t.name}
                       </option>
                     ))}
                   </select>
@@ -168,11 +171,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
                 <div className="relative">
                   <button
                     onClick={() => setShowResetModal(!showResetModal)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium border border-slate-700 transition cursor-pointer"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium border border-slate-700 transition cursor-pointer"
                     title={`Reset Student Credentials (Authorized for ${currentRole})`}
                   >
                     <KeyRound className="w-3.5 h-3.5 text-blue-400" />
-                    <span className="hidden md:inline">Reset Login</span>
+                    <span className="hidden xl:inline">Reset Login</span>
                     <ChevronDown className="w-3 h-3 text-slate-400" />
                   </button>
 
@@ -230,24 +233,27 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
                 </div>
               )}
 
+              {/* Status / Infrastructure Indicators */}
+              <div className="flex items-center gap-1.5">
+                {/* Gmail Automated Parent Notification Service Status */}
+                <GmailNotificationIndicator />
+
+                {/* Institutional Session Security Inactivity Indicator */}
+                <SessionSecurityIndicator />
+              </div>
+
               {/* Global Light / Dark Mode Toggle */}
               <button
                 id="global-theme-toggle-btn"
                 onClick={toggleTheme}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition cursor-pointer active:scale-95"
+                className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition cursor-pointer active:scale-95 shrink-0"
                 title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
                 aria-label={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
               >
                 {theme === 'dark' ? (
-                  <>
-                    <Sun className="w-4 h-4 text-amber-400" />
-                    <span className="text-[11px] font-semibold hidden sm:inline">Light</span>
-                  </>
+                  <Sun className="w-4 h-4 text-amber-400" />
                 ) : (
-                  <>
-                    <Moon className="w-4 h-4 text-sky-300" />
-                    <span className="text-[11px] font-semibold hidden sm:inline">Dark</span>
-                  </>
+                  <Moon className="w-4 h-4 text-sky-300" />
                 )}
               </button>
 
@@ -255,7 +261,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
               <div className="relative">
                 <button
                   onClick={() => setShowNoticeDropdown(!showNoticeDropdown)}
-                  className="relative p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                  className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition cursor-pointer shrink-0"
                   title="School Notices"
                 >
                   <Bell className="w-4 h-4" />
@@ -293,45 +299,40 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
                 )}
               </div>
 
-              {/* Active Persona display, Templates button & Sign Out */}
-              <div className="flex items-center gap-2.5 pl-2 border-l border-slate-800">
-                <div className="hidden md:flex flex-col text-right">
-                  <span className="text-xs font-bold text-white leading-tight">
+              {/* System Manual */}
+              {onOpenManual && (
+                <button
+                  onClick={onOpenManual}
+                  className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800/90 hover:bg-slate-700 text-amber-300 border border-slate-700 rounded-lg text-xs font-medium transition cursor-pointer shrink-0"
+                  title="Open Instructions Manual (PDF with NexGrid Digital Letterhead)"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span className="hidden 2xl:inline">System Manual</span>
+                </button>
+              )}
+
+              {/* Active Persona display & Sign Out */}
+              <div className="flex items-center gap-2 pl-2 sm:pl-2.5 border-l border-slate-800 shrink-0">
+                <div className="hidden md:flex flex-col text-right max-w-[110px] lg:max-w-[150px] min-w-0">
+                  <span className="text-xs font-bold text-white leading-tight truncate" title={currentUser?.name}>
                     {currentUser?.name || 'Authorized Staff'}
                   </span>
-                  <span className="text-[10px] text-blue-300">
+                  <span className="text-[10px] text-blue-300 truncate" title={currentUser?.title || roleConfigs.find(r => r.role === currentRole)?.label}>
                     {currentUser?.title || roleConfigs.find(r => r.role === currentRole)?.label}
                   </span>
                 </div>
 
-                <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs border border-blue-400/50 shrink-0">
+                <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs border border-blue-400/50 shrink-0" title={currentUser?.name}>
                   {currentUser?.name?.charAt(0) || 'A'}
                 </div>
 
-                {/* Gmail Automated Parent Notification Service Status */}
-                <GmailNotificationIndicator />
-
-                {/* Institutional Session Security Inactivity Indicator */}
-                <SessionSecurityIndicator />
-
-                {onOpenManual && (
-                  <button
-                    onClick={onOpenManual}
-                    className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800/90 hover:bg-slate-700 text-amber-300 border border-slate-700 rounded-lg text-xs font-medium transition cursor-pointer"
-                    title="Open Instructions Manual (PDF with NexGrid Digital Letterhead)"
-                  >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    <span>System Manual</span>
-                  </button>
-                )}
-
                 <button
                   onClick={logout}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-950/60 hover:bg-rose-900 text-rose-200 border border-rose-800/70 rounded-lg text-xs font-medium transition cursor-pointer"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-950/60 hover:bg-rose-900 text-rose-200 border border-rose-800/70 rounded-lg text-xs font-medium transition cursor-pointer shrink-0"
                   title="Sign out of system"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  <span className="hidden lg:inline">Sign Out</span>
+                  <span className="hidden xl:inline">Sign Out</span>
                 </button>
               </div>
 
@@ -398,23 +399,21 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
 
         {/* Sub-navigation role tabs bar: ONLY rendered after login */}
         {isAuthenticated && (
-          <div className="border-t border-slate-800/80 pt-2 pb-2">
-            <div className="flex items-center justify-between pb-1.5 px-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                <Sparkles className="w-3 h-3 text-blue-400" />
-                <span>Stakeholder Portals & Workspaces:</span>
-              </span>
+          <div className="py-1.5 flex items-center gap-2.5 overflow-x-auto no-scrollbar">
+            <div className="hidden lg:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 shrink-0 pl-1 pr-2 border-r border-slate-800 select-none">
+              <Sparkles className="w-3 h-3 text-blue-400" />
+              <span>Portals</span>
             </div>
-            <nav className="flex space-x-1 overflow-x-auto no-scrollbar">
+            <nav className="flex items-center space-x-1 shrink-0">
               {roleConfigs.map(({ role, label, icon: Icon }) => {
                 const isActive = currentRole === role;
                 return (
                   <button
                     key={role}
                     onClick={() => setCurrentRole(role)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                       isActive
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40 border border-blue-400/50'
+                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-900/40 border border-blue-400/50'
                         : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
                     }`}
                   >

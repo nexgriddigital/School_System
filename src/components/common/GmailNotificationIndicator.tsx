@@ -97,7 +97,8 @@ export const GmailNotificationIndicator: React.FC = () => {
               hasAuthorized ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
             } ring-1 ring-slate-900`} />
           </div>
-          <span className="hidden sm:inline font-medium">Gmail Alerts</span>
+          <span className="hidden 2xl:inline font-medium">Gmail Alerts</span>
+          <span className="hidden sm:inline 2xl:hidden font-medium">Gmail</span>
           <ChevronDown className="w-3 h-3 text-slate-400 group-hover:text-slate-200 transition" />
         </button>
 

@@ -23,8 +23,13 @@ import {
   Eye,
   Download,
   Sparkles,
-  FileSpreadsheet
+  FileSpreadsheet,
+  FileCheck2,
+  Check,
+  CheckSquare,
+  FileBadge
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { ExportDataModal } from '../common/ExportDataModal';
 import { exportStudentsCsv } from '../../utils/csvExport';
 
@@ -37,12 +42,14 @@ export const AdmissionsView: React.FC = () => {
     reviewStreamChangeRequest, 
     resetUserPassword,
     markIdCardCollected,
+    verifyStudentDocument,
     openDocumentViewer
   } = useSchool();
 
   const [activeTab, setActiveTab] = useState<'REGISTER' | 'STUDENT_LIST' | 'STREAM_REQUESTS' | 'ID_COLLECTION'>('REGISTER');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterGrade, setFilterGrade] = useState<string>('ALL');
+  const [filterDocStatus, setFilterDocStatus] = useState<'ALL' | 'VERIFIED' | 'PENDING'>('ALL');
   const [showExportModal, setShowExportModal] = useState(false);
   
   // Registration Form State
@@ -256,14 +263,112 @@ export const AdmissionsView: React.FC = () => {
     setIsSameSchool(false);
   };
 
+  // Document verification helper for each student record
+  const checkStudentDossierVerification = (s: typeof students[0]) => {
+    const hasEighthCert = Boolean(s.eighthGradeCertAttached);
+    const hasAcademicPrereq = s.grade === 9 
+      ? (s.entranceExamScore != null && s.entranceExamScore > 0)
+      : Boolean(s.ninthGradeResults);
+    const hasPhoto = Boolean(s.photoUrl && s.photoUrl.length > 5);
+    const hasEmergency = Boolean(s.emergencyContact?.phone1);
+
+    let completedTasks = 0;
+    if (hasEighthCert) completedTasks++;
+    if (hasAcademicPrereq) completedTasks++;
+    if (hasPhoto) completedTasks++;
+    if (hasEmergency) completedTasks++;
+
+    const percentage = Math.round((completedTasks / 4) * 100);
+    const isComplete = completedTasks === 4;
+
+    return {
+      isComplete,
+      percentage,
+      completedTasks,
+      totalTasks: 4,
+      hasEighthCert,
+      hasAcademicPrereq,
+      hasPhoto,
+      hasEmergency,
+    };
+  };
+
   // Filter students
   const filteredStudents = students.filter(s => {
     const matchesSearch = s.fullName.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           s.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           s.accountNumber.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesGrade = filterGrade === 'ALL' || s.grade.toString() === filterGrade;
-    return matchesSearch && matchesGrade;
+    const dossier = checkStudentDossierVerification(s);
+    const matchesDoc = filterDocStatus === 'ALL' 
+      || (filterDocStatus === 'VERIFIED' && dossier.isComplete)
+      || (filterDocStatus === 'PENDING' && !dossier.isComplete);
+    return matchesSearch && matchesGrade && matchesDoc;
   });
+
+  // Institutional document verification metrics
+  const studentDossierList = students.map(s => ({
+    student: s,
+    ...checkStudentDossierVerification(s),
+  }));
+  const totalStudents = students.length;
+  const verifiedDossiersCount = studentDossierList.filter(d => d.isComplete).length;
+  const pendingDossiersCount = totalStudents - verifiedDossiersCount;
+  const institutionalDocCompletionRate = totalStudents > 0 
+    ? Math.round((verifiedDossiersCount / totalStudents) * 100) 
+    : 0;
+
+  const eighthGradeCertsVerifiedCount = studentDossierList.filter(d => d.hasEighthCert).length;
+  const academicPrereqsVerifiedCount = studentDossierList.filter(d => d.hasAcademicPrereq).length;
+  const photosVerifiedCount = studentDossierList.filter(d => d.hasPhoto).length;
+
+  // Active Candidate Registration Verification Checks
+  const candidateDocChecks = [
+    {
+      id: 'grade',
+      label: 'Grade & Stream',
+      done: selectedGrade < 11 ? true : Boolean(selectedStream),
+      desc: `Grade ${selectedGrade}${selectedGrade >= 11 ? ` (${selectedStream})` : ''}`,
+    },
+    {
+      id: 'bio',
+      label: 'Identity & Photo',
+      done: Boolean(fullName.trim().length >= 2 && dob && photoUrl),
+      desc: fullName.trim() ? `${fullName.split(' ')[0]} bio verified` : 'Name & photo required',
+    },
+    {
+      id: 'cert',
+      label: '8th Grade Cert',
+      done: Boolean(eighthGradeCertAttached && (certFileName || certDataUrl)),
+      desc: eighthGradeCertAttached ? (certFileName || 'Certificate verified') : 'Upload & verify required',
+    },
+    {
+      id: 'marks',
+      label: 'Prerequisite Marks',
+      done: selectedGrade === 9 
+        ? Boolean(entranceExamScore && Number(entranceExamScore) > 0)
+        : Boolean(g9Math && g9English && g9Science),
+      desc: selectedGrade === 9 ? (entranceExamScore ? `${entranceExamScore}% Entrance score` : 'Entrance score required') : 'Transcript marks verified',
+    },
+    {
+      id: 'guardian',
+      label: 'Guardian Contact',
+      done: Boolean((fatherName.trim() || motherName.trim()) && (fatherPhone.trim() || motherPhone.trim()) && emergencyName.trim() && emergencyPhone1.trim()),
+      desc: (fatherPhone || motherPhone) ? 'Parents & emergency phones verified' : 'Parents & 2 phones required',
+    },
+  ];
+  const candidateCompletedCount = candidateDocChecks.filter(c => c.done).length;
+  const candidateDocPercentage = Math.round((candidateCompletedCount / candidateDocChecks.length) * 100);
+
+  // Bulk verify all pending student dossiers
+  const handleVerifyAllPendingDossiers = () => {
+    students.forEach(s => {
+      const dossier = checkStudentDossierVerification(s);
+      if (!dossier.isComplete) {
+        verifyStudentDocument(s.id);
+      }
+    });
+  };
 
   // Pending stream requests
   const pendingStreamRequests = students.filter(s => s.streamChangeRequest && s.streamChangeRequest.status === 'PENDING');
@@ -375,11 +480,164 @@ export const AdmissionsView: React.FC = () => {
             </p>
           </div>
         </div>
+
+        {/* Institutional Admissions Document Verification Progress Bar */}
+        <div className="mt-5 p-4 bg-slate-50/90 rounded-2xl border border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                <FileCheck2 className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-oskar-vintage text-sm font-bold text-slate-900 tracking-wide">
+                    Admissions Document Verification Completion
+                  </h4>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    institutionalDocCompletionRate === 100
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : institutionalDocCompletionRate >= 70
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {institutionalDocCompletionRate}% Verified
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  {verifiedDossiersCount} of {totalStudents} Student Dossiers Fully Verified & Archived in Official Vault
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              {pendingDossiersCount > 0 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('STUDENT_LIST');
+                      setFilterDocStatus('PENDING');
+                    }}
+                    className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
+                  >
+                    View {pendingDossiersCount} Pending
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleVerifyAllPendingDossiers}
+                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-xs cursor-pointer active:scale-95"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Verify All Dossiers
+                  </button>
+                </>
+              ) : (
+                <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5" />
+                  All Dossiers 100% Compliant
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Visual Animated Progress Bar Track */}
+          <div className="relative h-2.5 w-full bg-slate-200 rounded-full overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${institutionalDocCompletionRate}%` }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+              className="h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-500 rounded-full"
+            />
+          </div>
+
+          {/* Verification Breakdown Sub-Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-3 pt-3 border-t border-slate-200 text-xs">
+            <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-lg border border-slate-200/80">
+              <span className="text-slate-600 font-medium">8th Grade Ministry Certs</span>
+              <span className="font-mono font-bold text-slate-900">
+                {eighthGradeCertsVerifiedCount}/{totalStudents} ({Math.round((eighthGradeCertsVerifiedCount / (totalStudents || 1)) * 100)}%)
+              </span>
+            </div>
+            <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-lg border border-slate-200/80">
+              <span className="text-slate-600 font-medium">Transcripts & Entrance Marks</span>
+              <span className="font-mono font-bold text-slate-900">
+                {academicPrereqsVerifiedCount}/{totalStudents} ({Math.round((academicPrereqsVerifiedCount / (totalStudents || 1)) * 100)}%)
+              </span>
+            </div>
+            <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-lg border border-slate-200/80">
+              <span className="text-slate-600 font-medium">Photos & Emergency Contacts</span>
+              <span className="font-mono font-bold text-slate-900">
+                {photosVerifiedCount}/{totalStudents} ({Math.round((photosVerifiedCount / (totalStudents || 1)) * 100)}%)
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* TAB 1: REGISTRATION FORM */}
       {activeTab === 'REGISTER' && (
         <form onSubmit={handleSubmitRegistration} className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 space-y-8">
+          {/* Candidate Registration Document Verification Progress Bar */}
+          <div className="p-4 bg-gradient-to-r from-blue-50/80 to-indigo-50/60 rounded-2xl border border-blue-200/80 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
+                  <FileCheck2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-oskar-vintage text-sm font-bold text-slate-900">
+                    Application Document Verification & Compliance Progress
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Tracks candidate prerequisites and mandatory document uploads in real-time
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                  candidateDocPercentage === 100
+                    ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-300'
+                    : 'bg-blue-100 text-blue-800'
+                }`}>
+                  {candidateDocPercentage}% Completed ({candidateCompletedCount}/{candidateDocChecks.length} Tasks)
+                </span>
+              </div>
+            </div>
+
+            {/* Visual Progress Bar */}
+            <div className="relative h-2 w-full bg-blue-200/60 rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${candidateDocPercentage}%` }}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
+                className="h-full bg-gradient-to-r from-blue-600 to-emerald-500 rounded-full"
+              />
+            </div>
+
+            {/* Checklist Step Pills */}
+            <div className="flex flex-wrap gap-2 pt-1">
+              {candidateDocChecks.map(check => (
+                <div
+                  key={check.id}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] flex items-center gap-1.5 transition-all border ${
+                    check.done
+                      ? 'bg-white border-emerald-300 text-emerald-800 shadow-2xs font-semibold'
+                      : 'bg-white/60 border-slate-200 text-slate-500 font-medium'
+                  }`}
+                >
+                  {check.done ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  ) : (
+                    <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  )}
+                  <span>{check.label}:</span>
+                  <span className={check.done ? 'text-slate-900 font-bold' : 'text-slate-400'}>
+                    {check.desc}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
           {/* Grade Level Selector */}
           <div>
             <h3 className="font-oskar-vintage text-lg font-bold text-slate-900 tracking-wider">
@@ -1119,7 +1377,7 @@ export const AdmissionsView: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 self-end">
-              <span className="text-xs text-slate-500 font-medium">Filter Grade:</span>
+              <span className="text-xs text-slate-500 font-medium">Filter:</span>
               <select
                 value={filterGrade}
                 onChange={(e) => setFilterGrade(e.target.value)}
@@ -1130,6 +1388,16 @@ export const AdmissionsView: React.FC = () => {
                 <option value="10">Grade 10</option>
                 <option value="11">Grade 11</option>
                 <option value="12">Grade 12</option>
+              </select>
+
+              <select
+                value={filterDocStatus}
+                onChange={(e) => setFilterDocStatus(e.target.value as 'ALL' | 'VERIFIED' | 'PENDING')}
+                className="px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-medium"
+              >
+                <option value="ALL">All Verification ({totalStudents})</option>
+                <option value="VERIFIED">Verified ({verifiedDossiersCount})</option>
+                <option value="PENDING">Pending ({pendingDossiersCount})</option>
               </select>
 
               <button
@@ -1153,6 +1421,7 @@ export const AdmissionsView: React.FC = () => {
                   <th className="py-3 px-3">Grade & Stream</th>
                   <th className="py-3 px-3">Parents / Contacts</th>
                   <th className="py-3 px-3">Enrollment Status</th>
+                  <th className="py-3 px-3">Document Verification</th>
                   <th className="py-3 px-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -1226,6 +1495,56 @@ export const AdmissionsView: React.FC = () => {
                           Stream Review Pending
                         </span>
                       )}
+                    </td>
+
+                    {/* Document Verification Visual Progress Bar */}
+                    <td className="py-3 px-3">
+                      {(() => {
+                        const dossier = checkStudentDossierVerification(s);
+                        return (
+                          <div className="space-y-1.5 w-36">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className={`font-bold ${dossier.isComplete ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                {dossier.percentage}%
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-medium">
+                                {dossier.completedTasks}/{dossier.totalTasks} Done
+                              </span>
+                            </div>
+
+                            {/* Visual Mini Progress Bar */}
+                            <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                              <div 
+                                style={{ width: `${dossier.percentage}%` }}
+                                className={`h-full rounded-full transition-all duration-300 ${
+                                  dossier.isComplete ? 'bg-emerald-500' : 'bg-amber-500'
+                                }`}
+                              />
+                            </div>
+
+                            {dossier.isComplete ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                100% Verified
+                              </span>
+                            ) : (
+                              <div className="flex items-center justify-between gap-1 pt-0.5">
+                                <span className="text-[10px] text-amber-700 font-medium truncate" title="Missing prerequisite or 8th grade certificate">
+                                  {!dossier.hasEighthCert ? '8th Cert Pending' : 'Prereq Pending'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => verifyStudentDocument(s.id)}
+                                  className="px-1.5 py-0.5 bg-amber-50 hover:bg-emerald-50 text-amber-700 hover:text-emerald-700 border border-amber-300 hover:border-emerald-300 rounded text-[10px] font-bold transition shrink-0 cursor-pointer active:scale-95"
+                                  title="Approve and verify 8th grade certificate and prerequisite dossier"
+                                >
+                                  Verify
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     <td className="py-3 px-3 text-right space-y-1">

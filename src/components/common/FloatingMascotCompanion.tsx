@@ -15,7 +15,7 @@ export const FloatingMascotCompanion: React.FC = () => {
 
   const [isMinimized, setIsMinimized] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  const [isRoaming, setIsRoaming] = useState(false);
+  const [isRoaming, setIsRoaming] = useState(true);
   const [isBlinking, setIsBlinking] = useState(false);
 
   // Eye cursor-tracking coordinates

@@ -146,10 +146,13 @@ interface SchoolContextType {
   reviewStreamChangeRequest: (studentId: string, accepted: boolean, reviewNotes?: string) => void;
   resetUserPassword: (studentId: string, requesterRole: 'REGISTRAR' | 'PRINCIPAL' | 'FINANCE') => string;
   markIdCardCollected: (studentId: string) => void;
+  verifyStudentDocument: (studentId: string) => void;
   
   // Actions: Finance
   approvePayment: (invoiceId: string) => void;
   bulkReconcileBankStatement: (uploadedRows?: BankStatementRow[]) => { matchedCount: number; approvedTotal: number };
+  reconcileSingleBankStatement: (statementId: string) => void;
+  resetBankStatementsDemoFeed: () => void;
   grantLeavingClearance: (studentId: string) => void;
   clearLostIdFinance: (studentId: string) => void;
   payInvoiceOnline: (invoiceId: string, reference: string) => void;
@@ -1358,6 +1361,20 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }));
   };
 
+  // Verify student registration documents dossier
+  const verifyStudentDocument = (studentId: string) => {
+    setStudents(prev => prev.map(s => {
+      if (s.id === studentId) {
+        return {
+          ...s,
+          eighthGradeCertAttached: true,
+          certificateDocName: s.certificateDocName || `${s.id}_8th_Grade_Certificate.pdf`,
+        };
+      }
+      return s;
+    }));
+  };
+
   // 2. Finance Actions
   const approvePayment = (invoiceId: string) => {
     const receiptNum = `REC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -1453,6 +1470,57 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setBankStatements(processedBankStatements);
 
     return { matchedCount, approvedTotal };
+  };
+
+  // Reconcile a single bank statement record
+  const reconcileSingleBankStatement = (statementId: string) => {
+    const updatedInvoices = [...invoices];
+    const updatedStudents = [...students];
+
+    setBankStatements(prev => prev.map(row => {
+      if (row.id === statementId) {
+        // Look for matching invoice
+        const matchedInvIndex = updatedInvoices.findIndex(inv =>
+          (row.matchedInvoiceId && inv.id === row.matchedInvoiceId) ||
+          (inv.paymentReference && inv.paymentReference.toUpperCase().includes(row.referenceNumber.toUpperCase())) ||
+          (inv.accountNumber && row.bankDescription.toUpperCase().includes(inv.accountNumber.toUpperCase()))
+        );
+
+        if (matchedInvIndex !== -1 && updatedInvoices[matchedInvIndex].status !== 'PAID') {
+          const inv = updatedInvoices[matchedInvIndex];
+          inv.status = 'PAID';
+          inv.paidDate = row.transactionDate || new Date().toISOString().split('T')[0];
+          inv.paidWatermark = true;
+          inv.receiptNumber = inv.receiptNumber || `REC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+          const stIndex = updatedStudents.findIndex(s => s.id === inv.studentId);
+          if (stIndex !== -1) {
+            updatedStudents[stIndex].registrationStatus = 'COMPLETE';
+          }
+
+          return {
+            ...row,
+            matchedInvoiceId: inv.id,
+            matchedStudentId: inv.studentId,
+            status: 'RECONCILED' as const,
+          };
+        }
+
+        return {
+          ...row,
+          status: 'RECONCILED' as const,
+        };
+      }
+      return row;
+    }));
+
+    setInvoices(updatedInvoices);
+    setStudents(updatedStudents);
+  };
+
+  // Reset or reload initial bank statement test feed
+  const resetBankStatementsDemoFeed = () => {
+    setBankStatements(INITIAL_BANK_STATEMENT);
   };
 
   const grantLeavingClearance = (studentId: string) => {
@@ -3155,8 +3223,11 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       reviewStreamChangeRequest,
       resetUserPassword,
       markIdCardCollected,
+      verifyStudentDocument,
       approvePayment,
       bulkReconcileBankStatement,
+      reconcileSingleBankStatement,
+      resetBankStatementsDemoFeed,
       grantLeavingClearance,
       clearLostIdFinance,
       payInvoiceOnline,

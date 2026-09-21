@@ -382,7 +382,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
 
     // Verify master code
     if (!principalMasterCode.trim() || !verifyMasterCode(principalMasterCode.trim())) {
-      setErrorMsg('Invalid Master Authorization Code. Click "Use Default Key" to auto-fill "System_Principal" or enter your 6+ character master key.');
+      setErrorMsg('Invalid Master Authorization Code. Please enter the confidential key issued for institutional Principal authorization.');
       triggerShake();
       return;
     }
@@ -929,13 +929,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                   </div>
 
                   {/* Principal Registration Notice */}
-                  <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-2xl text-xs text-amber-900 space-y-1.5">
+                  <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-2xl text-xs text-amber-900 space-y-1">
                     <div className="flex items-center gap-1.5 font-bold text-amber-950">
                       <Crown className="w-4 h-4 text-amber-600" />
                       <span>Authorized Principal Registration</span>
                     </div>
                     <p className="text-[11px] text-amber-800 leading-relaxed">
-                      Only the institutional Principal can register an executive account. Enter your school master code or use default institutional key <button type="button" onClick={() => { setPrincipalMasterCode('System_Principal'); setErrorMsg(null); }} className="font-mono font-bold text-amber-900 underline hover:text-amber-950 cursor-pointer">System_Principal</button>.
+                      Only the institutional Principal can register an executive account. You must enter the confidential institutional master authorization key.
                     </p>
                   </div>
 
@@ -958,23 +958,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                   <form onSubmit={handlePrincipalSignUp} className="space-y-3.5">
                     {/* Master Authorization Code */}
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-xs font-semibold text-slate-700">
-                          Principal Master Authorization Code *
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPrincipalMasterCode('System_Principal');
-                            if (errorMsg) setErrorMsg(null);
-                          }}
-                          className="text-[10px] font-semibold text-amber-800 hover:text-amber-900 bg-amber-100/70 hover:bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full flex items-center gap-1 cursor-pointer transition shadow-xs"
-                          title="Click to auto-fill default institutional master key"
-                        >
-                          <KeyRound className="w-2.5 h-2.5 text-amber-700" />
-                          <span>Use Default: <strong>System_Principal</strong></span>
-                        </button>
-                      </div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                        <span>Principal Master Authorization Code *</span>
+                        <span className="text-[10px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 flex items-center gap-1">
+                          <Lock className="w-2.5 h-2.5 text-slate-500" />
+                          Confidential Key
+                        </span>
+                      </label>
                       <div className="relative">
                         <input
                           type={showMasterCode ? 'text' : 'password'}
@@ -983,7 +973,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                             setPrincipalMasterCode(e.target.value);
                             if (errorMsg) setErrorMsg(null);
                           }}
-                          placeholder="Enter key or click 'Use Default'"
+                          placeholder="Enter confidential master authorization key"
                           className="w-full pl-9 pr-10 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent font-mono transition"
                         />
                         <ShieldCheck className="w-4 h-4 text-amber-600 absolute left-3 top-3" />
@@ -993,19 +983,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                           className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 cursor-pointer"
                         >
                           {showMasterCode ? <EyeOff className="w-4 h-4 text-amber-600" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1">
-                        <span>Institutional default: <strong className="font-mono text-slate-700">System_Principal</strong></span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPrincipalMasterCode('System_Principal');
-                            if (errorMsg) setErrorMsg(null);
-                          }}
-                          className="text-amber-700 hover:text-amber-900 font-bold underline cursor-pointer"
-                        >
-                          Auto-fill
                         </button>
                       </div>
                     </div>

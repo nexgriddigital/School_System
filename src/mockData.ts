@@ -305,7 +305,9 @@ export const INITIAL_STUDENTS: Student[] = [
     grade: 9,
     stream: null,
     sectionId: null, // Pending section allocation
-    eighthGradeCertAttached: true,
+    eighthGradeCertAttached: false,
+    certificateDocName: undefined,
+    certificateDocUrl: undefined,
     entranceExamScore: 91,
     photoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&auto=format&fit=crop&q=80',
     previousSchool: {
@@ -505,6 +507,17 @@ export const INITIAL_INVOICES: Invoice[] = [
 
 export const INITIAL_BANK_STATEMENT: BankStatementRow[] = [
   {
+    id: 'BS-00',
+    transactionDate: '2026-09-10',
+    referenceNumber: 'REF-90412-CBE-101',
+    amount: 18500,
+    payerName: 'Melaku Tadesse Gebre',
+    bankDescription: 'CBE Direct Transfer for ACC-90412 Yared Melaku',
+    matchedStudentId: 'OSK-2026-0901',
+    matchedInvoiceId: 'INV-2026-001',
+    status: 'RECONCILED',
+  },
+  {
     id: 'BS-01',
     transactionDate: '2026-09-15',
     referenceNumber: 'REF-11904-CBE-889',
@@ -533,7 +546,20 @@ export const INITIAL_BANK_STATEMENT: BankStatementRow[] = [
     amount: 24500,
     payerName: 'Abebe Girma',
     bankDescription: 'Direct Deposit for Dawit Abebe ACC-12488',
+    matchedStudentId: 'OSK-2026-1202',
+    matchedInvoiceId: 'INV-2026-005',
     status: 'UNMATCHED',
+  },
+  {
+    id: 'BS-04',
+    transactionDate: '2026-09-12',
+    referenceNumber: 'REF-90415-AWASH-402',
+    amount: 18500,
+    payerName: 'Hailemariam Mengistu',
+    bankDescription: 'Awash Bank Branch Deposit ACC-90415 Sara Hailemariam',
+    matchedStudentId: 'OSK-2026-0902',
+    matchedInvoiceId: 'INV-2026-002',
+    status: 'RECONCILED',
   },
 ];
 
