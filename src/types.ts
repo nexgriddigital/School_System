@@ -337,3 +337,37 @@ export interface InstitutionalUser {
     officeLocation?: string;
   };
 }
+
+export type AuditActionCategory = 
+  | 'USER_MANAGEMENT'
+  | 'SECURITY_CREDENTIALS'
+  | 'DATA_GOVERNANCE'
+  | 'SYSTEM_OPERATIONS'
+  | 'ACADEMIC_ADMIN';
+
+export type AuditSeverity = 'INFO' | 'WARNING' | 'CRITICAL';
+
+export interface AuditLogEntry {
+  id: string; // e.g. "AUD-2026-0921-001"
+  timestamp: string; // ISO 8601 string
+  action: string; // e.g. "USER_CREATED", "MASTER_CODE_CHANGED", "DATA_SNAPSHOT_EXPORTED"
+  actionLabel: string; // e.g. "Institutional User Provisioned"
+  category: AuditActionCategory;
+  severity: AuditSeverity;
+  performedBy: {
+    id?: string;
+    name: string;
+    role: UserRole | 'SYSTEM';
+    email?: string;
+  };
+  targetEntity?: {
+    type: 'USER' | 'STUDENT' | 'TEACHER' | 'SYSTEM' | 'SECURITY' | 'BACKUP' | 'DISCIPLINARY';
+    id?: string;
+    label?: string;
+  };
+  details: string;
+  ipAddress?: string;
+  status: 'SUCCESS' | 'FLAGGED' | 'BLOCKED';
+  metadata?: Record<string, any>;
+  checksum?: string; // Simulated SHA-256 tamper-evident integrity hash
+}

@@ -51,6 +51,7 @@ export const DataGovernanceTab: React.FC = () => {
     institutionalUsers,
     principalMasterCode,
     startGlobalLoading,
+    logAuditAction,
   } = useSchool();
 
   const [isExporting, setIsExporting] = useState(false);
@@ -347,6 +348,31 @@ export const DataGovernanceTab: React.FC = () => {
           timestamp: new Date().toLocaleTimeString(),
           totalRecords: totalRecordCount,
           fileSizeKb: calculatedSizeKb,
+        });
+
+        logAuditAction({
+          action: 'DATA_SNAPSHOT_EXPORTED',
+          actionLabel: 'Institutional System Snapshot JSON Exported',
+          category: 'DATA_GOVERNANCE',
+          severity: 'WARNING',
+          performedBy: {
+            name: currentUser?.name || 'Dr. Henok Kebede (Principal)',
+            role: currentUser?.role || 'PRINCIPAL',
+            email: currentUser?.email
+          },
+          targetEntity: {
+            type: 'BACKUP',
+            label: fileName
+          },
+          details: `Principal exported and downloaded institutional database snapshot JSON (${totalRecordCount} total database entities, ${calculatedSizeKb} KB).`,
+          metadata: {
+            fileName,
+            totalRecords: totalRecordCount,
+            fileSizeKb: calculatedSizeKb,
+            maskedPasswords: maskPasswords,
+            includedAuditLogs: includeAuditLogs,
+            timestamp: new Date().toISOString()
+          }
         });
       } catch (err) {
         console.error('Snapshot generation error:', err);

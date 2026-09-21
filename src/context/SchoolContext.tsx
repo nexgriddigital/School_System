@@ -18,7 +18,10 @@ import {
   AcademicStream,
   InstitutionalUser,
   ParentEmailAlertLog,
-  ThemeMode
+  ThemeMode,
+  AuditLogEntry,
+  AuditActionCategory,
+  AuditSeverity
 } from '../types';
 import { 
   INITIAL_STUDENTS, 
@@ -35,6 +38,7 @@ import {
   INITIAL_BANK_STATEMENT,
   INITIAL_USERS
 } from '../mockData';
+import { INITIAL_AUDIT_LOGS, generateAuditHash } from '../data/initialAuditLogs';
 import { sendTemporaryPasswordEmailViaGmail, isGmailAuthorized } from '../services/gmailAuthService';
 import { 
   sendDisciplinaryHearingEmailViaGmail, 
@@ -101,6 +105,12 @@ interface SchoolContextType {
     newMasterCode: string;
   }) => { success: boolean; error?: string };
   verifyMasterCode: (code: string) => boolean;
+
+  // Sensitive System Actions Audit Trail
+  auditLogs: AuditLogEntry[];
+  logAuditAction: (entry: Omit<AuditLogEntry, 'id' | 'timestamp' | 'checksum'>) => void;
+  exportAuditLogsJson: () => void;
+  exportAuditLogsCsv: () => void;
 
   // Authentication & Session State
   isAuthenticated: boolean;
@@ -809,6 +819,96 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem('academy_school_name', name);
   };
 
+  // ---------------------------------------------------------
+  // Sensitive System Actions Audit Trail
+  // ---------------------------------------------------------
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem('oskar_school_audit_logs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return INITIAL_AUDIT_LOGS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('oskar_school_audit_logs', JSON.stringify(auditLogs));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [auditLogs]);
+
+  const logAuditAction = useCallback((entry: Omit<AuditLogEntry, 'id' | 'timestamp' | 'checksum'>) => {
+    const timestamp = new Date().toISOString();
+    const actorName = entry.performedBy?.name || currentUser?.name || 'System Operator';
+    const id = `AUD-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    const checksum = generateAuditHash(entry.details, timestamp, actorName);
+
+    const newEntry: AuditLogEntry = {
+      id,
+      timestamp,
+      ...entry,
+      ipAddress: entry.ipAddress || '10.14.0.12 (Campus Executive Office)',
+      status: entry.status || 'SUCCESS',
+      checksum,
+    };
+
+    setAuditLogs(prev => [newEntry, ...prev]);
+  }, [currentUser]);
+
+  const exportAuditLogsJson = useCallback(() => {
+    const dataStr = JSON.stringify(auditLogs, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8;' });
+    const cleanSchoolSlug = (schoolName || 'Academy_of_Excellence').replace(/[^a-zA-Z0-9]/g, '_');
+    const dateStr = new Date().toISOString().split('T')[0];
+    const fileName = `${cleanSchoolSlug}_Audit_Trail_Ledger_${dateStr}.json`;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [auditLogs, schoolName]);
+
+  const exportAuditLogsCsv = useCallback(() => {
+    const headers = ['ID', 'Timestamp', 'Category', 'Severity', 'Action Code', 'Action Label', 'Performed By', 'Actor Role', 'Target Entity', 'Details', 'IP Address', 'Status', 'Integrity Checksum'];
+    const rows = auditLogs.map(log => [
+      `"${log.id}"`,
+      `"${log.timestamp}"`,
+      `"${log.category}"`,
+      `"${log.severity}"`,
+      `"${log.action}"`,
+      `"${(log.actionLabel || '').replace(/"/g, '""')}"`,
+      `"${(log.performedBy?.name || '').replace(/"/g, '""')}"`,
+      `"${log.performedBy?.role || ''}"`,
+      `"${(log.targetEntity?.label || log.targetEntity?.id || '').replace(/"/g, '""')}"`,
+      `"${(log.details || '').replace(/"/g, '""')}"`,
+      `"${log.ipAddress || ''}"`,
+      `"${log.status || 'SUCCESS'}"`,
+      `"${log.checksum || ''}"`
+    ]);
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const cleanSchoolSlug = (schoolName || 'Academy_of_Excellence').replace(/[^a-zA-Z0-9]/g, '_');
+    const dateStr = new Date().toISOString().split('T')[0];
+    const fileName = `${cleanSchoolSlug}_Audit_Trail_Report_${dateStr}.csv`;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [auditLogs, schoolName]);
+
   // Active Personas with resilient fallbacks
   const currentStudent: Student = students.find(s => s.id === activeStudentId) || students[0] || INITIAL_STUDENTS[0];
   const currentTeacher: Teacher = teachers.find(t => t.id === activeTeacherId) || teachers[0] || INITIAL_TEACHERS[0];
@@ -1098,6 +1198,30 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       };
       setStudents(prev => [newStudent, ...prev]);
     }
+
+    logAuditAction({
+      action: 'USER_CREATED',
+      actionLabel: 'Institutional User Provisioned',
+      category: 'USER_MANAGEMENT',
+      severity: 'INFO',
+      performedBy: {
+        name: currentUser?.name || 'Dr. Henok Kebede (Principal)',
+        role: currentUser?.role || 'PRINCIPAL',
+        email: currentUser?.email
+      },
+      targetEntity: {
+        type: 'USER',
+        id: newUser.id,
+        label: `${newUser.name} (${newUser.role})`
+      },
+      details: `New institutional account provisioned for ${newUser.name} as ${newUser.position} in ${newUser.department}. Initial credentials dispatched.`,
+      metadata: {
+        assignedRole: newUser.role,
+        department: newUser.department,
+        position: newUser.position,
+        email: newUser.email,
+      }
+    });
 
     return { success: true, tempPassword, user: newUser };
   };
@@ -2752,8 +2876,31 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       logout();
     }
 
+    logAuditAction({
+      action: 'USER_DELETED',
+      actionLabel: 'Institutional User Account Terminated',
+      category: 'USER_MANAGEMENT',
+      severity: 'WARNING',
+      performedBy: {
+        name: currentUser?.name || 'Dr. Henok Kebede (Principal)',
+        role: currentUser?.role || 'PRINCIPAL',
+        email: currentUser?.email
+      },
+      targetEntity: {
+        type: 'USER',
+        id: targetUser.id,
+        label: `${targetUser.name} (${targetUser.role})`
+      },
+      details: `Account for ${targetUser.name} (${targetUser.role} - ${targetUser.position || 'Staff'}) permanently removed from directory by Principal.`,
+      metadata: {
+        userId: targetUser.id,
+        role: targetUser.role,
+        email: targetUser.email,
+      }
+    });
+
     return { success: true, isPrincipalDeleted: false };
-  }, [institutionalUsers, resetEverything, currentUser, logout]);
+  }, [institutionalUsers, resetEverything, currentUser, logout, logAuditAction]);
 
   // Bulk remove users by category (Leadership, Faculty, Students, Parents)
   const deleteUsersByCategory = useCallback((category: 'LEADERSHIP' | 'FACULTY' | 'STUDENTS' | 'PARENTS'): { success: boolean; count: number; error?: string } => {
@@ -2786,8 +2933,25 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setStudents(prev => prev.filter(s => !targetEmails.has(s.parents?.email?.toLowerCase() || '')));
     }
 
+    logAuditAction({
+      action: 'BULK_USERS_DELETED',
+      actionLabel: `Bulk Deletion: ${category} Accounts Cleared`,
+      category: 'USER_MANAGEMENT',
+      severity: 'WARNING',
+      performedBy: {
+        name: currentUser?.name || 'Dr. Henok Kebede (Principal)',
+        role: currentUser?.role || 'PRINCIPAL'
+      },
+      targetEntity: {
+        type: 'SYSTEM',
+        label: `${category} Group`
+      },
+      details: `Executive bulk removal executed: ${targets.length} accounts in category '${category}' were deleted from system records.`,
+      metadata: { category, count: targets.length }
+    });
+
     return { success: true, count: targets.length };
-  }, [institutionalUsers]);
+  }, [institutionalUsers, logAuditAction, currentUser]);
 
   // Verify whether a given master authorization code matches the current key
   const verifyMasterCode = useCallback((code: string): boolean => {
@@ -2852,8 +3016,29 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     setNotices(prev => [auditNotice, ...prev]);
 
+    logAuditAction({
+      action: 'MASTER_CODE_CHANGED',
+      actionLabel: 'Master Authorization Key Rotated',
+      category: 'SECURITY_CREDENTIALS',
+      severity: 'CRITICAL',
+      performedBy: {
+        name: currentUser?.name || 'Dr. Henok Kebede (Principal)',
+        role: 'PRINCIPAL',
+        email: currentUser?.email
+      },
+      targetEntity: {
+        type: 'SECURITY',
+        label: 'Principal Apex Authorization Credential'
+      },
+      details: 'Principal updated and rotated the institutional Master Authorization Code. Previous authorization keys permanently revoked.',
+      metadata: {
+        keyLength: cleanNew.length,
+        timestamp: new Date().toISOString()
+      }
+    });
+
     return { success: true };
-  }, [currentUser, institutionalUsers, principalMasterCode]);
+  }, [currentUser, institutionalUsers, principalMasterCode, logAuditAction]);
 
   return (
     <SchoolContext.Provider value={{
@@ -2959,6 +3144,10 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       principalMasterCode,
       updatePrincipalMasterCode,
       verifyMasterCode,
+      auditLogs,
+      logAuditAction,
+      exportAuditLogsJson,
+      exportAuditLogsCsv,
       isGlobalLoading,
       globalLoadingMessage,
       startGlobalLoading,

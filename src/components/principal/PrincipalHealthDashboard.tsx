@@ -45,7 +45,7 @@ import {
 import { PrincipalPrintReportModal } from './PrincipalPrintReportModal';
 
 interface PrincipalHealthDashboardProps {
-  onNavigateTab?: (tab: 'AUTHORIZATIONS' | 'USER_PROVISIONING' | 'BROADCAST' | 'TEACHER_MANAGEMENT' | 'DISCIPLINARY_REVERSAL' | 'INSTITUTION_SETTINGS') => void;
+  onNavigateTab?: (tab: 'INSTITUTIONAL_HEALTH' | 'AUDIT_TRAIL' | 'AUTHORIZATIONS' | 'USER_PROVISIONING' | 'DATA_GOVERNANCE' | 'BROADCAST' | 'TEACHER_MANAGEMENT' | 'DISCIPLINARY_REVERSAL' | 'INSTITUTION_SETTINGS') => void;
 }
 
 export const PrincipalHealthDashboard: React.FC<PrincipalHealthDashboardProps> = ({ onNavigateTab }) => {

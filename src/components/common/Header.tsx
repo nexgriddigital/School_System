@@ -14,8 +14,6 @@ import {
   KeyRound,
   ChevronDown,
   CheckCircle2,
-  Edit3,
-  Check,
   Sparkles,
   LogOut,
   Search,
@@ -38,7 +36,6 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => {
   const { 
     schoolName,
-    setSchoolName,
     theme,
     toggleTheme,
     currentRole, 
@@ -76,17 +73,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
     }
   };
 
-  // School Name Quick Editor
-  const [isEditingSchoolName, setIsEditingSchoolName] = useState(false);
-  const [tempSchoolName, setTempSchoolName] = useState(schoolName);
-
-  const handleSaveSchoolName = () => {
-    if (tempSchoolName.trim()) {
-      setSchoolName(tempSchoolName.trim());
-    }
-    setIsEditingSchoolName(false);
-  };
-
   const roleConfigs: { role: UserRole; label: string; icon: React.FC<{ className?: string }> }[] = [
     { role: 'REGISTRAR', label: 'Admissions & Registrar', icon: Building2 },
     { role: 'FINANCE', label: 'Finance Office', icon: CreditCard },
@@ -114,46 +100,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
             <SchoolMascotLogo size="lg" withBackground showGlow interactive />
             <div>
               <div className="flex items-center gap-2">
-                {isEditingSchoolName ? (
-                  <div className="flex items-center gap-1.5 bg-slate-900 border border-blue-500/80 rounded-lg px-2 py-0.5">
-                    <input
-                      type="text"
-                      value={tempSchoolName}
-                      onChange={(e) => setTempSchoolName(e.target.value)}
-                      placeholder="Enter School Name"
-                      className="bg-transparent text-white font-bold text-sm tracking-wide outline-none w-48 font-oskar-vintage"
-                      autoFocus
-                    />
-                    <button
-                      onClick={handleSaveSchoolName}
-                      className="p-1 bg-blue-600 hover:bg-blue-500 text-white rounded transition"
-                      title="Save School Name"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="font-oskar-vintage text-2xl font-bold tracking-widest text-white">
-                      {schoolName}
-                    </span>
-                    <button
-                      onClick={() => {
-                        setTempSchoolName(schoolName);
-                        setIsEditingSchoolName(true);
-                      }}
-                      className="text-slate-400 hover:text-blue-300 p-1 rounded hover:bg-slate-800 transition"
-                      title="Change School Name"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="font-oskar text-xs font-semibold tracking-wider text-blue-400 uppercase bg-blue-950/60 px-2 py-0.5 rounded border border-blue-800/50">
-                      SIS
-                    </span>
-                  </div>
-                )}
+                <span className="font-oskar-vintage text-2xl font-bold tracking-widest text-white select-none">
+                  {schoolName}
+                </span>
+                <span className="font-oskar text-xs font-semibold tracking-wider text-blue-400 uppercase bg-blue-950/60 px-2 py-0.5 rounded border border-blue-800/50 select-none">
+                  SIS
+                </span>
               </div>
-              <p className="text-[10px] tracking-wider text-slate-400 uppercase">
+              <p className="text-[10px] tracking-wider text-slate-400 uppercase select-none">
                 Integrated School Administration & Learning System
               </p>
             </div>

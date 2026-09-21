@@ -29,6 +29,7 @@ import { ChangeMasterCodeModal } from './ChangeMasterCodeModal';
 import { DataGovernanceTab } from './DataGovernanceTab';
 import { PrincipalHealthDashboard } from './PrincipalHealthDashboard';
 import { PrincipalPrintReportModal } from './PrincipalPrintReportModal';
+import { AuditTrailTab } from './AuditTrailTab';
 import { Activity } from 'lucide-react';
 
 export const PrincipalView: React.FC = () => {
@@ -48,10 +49,11 @@ export const PrincipalView: React.FC = () => {
     teachers,
     assignHomeroomTeacher,
     setSelectedStudentForIdCard,
-    openDocumentViewer
+    openDocumentViewer,
+    auditLogs
   } = useSchool();
 
-  const [activeTab, setActiveTab] = useState<'INSTITUTIONAL_HEALTH' | 'AUTHORIZATIONS' | 'USER_PROVISIONING' | 'DATA_GOVERNANCE' | 'BROADCAST' | 'TEACHER_MANAGEMENT' | 'DISCIPLINARY_REVERSAL' | 'INSTITUTION_SETTINGS'>('INSTITUTIONAL_HEALTH');
+  const [activeTab, setActiveTab] = useState<'INSTITUTIONAL_HEALTH' | 'AUDIT_TRAIL' | 'AUTHORIZATIONS' | 'USER_PROVISIONING' | 'DATA_GOVERNANCE' | 'BROADCAST' | 'TEACHER_MANAGEMENT' | 'DISCIPLINARY_REVERSAL' | 'INSTITUTION_SETTINGS'>('INSTITUTIONAL_HEALTH');
   const [customNameInput, setCustomNameInput] = useState(schoolName);
   const [savedNameNotice, setSavedNameNotice] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
@@ -161,6 +163,19 @@ export const PrincipalView: React.FC = () => {
               <Database className="w-3.5 h-3.5" />
               Data Governance
               <span className="w-2 h-2 rounded-full bg-indigo-400" />
+            </button>
+
+            <button
+              onClick={() => setActiveTab('AUDIT_TRAIL')}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition ${
+                activeTab === 'AUDIT_TRAIL' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Audit Trail
+              <span className="px-1.5 py-0.2 rounded-full bg-blue-100 dark:bg-slate-800 text-blue-800 dark:text-blue-300 text-[10px] font-bold">
+                {auditLogs.length}
+              </span>
             </button>
 
             <button
@@ -869,6 +884,11 @@ export const PrincipalView: React.FC = () => {
       {/* DATA GOVERNANCE & DATABASE SNAPSHOT */}
       {activeTab === 'DATA_GOVERNANCE' && (
         <DataGovernanceTab />
+      )}
+
+      {/* SENSITIVE SYSTEM ACTIONS AUDIT TRAIL */}
+      {activeTab === 'AUDIT_TRAIL' && (
+        <AuditTrailTab />
       )}
 
       {/* Principal Touch: Master Reset Modal */}
