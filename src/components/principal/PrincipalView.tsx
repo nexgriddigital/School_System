@@ -19,11 +19,16 @@ import {
   Eye,
   FileText,
   UserPlus,
-  ShieldAlert
+  ShieldAlert,
+  Database,
+  Printer,
 } from 'lucide-react';
 import { UserProvisioningTab } from './UserProvisioningTab';
 import { MasterResetModal } from './MasterResetModal';
+import { ChangeMasterCodeModal } from './ChangeMasterCodeModal';
+import { DataGovernanceTab } from './DataGovernanceTab';
 import { PrincipalHealthDashboard } from './PrincipalHealthDashboard';
+import { PrincipalPrintReportModal } from './PrincipalPrintReportModal';
 import { Activity } from 'lucide-react';
 
 export const PrincipalView: React.FC = () => {
@@ -46,10 +51,12 @@ export const PrincipalView: React.FC = () => {
     openDocumentViewer
   } = useSchool();
 
-  const [activeTab, setActiveTab] = useState<'INSTITUTIONAL_HEALTH' | 'AUTHORIZATIONS' | 'USER_PROVISIONING' | 'BROADCAST' | 'TEACHER_MANAGEMENT' | 'DISCIPLINARY_REVERSAL' | 'INSTITUTION_SETTINGS'>('INSTITUTIONAL_HEALTH');
+  const [activeTab, setActiveTab] = useState<'INSTITUTIONAL_HEALTH' | 'AUTHORIZATIONS' | 'USER_PROVISIONING' | 'DATA_GOVERNANCE' | 'BROADCAST' | 'TEACHER_MANAGEMENT' | 'DISCIPLINARY_REVERSAL' | 'INSTITUTION_SETTINGS'>('INSTITUTIONAL_HEALTH');
   const [customNameInput, setCustomNameInput] = useState(schoolName);
   const [savedNameNotice, setSavedNameNotice] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [isChangeMasterCodeModalOpen, setIsChangeMasterCodeModalOpen] = useState(false);
+  const [isPrintReportModalOpen, setIsPrintReportModalOpen] = useState(false);
   const [resetSuccessBanner, setResetSuccessBanner] = useState(false);
 
   // Broadcast Notice Form State
@@ -146,6 +153,17 @@ export const PrincipalView: React.FC = () => {
             </button>
 
             <button
+              onClick={() => setActiveTab('DATA_GOVERNANCE')}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition ${
+                activeTab === 'DATA_GOVERNANCE' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <Database className="w-3.5 h-3.5" />
+              Data Governance
+              <span className="w-2 h-2 rounded-full bg-indigo-400" />
+            </button>
+
+            <button
               onClick={() => setActiveTab('AUTHORIZATIONS')}
               className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 relative transition ${
                 activeTab === 'AUTHORIZATIONS' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -198,6 +216,16 @@ export const PrincipalView: React.FC = () => {
             >
               <Settings className="w-3.5 h-3.5" />
               School Name & Branding
+            </button>
+
+            {/* Print Official Institutional Report */}
+            <button
+              onClick={() => setIsPrintReportModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-slate-900 text-white hover:bg-slate-800 transition shadow-sm cursor-pointer"
+              title="Open Print View with clean monochrome institutional archival format"
+            >
+              <Printer className="w-3.5 h-3.5 text-slate-200" />
+              <span>Print Report</span>
             </button>
 
             {/* Principal Touch: Master Reset Everything */}
@@ -752,6 +780,48 @@ export const PrincipalView: React.FC = () => {
               </div>
             </div>
 
+            {/* Master Authorization Key Governance Card */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-amber-200 space-y-4">
+              <div className="flex items-center justify-between border-b border-amber-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center border border-amber-200">
+                    <KeyRound className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-oskar text-base font-bold text-slate-900 tracking-wide flex items-center gap-2">
+                      <span>Principal Master Authorization Code</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                        Apex Key
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Confidential authorization key required to register the School Principal and execute emergency administrative recovery.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-amber-50/70 rounded-xl border border-amber-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1 max-w-xl text-xs text-amber-950">
+                  <p className="font-bold flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-amber-700" />
+                    <span>Executive Master Key Is Configured & Active</span>
+                  </p>
+                  <p className="text-amber-800 text-[11px] leading-relaxed">
+                    The Principal can rotate this code at any time. Updating this code immediately secures the institution by ensuring only authorized leadership with the latest key can claim or restore Principal status.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setIsChangeMasterCodeModalOpen(true)}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition active:scale-98 whitespace-nowrap cursor-pointer"
+                >
+                  <KeyRound className="w-4 h-4" />
+                  <span>Change Master Code</span>
+                </button>
+              </div>
+            </div>
+
             {/* Master System Reset & Factory Disaster Recovery Card */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-rose-200 space-y-4">
               <div className="flex items-center justify-between border-b border-rose-100 pb-3">
@@ -796,6 +866,11 @@ export const PrincipalView: React.FC = () => {
         <UserProvisioningTab onOpenResetModal={() => setIsResetModalOpen(true)} />
       )}
 
+      {/* DATA GOVERNANCE & DATABASE SNAPSHOT */}
+      {activeTab === 'DATA_GOVERNANCE' && (
+        <DataGovernanceTab />
+      )}
+
       {/* Principal Touch: Master Reset Modal */}
       <MasterResetModal
         isOpen={isResetModalOpen}
@@ -804,6 +879,18 @@ export const PrincipalView: React.FC = () => {
           setResetSuccessBanner(true);
           setTimeout(() => setResetSuccessBanner(false), 7000);
         }}
+      />
+
+      {/* Change Principal Master Authorization Code Modal */}
+      <ChangeMasterCodeModal
+        isOpen={isChangeMasterCodeModalOpen}
+        onClose={() => setIsChangeMasterCodeModalOpen(false)}
+      />
+
+      {/* Official Institutional Print View Modal */}
+      <PrincipalPrintReportModal
+        isOpen={isPrintReportModalOpen}
+        onClose={() => setIsPrintReportModalOpen(false)}
       />
     </div>
   );

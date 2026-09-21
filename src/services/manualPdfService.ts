@@ -212,7 +212,7 @@ export function generateInstructionsManualPdf({ schoolName, generatedBy = 'NexGr
     '1.2 Principal Mastercode Registration & User Provisioning Lifecycle',
     'To guarantee supreme institutional integrity, account creation follows a strict hierarchical protocol:',
     [
-      'Principal Mastercode Gateway: Registration for the School Principal is strictly gated by the exclusive institutional mastercode: "System_Principal". No other user can register a Principal account without this cryptographic key.',
+      'Principal Mastercode Gateway: Registration for the School Principal is strictly gated by an exclusive institutional master authorization key. No other user can register a Principal account without this confidential cryptographic key.',
       'Principal-Led User Creation: Users other than the Principal are created exclusively by the Principal. Once details (Email, Position, Role, Department) are submitted, the system automatically creates a secure Temporary Password.',
       'Automated Gmail Dispatch: The temporary credentials and portal guidelines are automatically emailed to the new user via the connected Google Workspace Gmail service.',
       'Mandatory Password Change on First Login: Newly provisioned users are flagged with mandatory first-login password update. Upon entering their temporary credentials and verifying their Gmail OTP, they are required to set their permanent password before accessing their dashboard.'

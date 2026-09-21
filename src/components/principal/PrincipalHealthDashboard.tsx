@@ -42,6 +42,7 @@ import {
   RotateCcw,
   Sparkles
 } from 'lucide-react';
+import { PrincipalPrintReportModal } from './PrincipalPrintReportModal';
 
 interface PrincipalHealthDashboardProps {
   onNavigateTab?: (tab: 'AUTHORIZATIONS' | 'USER_PROVISIONING' | 'BROADCAST' | 'TEACHER_MANAGEMENT' | 'DISCIPLINARY_REVERSAL' | 'INSTITUTION_SETTINGS') => void;
@@ -79,6 +80,7 @@ export const PrincipalHealthDashboard: React.FC<PrincipalHealthDashboardProps> =
   const [selectedIncidentForModal, setSelectedIncidentForModal] = useState<DisciplinaryAction | null>(null);
   const [reversalNote, setReversalNote] = useState('Satisfactory restitution achieved with parent conference agreement.');
   const [reversalSuccess, setReversalSuccess] = useState<string | null>(null);
+  const [showPrintReportModal, setShowPrintReportModal] = useState(false);
 
   // -------------------------------------------------------------
   // 1. DATA AGGREGATION: ATTENDANCE
@@ -486,6 +488,14 @@ export const PrincipalHealthDashboard: React.FC<PrincipalHealthDashboardProps> =
               <span className="px-2.5 py-0.5 bg-slate-800 text-slate-300 rounded-full text-xs font-mono">
                 Academic Year 2026/27 • Term 1
               </span>
+              <button
+                onClick={() => setShowPrintReportModal(true)}
+                className="px-3 py-1 bg-white hover:bg-slate-100 text-slate-900 rounded-lg text-xs font-bold shadow-md transition flex items-center gap-1.5 cursor-pointer ml-auto sm:ml-2"
+                title="Open official institutional monochrome report for printing and archival records"
+              >
+                <Printer className="w-3.5 h-3.5 text-slate-900" />
+                <span>Print Official Report</span>
+              </button>
             </div>
 
             <h1 className="font-oskar-vintage text-2xl sm:text-3xl font-bold tracking-tight text-white">
@@ -566,7 +576,7 @@ export const PrincipalHealthDashboard: React.FC<PrincipalHealthDashboardProps> =
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
             <span className="text-slate-400 font-semibold">Attendance Horizon:</span>
             {(['7D', '14D', 'ALL'] as const).map(range => (
               <button
@@ -581,6 +591,15 @@ export const PrincipalHealthDashboard: React.FC<PrincipalHealthDashboardProps> =
                 {range === '7D' ? 'Last 7 Days' : range === '14D' ? 'Last 14 Days' : 'Full Term'}
               </button>
             ))}
+
+            <button
+              onClick={() => setShowPrintReportModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1 bg-white/15 hover:bg-white/25 text-white border border-white/20 rounded-lg text-[11px] font-semibold transition cursor-pointer shadow-xs ml-1"
+              title="Print View with clean monochrome institutional archival format"
+            >
+              <Printer className="w-3 h-3 text-slate-200" />
+              <span>Print View</span>
+            </button>
           </div>
         </div>
       </div>
@@ -1359,6 +1378,13 @@ export const PrincipalHealthDashboard: React.FC<PrincipalHealthDashboardProps> =
           </div>
         </div>
       )}
+
+      {/* Official Institutional Print View Modal */}
+      <PrincipalPrintReportModal
+        isOpen={showPrintReportModal}
+        onClose={() => setShowPrintReportModal(false)}
+        defaultGrade={gradeFilter}
+      />
     </div>
   );
 };

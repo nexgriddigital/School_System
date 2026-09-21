@@ -91,6 +91,16 @@ interface SchoolContextType {
   }) => Promise<{ success: boolean; tempPassword: string; user: InstitutionalUser; error?: string }>;
   changeUserPassword: (userIdOrEmail: string, newPass: string) => { success: boolean; error?: string };
   getUserByEmailOrId: (identifier: string) => InstitutionalUser | undefined;
+  deleteInstitutionalUser: (userId: string) => { success: boolean; isPrincipalDeleted?: boolean; error?: string };
+  deleteUsersByCategory: (category: 'LEADERSHIP' | 'FACULTY' | 'STUDENTS' | 'PARENTS') => { success: boolean; count: number; error?: string };
+
+  // Master Authorization Key Management
+  principalMasterCode: string;
+  updatePrincipalMasterCode: (params: {
+    currentMasterCodeOrPassword?: string;
+    newMasterCode: string;
+  }) => { success: boolean; error?: string };
+  verifyMasterCode: (code: string) => boolean;
 
   // Authentication & Session State
   isAuthenticated: boolean;
@@ -620,6 +630,17 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [institutionalUsers]);
 
+  // Confidential Principal Master Authorization Key (Apex credential)
+  const [principalMasterCode, setPrincipalMasterCodeState] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('oskar_principal_master_code');
+      if (saved && saved.trim()) return saved.trim();
+    } catch (e) {
+      console.error(e);
+    }
+    return (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_PRINCIPAL_MASTER_CODE) || 'System_Principal';
+  });
+
   // Authentication & Session State (False until login)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     // If no institutional users have been created yet, user must be logged out to create Principal
@@ -923,6 +944,16 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     phone?: string;
     extraCredentials?: any;
   }): Promise<{ success: boolean; tempPassword: string; user: InstitutionalUser; error?: string }> => {
+    // 0. Authorization enforcement: Only the Principal has executive authority to provision institutional accounts
+    if (isAuthenticated && currentUser && currentUser.role !== 'PRINCIPAL') {
+      return { 
+        success: false, 
+        tempPassword: '', 
+        user: null as any, 
+        error: 'Unauthorized: Only the Principal has executive authority to create institutional accounts.' 
+      };
+    }
+
     // 1. Generate secure automatic temporary password
     const numPart = Math.floor(1000 + Math.random() * 9000);
     const charPart = Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -2288,6 +2319,15 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const setCurrentRole = (role: UserRole) => {
+    // If attempting to switch to an administrative leadership role:
+    const adminRoles: UserRole[] = ['REGISTRAR', 'FINANCE', 'PROGRAM_OFFICE', 'COUNSELLOR'];
+    if (adminRoles.includes(role)) {
+      // Allow if current user is PRINCIPAL (executive oversight), OR if an account exists for this role
+      const hasAccount = institutionalUsers.some(u => u.role === role);
+      if (!hasAccount && currentUser?.role !== 'PRINCIPAL') {
+        return;
+      }
+    }
     setCurrentRoleState(role);
     const userObj = getRolePersona(role);
     setCurrentUser(userObj);
@@ -2299,14 +2339,147 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const login = (role: UserRole, identifier?: string, password?: string, customName?: string) => {
+  const login = (role: UserRole, identifier?: string, password?: string, customName?: string): { success: boolean; error?: string } => {
+    // List of administrative leadership roles that MUST be created by the Principal
+    const adminLeadershipRoles: UserRole[] = ['REGISTRAR', 'FINANCE', 'PROGRAM_OFFICE', 'COUNSELLOR'];
+
+    if (adminLeadershipRoles.includes(role)) {
+      // 1. Check if any accounts for this administrative role have been created by the Principal
+      const accountsForRole = institutionalUsers.filter(u => u.role === role);
+
+      if (accountsForRole.length === 0) {
+        return {
+          success: false,
+          error: `Access Denied: This account has not been created by the Principal yet. Administrative leadership accounts must be officially created and authorized by the Principal before login is allowed.`
+        };
+      }
+
+      // 2. An account exists; now verify provided identifier
+      if (!identifier || !identifier.trim()) {
+        return {
+          success: false,
+          error: 'Please enter the institutional email or account ID provisioned by the Principal.'
+        };
+      }
+
+      const cleanId = identifier.trim().toLowerCase();
+      const matchedUser = accountsForRole.find(u => 
+        u.email.toLowerCase() === cleanId || 
+        u.id.toLowerCase() === cleanId
+      );
+
+      if (!matchedUser) {
+        return {
+          success: false,
+          error: `No authorized account found for this department matching "${identifier.trim()}". Only accounts created by the Principal can log in.`
+        };
+      }
+
+      // 3. Verify password against the password or temporary password set by the Principal
+      if (!password || !password.trim()) {
+        return {
+          success: false,
+          error: 'Please enter the password or temporary credential issued by the Principal.'
+        };
+      }
+
+      const isPasswordValid = 
+        password === matchedUser.password || 
+        (Boolean(matchedUser.temporaryPassword) && password === matchedUser.temporaryPassword);
+
+      if (!isPasswordValid) {
+        return {
+          success: false,
+          error: 'Incorrect password. Please enter the password or temporary credential issued by the Principal.'
+        };
+      }
+
+      // Login succeeds as the provisioned institutional user
+      setCurrentRoleState(role);
+      const userObj = getRolePersona(role);
+      userObj.id = matchedUser.id;
+      userObj.name = matchedUser.name;
+      userObj.email = matchedUser.email;
+      userObj.title = matchedUser.position;
+      setCurrentUser(userObj);
+      setIsAuthenticated(true);
+      clearSessionExpiredNotification();
+      setLastActivityTimestamp(Date.now());
+      try {
+        localStorage.setItem('oskar_school_role', role);
+        localStorage.setItem('oskar_school_user', JSON.stringify(userObj));
+        localStorage.setItem('oskar_school_auth', 'true');
+      } catch (e) {
+        console.error(e);
+      }
+      return { success: true };
+    }
+
+    if (role === 'PRINCIPAL') {
+      const principalUser = institutionalUsers.find(u => u.role === 'PRINCIPAL');
+      if (!principalUser) {
+        return {
+          success: false,
+          error: 'No Principal account found. Please initialize the Executive Principal account first using Principal Sign Up.'
+        };
+      }
+
+      if (identifier && identifier.trim()) {
+        const cleanId = identifier.trim().toLowerCase();
+        if (principalUser.email.toLowerCase() !== cleanId && principalUser.id.toLowerCase() !== cleanId) {
+          return {
+            success: false,
+            error: 'Invalid Principal email or account ID.'
+          };
+        }
+      }
+
+      if (password && password.trim()) {
+        if (password !== principalUser.password) {
+          return {
+            success: false,
+            error: 'Incorrect Principal password. Please verify your credentials.'
+          };
+        }
+      }
+
+      setCurrentRoleState('PRINCIPAL');
+      const userObj = getRolePersona('PRINCIPAL');
+      userObj.id = principalUser.id;
+      userObj.name = principalUser.name;
+      userObj.email = principalUser.email;
+      userObj.title = principalUser.position;
+      setCurrentUser(userObj);
+      setIsAuthenticated(true);
+      clearSessionExpiredNotification();
+      setLastActivityTimestamp(Date.now());
+      try {
+        localStorage.setItem('oskar_school_role', 'PRINCIPAL');
+        localStorage.setItem('oskar_school_user', JSON.stringify(userObj));
+        localStorage.setItem('oskar_school_auth', 'true');
+      } catch (e) {
+        console.error(e);
+      }
+      return { success: true };
+    }
+
+    // Faculty & Scholars (TEACHER, STUDENT, PARENT)
     setCurrentRoleState(role);
     const userObj = getRolePersona(role);
 
-    // If identifier matches an institutional user, attach their profile credentials
+    // If identifier matches an institutional user or roster, check password if provided
     if (identifier) {
       const match = getUserByEmailOrId(identifier);
       if (match) {
+        if (password && password.trim()) {
+          const passValid = password === match.password || (Boolean(match.temporaryPassword) && password === match.temporaryPassword);
+          if (!passValid) {
+            return {
+              success: false,
+              error: 'Incorrect password. Please enter the password or temporary credential issued by the institution.'
+            };
+          }
+        }
         userObj.name = match.name;
         userObj.email = match.email;
         userObj.title = match.position;
@@ -2494,8 +2667,161 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setCurrentUser(null);
       localStorage.removeItem('oskar_school_auth');
       localStorage.removeItem('oskar_school_user');
+      try {
+        localStorage.removeItem('oskar_principal_master_code');
+      } catch (e) {
+        console.error(e);
+      }
+      setPrincipalMasterCodeState((typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_PRINCIPAL_MASTER_CODE) || 'System_Principal');
     }
   };
+
+  // Remove Institutional User (including Principal decommissioning)
+  const deleteInstitutionalUser = useCallback((userId: string): { success: boolean; isPrincipalDeleted?: boolean; error?: string } => {
+    if (!userId) return { success: false, error: 'User ID is required.' };
+
+    const targetUser = institutionalUsers.find(u => u.id === userId);
+    if (!targetUser) {
+      return { success: false, error: 'Account not found in directory.' };
+    }
+
+    // If removing the Principal: "once done it should become a completely new System."
+    if (targetUser.role === 'PRINCIPAL') {
+      // Decommission entire institution and reset to brand-new clean uninitialized system
+      resetEverything({ keepPrincipalLoggedIn: false });
+      return { success: true, isPrincipalDeleted: true };
+    }
+
+    // Remove from institutional users
+    setInstitutionalUsers(prev => prev.filter(u => u.id !== userId));
+
+    // If Teacher, remove from teachers list
+    if (targetUser.role === 'TEACHER') {
+      const cleanEmail = targetUser.email.toLowerCase();
+      const cleanName = targetUser.name.toLowerCase();
+      setTeachers(prev => prev.filter(t => t.email.toLowerCase() !== cleanEmail && t.name.toLowerCase() !== cleanName));
+    }
+
+    // If Student, remove from students list
+    if (targetUser.role === 'STUDENT') {
+      const cleanEmail = targetUser.email.toLowerCase();
+      const cleanId = targetUser.id.toLowerCase();
+      const studentAcc = targetUser.extraCredentials?.studentId?.toLowerCase();
+      setStudents(prev => prev.filter(s => 
+        s.id.toLowerCase() !== cleanId && 
+        s.accountNumber.toLowerCase() !== cleanId &&
+        (!studentAcc || s.id.toLowerCase() !== studentAcc) &&
+        (!s.parents?.email || s.parents.email.toLowerCase() !== cleanEmail)
+      ));
+    }
+
+    // If logged-in user removed their own account (non-Principal)
+    if (currentUser && currentUser.id === userId) {
+      logout();
+    }
+
+    return { success: true, isPrincipalDeleted: false };
+  }, [institutionalUsers, resetEverything, currentUser, logout]);
+
+  // Bulk remove users by category (Leadership, Faculty, Students, Parents)
+  const deleteUsersByCategory = useCallback((category: 'LEADERSHIP' | 'FACULTY' | 'STUDENTS' | 'PARENTS'): { success: boolean; count: number; error?: string } => {
+    let targets: InstitutionalUser[] = [];
+
+    if (category === 'LEADERSHIP') {
+      // Exclude Principal from bulk removal for safety; Principal must be removed specifically
+      targets = institutionalUsers.filter(u => ['REGISTRAR', 'FINANCE', 'PROGRAM_OFFICE', 'COUNSELLOR'].includes(u.role));
+    } else if (category === 'FACULTY') {
+      targets = institutionalUsers.filter(u => u.role === 'TEACHER');
+    } else if (category === 'STUDENTS') {
+      targets = institutionalUsers.filter(u => u.role === 'STUDENT');
+    } else if (category === 'PARENTS') {
+      targets = institutionalUsers.filter(u => u.role === 'PARENT');
+    }
+
+    if (targets.length === 0) {
+      return { success: true, count: 0 };
+    }
+
+    const targetIds = new Set(targets.map(t => t.id));
+    const targetEmails = new Set(targets.map(t => t.email.toLowerCase()));
+
+    setInstitutionalUsers(prev => prev.filter(u => !targetIds.has(u.id)));
+
+    if (category === 'FACULTY') {
+      setTeachers(prev => prev.filter(t => !targetEmails.has(t.email.toLowerCase())));
+    }
+    if (category === 'STUDENTS') {
+      setStudents(prev => prev.filter(s => !targetEmails.has(s.parents?.email?.toLowerCase() || '')));
+    }
+
+    return { success: true, count: targets.length };
+  }, [institutionalUsers]);
+
+  // Verify whether a given master authorization code matches the current key
+  const verifyMasterCode = useCallback((code: string): boolean => {
+    if (!code || !code.trim()) return false;
+    return code.trim() === principalMasterCode.trim();
+  }, [principalMasterCode]);
+
+  // Executive Principal action to change and rotate the Master Authorization Code
+  const updatePrincipalMasterCode = useCallback((params: {
+    currentMasterCodeOrPassword?: string;
+    newMasterCode: string;
+  }): { success: boolean; error?: string } => {
+    // Only the Principal can update the Master Code
+    const isPrincipal = currentUser?.role === 'PRINCIPAL';
+    if (!isPrincipal) {
+      return {
+        success: false,
+        error: 'Executive Authority Required: Only the School Principal can modify the Master Authorization Code.',
+      };
+    }
+
+    const cleanNew = (params.newMasterCode || '').trim();
+    if (!cleanNew || cleanNew.length < 6) {
+      return {
+        success: false,
+        error: 'The new Master Authorization Code must contain at least 6 characters.',
+      };
+    }
+
+    if (params.currentMasterCodeOrPassword && params.currentMasterCodeOrPassword.trim()) {
+      const verificationInput = params.currentMasterCodeOrPassword.trim();
+      const principalAccount = institutionalUsers.find(u => u.role === 'PRINCIPAL');
+      const matchesPassword = principalAccount?.password && verificationInput === principalAccount.password;
+      const matchesOldCode = verificationInput === principalMasterCode.trim();
+
+      if (!matchesPassword && !matchesOldCode) {
+        return {
+          success: false,
+          error: 'Verification failed: The current authorization credential or Principal password entered is incorrect.',
+        };
+      }
+    }
+
+    setPrincipalMasterCodeState(cleanNew);
+    try {
+      localStorage.setItem('oskar_principal_master_code', cleanNew);
+    } catch (e) {
+      console.error(e);
+    }
+
+    // Post an executive security notice to record key rotation
+    const auditNotice: SchoolNotice = {
+      id: `NOT-SEC-${Date.now()}`,
+      title: 'Executive Governance: Master Authorization Key Rotated',
+      category: 'General Event',
+      content: 'The Office of the Principal has successfully rotated and updated the confidential Master Authorization Code for executive credentials and catastrophic recovery.',
+      postedBy: currentUser?.name || 'Dr. Henok Kebede (Headmaster & Principal)',
+      postedRole: 'School Principal',
+      date: new Date().toISOString().split('T')[0],
+      targetAudience: 'STAFF',
+      isUrgent: false,
+    };
+    setNotices(prev => [auditNotice, ...prev]);
+
+    return { success: true };
+  }, [currentUser, institutionalUsers, principalMasterCode]);
 
   return (
     <SchoolContext.Provider value={{
@@ -2596,6 +2922,11 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       openDocumentViewer,
       closeDocumentViewer,
       resetEverything,
+      deleteInstitutionalUser,
+      deleteUsersByCategory,
+      principalMasterCode,
+      updatePrincipalMasterCode,
+      verifyMasterCode,
     }}>
       {children}
     </SchoolContext.Provider>

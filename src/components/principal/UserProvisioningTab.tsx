@@ -26,10 +26,19 @@ import {
   Phone,
   Briefcase,
   GraduationCap,
-  RotateCcw
+  RotateCcw,
+  Lock,
+  Crown,
+  ArrowRight,
+  Trash2,
+  AlertOctagon,
+  ShieldAlert,
+  Filter,
+  X
 } from 'lucide-react';
 import { downloadInstructionsManualPdf } from '../../services/manualPdfService';
 import { sendTemporaryPasswordEmailViaGmail } from '../../services/gmailAuthService';
+import { ChangeMasterCodeModal } from './ChangeMasterCodeModal';
 
 interface UserProvisioningTabProps {
   onOpenResetModal?: () => void;
@@ -41,6 +50,8 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
     currentUser, 
     institutionalUsers, 
     createInstitutionalUser, 
+    deleteInstitutionalUser,
+    deleteUsersByCategory,
     sections 
   } = useSchool();
 
@@ -70,6 +81,19 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [resendSuccessMsg, setResendSuccessMsg] = useState<string | null>(null);
 
+  // Categorized Directory & Deletion States
+  const [activeCategory, setActiveCategory] = useState<'ALL' | 'LEADERSHIP' | 'FACULTY' | 'STUDENTS' | 'PARENTS'>('ALL');
+  const [accountToDelete, setAccountToDelete] = useState<InstitutionalUser | null>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [isChangeMasterCodeModalOpen, setIsChangeMasterCodeModalOpen] = useState(false);
+  const [isDeletePrincipalModalOpen, setIsDeletePrincipalModalOpen] = useState(false);
+  const [principalResetConfirmInput, setPrincipalResetConfirmInput] = useState('');
+  const [isDeletingPrincipal, setIsDeletingPrincipal] = useState(false);
+  const [categoryToPurge, setCategoryToPurge] = useState<'ALL' | 'LEADERSHIP' | 'FACULTY' | 'STUDENTS' | 'PARENTS' | null>(null);
+  const [purgeConfirmInput, setPurgeConfirmInput] = useState('');
+  const [isPurgingCategory, setIsPurgingCategory] = useState(false);
+  const [deleteSuccessMsg, setDeleteSuccessMsg] = useState<string | null>(null);
+
   // Directory Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'ALL' | UserRole>('ALL');
@@ -83,6 +107,14 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
     defaultDept: string;
     badgeColor: string;
   }[] = [
+    {
+      role: 'PRINCIPAL',
+      label: 'Executive Headmaster & Principal',
+      icon: Crown,
+      defaultPosition: 'Executive Headmaster & Principal',
+      defaultDept: 'Office of the Principal & Board of Trustees',
+      badgeColor: 'bg-amber-100 text-amber-900 border-amber-300',
+    },
     {
       role: 'REGISTRAR',
       label: 'Admissions & Registrar',
@@ -249,9 +281,95 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
     }
   };
 
-  // Filtered Directory
+  // Identify the Principal user (or synthesize root Principal if in executive mode)
+  const principalUser = useMemo(() => {
+    return (
+      institutionalUsers.find((u) => u.role === 'PRINCIPAL') ||
+      (currentUser?.role === 'PRINCIPAL'
+        ? ({
+            id: currentUser.id || 'PRIN-ROOT-001',
+            name: currentUser.name || 'Dr. O. Woldeyesus',
+            email: currentUser.email || 'principal@oskaracademy.edu',
+            role: 'PRINCIPAL' as UserRole,
+            position: currentUser.title || 'Executive Headmaster & Principal',
+            department: 'Office of the Principal & Board of Trustees',
+            createdAt: new Date().toISOString(),
+            createdBy: 'System Root Authority',
+          } as InstitutionalUser)
+        : null)
+    );
+  }, [institutionalUsers, currentUser]);
+
+  // Unified roster ensuring the Principal is included for directory management and decommission
+  const allDirectoryUsers = useMemo(() => {
+    const list = [...institutionalUsers];
+    if (principalUser && !list.some((u) => u.role === 'PRINCIPAL')) {
+      list.unshift(principalUser);
+    }
+    return list;
+  }, [institutionalUsers, principalUser]);
+
+  // Category Configuration
+  const categoryOptions = useMemo(() => [
+    {
+      id: 'ALL' as const,
+      title: 'All Institutional Users',
+      shortLabel: 'All Users',
+      description: 'Unified roster across all leadership departments, faculty, scholars, and parents',
+      icon: Users,
+      badgeClass: 'bg-slate-900 text-white',
+      count: allDirectoryUsers.length,
+      roles: ['PRINCIPAL', 'REGISTRAR', 'FINANCE', 'PROGRAM_OFFICE', 'COUNSELLOR', 'TEACHER', 'STUDENT', 'PARENT'] as UserRole[],
+    },
+    {
+      id: 'LEADERSHIP' as const,
+      title: 'Executive Leadership & Administration',
+      shortLabel: 'Leadership',
+      description: 'Institutional directors: Principal, Registrar, Bursar, Curriculum Dean & Pastoral Care',
+      icon: Crown,
+      badgeClass: 'bg-amber-600 text-white',
+      count: allDirectoryUsers.filter((u) => ['PRINCIPAL', 'REGISTRAR', 'FINANCE', 'PROGRAM_OFFICE', 'COUNSELLOR'].includes(u.role)).length,
+      roles: ['PRINCIPAL', 'REGISTRAR', 'FINANCE', 'PROGRAM_OFFICE', 'COUNSELLOR'] as UserRole[],
+    },
+    {
+      id: 'FACULTY' as const,
+      title: 'Faculty & Instructional Staff',
+      shortLabel: 'Faculty & Teachers',
+      description: 'Departmental subject teachers, academic instructors, and homeroom advisors',
+      icon: Briefcase,
+      badgeClass: 'bg-blue-600 text-white',
+      count: allDirectoryUsers.filter((u) => u.role === 'TEACHER').length,
+      roles: ['TEACHER'] as UserRole[],
+    },
+    {
+      id: 'STUDENTS' as const,
+      title: 'Scholars & Student Body',
+      shortLabel: 'Scholars & Students',
+      description: 'Registered secondary division students across Grades 9–12',
+      icon: GraduationCap,
+      badgeClass: 'bg-purple-600 text-white',
+      count: allDirectoryUsers.filter((u) => u.role === 'STUDENT').length,
+      roles: ['STUDENT'] as UserRole[],
+    },
+    {
+      id: 'PARENTS' as const,
+      title: 'Parents & Guardians',
+      shortLabel: 'Parents & Guardians',
+      description: 'Authorized family liaisons and guardian accounts linked to student scholars',
+      icon: Home,
+      badgeClass: 'bg-emerald-600 text-white',
+      count: allDirectoryUsers.filter((u) => u.role === 'PARENT').length,
+      roles: ['PARENT'] as UserRole[],
+    },
+  ], [allDirectoryUsers]);
+
+  // Filtered Directory based on Category, sub-role filter, and Search Query
   const filteredUsers = useMemo(() => {
-    return institutionalUsers.filter((u) => {
+    const activeCatMeta = categoryOptions.find((c) => c.id === activeCategory);
+    const categoryRoles = activeCatMeta ? activeCatMeta.roles : [];
+
+    return allDirectoryUsers.filter((u) => {
+      const matchCategory = activeCategory === 'ALL' || categoryRoles.includes(u.role);
       const matchRole = roleFilter === 'ALL' || u.role === roleFilter;
       const q = searchQuery.toLowerCase().trim();
       const matchQuery =
@@ -259,10 +377,162 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
         u.name.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
         u.position.toLowerCase().includes(q) ||
+        (u.department && u.department.toLowerCase().includes(q)) ||
         u.id.toLowerCase().includes(q);
-      return matchRole && matchQuery;
+      return matchCategory && matchRole && matchQuery;
     });
-  }, [institutionalUsers, roleFilter, searchQuery]);
+  }, [allDirectoryUsers, activeCategory, categoryOptions, roleFilter, searchQuery]);
+
+  // Handler: Standard User Removal
+  const handleConfirmDeleteUser = () => {
+    if (!accountToDelete) return;
+    setIsDeletingUser(true);
+    try {
+      const res = deleteInstitutionalUser(accountToDelete.id);
+      if (res.success) {
+        setDeleteSuccessMsg(`Account for "${accountToDelete.name}" (${accountToDelete.position}) has been removed. All permissions and login access revoked.`);
+        setAccountToDelete(null);
+        setTimeout(() => setDeleteSuccessMsg(null), 5000);
+      } else {
+        setErrorMessage(res.error || 'Failed to remove user account.');
+      }
+    } catch (e: any) {
+      setErrorMessage(e.message || 'Error occurred while removing user.');
+    } finally {
+      setIsDeletingUser(false);
+    }
+  };
+
+  // Handler: Principal Decommission & Complete System Reset
+  const handleConfirmDeletePrincipal = () => {
+    if (principalResetConfirmInput.trim().toUpperCase() !== 'RESET') {
+      return;
+    }
+    setIsDeletingPrincipal(true);
+    try {
+      const targetId = principalUser?.id || 'PRIN-ROOT-001';
+      const res = deleteInstitutionalUser(targetId);
+      if (res.success) {
+        setIsDeletePrincipalModalOpen(false);
+        // The system is reset to brand-new uninitialized state and user is logged out!
+      }
+    } catch (e: any) {
+      setErrorMessage(e.message || 'Error decommissioning system.');
+      setIsDeletingPrincipal(false);
+    }
+  };
+
+  // Handler: Bulk Purge by Category
+  const handleConfirmPurgeCategory = () => {
+    if (!categoryToPurge || purgeConfirmInput.trim().toUpperCase() !== 'DELETE') {
+      return;
+    }
+    setIsPurgingCategory(true);
+    try {
+      if (categoryToPurge === 'ALL') {
+        const res = deleteUsersByCategory('LEADERSHIP');
+        const res2 = deleteUsersByCategory('FACULTY');
+        const res3 = deleteUsersByCategory('STUDENTS');
+        const res4 = deleteUsersByCategory('PARENTS');
+        const total = (res.count || 0) + (res2.count || 0) + (res3.count || 0) + (res4.count || 0);
+        setDeleteSuccessMsg(`Successfully purged ${total} non-executive user accounts.`);
+      } else if (categoryToPurge === 'LEADERSHIP') {
+        const res = deleteUsersByCategory('LEADERSHIP');
+        setDeleteSuccessMsg(`Successfully revoked all ${res.count} departmental leadership accounts. Login is now blocked until re-provisioned.`);
+      } else if (categoryToPurge === 'FACULTY') {
+        const res = deleteUsersByCategory('FACULTY');
+        setDeleteSuccessMsg(`Successfully removed ${res.count} faculty accounts and instructional assignments.`);
+      } else if (categoryToPurge === 'STUDENTS') {
+        const res = deleteUsersByCategory('STUDENTS');
+        setDeleteSuccessMsg(`Successfully removed ${res.count} scholar credentials.`);
+      } else if (categoryToPurge === 'PARENTS') {
+        const res = deleteUsersByCategory('PARENTS');
+        setDeleteSuccessMsg(`Successfully removed ${res.count} parent/guardian portal credentials.`);
+      }
+      setTimeout(() => setDeleteSuccessMsg(null), 5000);
+      setCategoryToPurge(null);
+      setPurgeConfirmInput('');
+    } catch (e: any) {
+      setErrorMessage(e.message || 'Error purging category accounts.');
+    } finally {
+      setIsPurgingCategory(false);
+    }
+  };
+
+  // Administrative Leadership Roles Overview
+  const adminRolesSummary = useMemo(() => {
+    const roles: {
+      role: UserRole;
+      title: string;
+      department: string;
+      defaultPosition: string;
+      defaultName: string;
+      defaultEmail: string;
+      icon: any;
+    }[] = [
+      {
+        role: 'REGISTRAR',
+        title: 'Admissions & Registrar',
+        department: 'Admissions & Records Office',
+        defaultPosition: 'Senior Admissions & Records Officer',
+        defaultName: 'Ato Sisay Desta',
+        defaultEmail: 'admissions@oskaracademy.edu',
+        icon: Building2,
+      },
+      {
+        role: 'FINANCE',
+        title: 'Finance & Bursar',
+        department: 'Finance & Accounts Division',
+        defaultPosition: 'Chief Bursar & Finance Director',
+        defaultName: 'W/ro Selamawit Bekele',
+        defaultEmail: 'bursar@oskaracademy.edu',
+        icon: CreditCard,
+      },
+      {
+        role: 'PROGRAM_OFFICE',
+        title: 'Program Office',
+        department: 'Curriculum & Academic Affairs',
+        defaultPosition: 'Curriculum & Examinations Dean',
+        defaultName: 'Dr. Zewdu Tadesse',
+        defaultEmail: 'programoffice@oskaracademy.edu',
+        icon: Layers,
+      },
+      {
+        role: 'COUNSELLOR',
+        title: 'Guidance & Pastoral Care',
+        department: 'Student Support Services',
+        defaultPosition: 'Head of Student Welfare & Mentorship',
+        defaultName: 'W/ro Marta Solomon',
+        defaultEmail: 'pastoral@oskaracademy.edu',
+        icon: HeartHandshake,
+      },
+    ];
+
+    return roles.map(item => {
+      const activeUser = institutionalUsers.find(u => u.role === item.role);
+      return {
+        ...item,
+        isCreated: Boolean(activeUser),
+        user: activeUser,
+      };
+    });
+  }, [institutionalUsers]);
+
+  const handleQuickProvisionRole = (roleMeta: (typeof adminRolesSummary)[0]) => {
+    handleRoleChange(roleMeta.role);
+    if (!fullName.trim() || fullName === 'Ato Sisay Desta' || fullName === 'W/ro Selamawit Bekele' || fullName === 'Dr. Zewdu Tadesse' || fullName === 'W/ro Marta Solomon') {
+      setFullName(roleMeta.defaultName);
+    }
+    if (!email.trim() || email.includes('@oskaracademy.edu')) {
+      setEmail(roleMeta.defaultEmail);
+    }
+    setPosition(roleMeta.defaultPosition);
+    setDepartment(roleMeta.department);
+    const formEl = document.getElementById('provisioning-form-anchor');
+    if (formEl) {
+      formEl.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -274,8 +544,8 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
               <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30 text-[10px] font-bold uppercase tracking-wider">
                 Principal Executive Authority
               </span>
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-200 border border-amber-400/30 text-[10px] font-bold font-mono">
-                System_Principal Protocol
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-400/20 text-emerald-200 border border-emerald-400/30 text-[10px] font-bold font-mono">
+                Cryptographic Master Key Protocol
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-bold font-oskar tracking-wide text-white">
@@ -290,6 +560,15 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
             <button
+              onClick={() => setIsChangeMasterCodeModalOpen(true)}
+              className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-amber-600/90 hover:bg-amber-500 text-white font-bold text-xs shadow-md border border-amber-400/40 transition cursor-pointer"
+              title="Change the confidential Master Authorization Code for executive Principal authority"
+            >
+              <KeyRound className="w-4 h-4 text-amber-200" />
+              <span>Change Master Code</span>
+            </button>
+
+            <button
               onClick={() => downloadInstructionsManualPdf(schoolName)}
               className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg transition cursor-pointer"
               title="Download official comprehensive PDF manual with NexGrid Digital Systems letterhead on every page"
@@ -298,14 +577,26 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
               <span>Download Official Manual (PDF)</span>
             </button>
 
+            <button
+              onClick={() => {
+                setPrincipalResetConfirmInput('');
+                setIsDeletePrincipalModalOpen(true);
+              }}
+              className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-rose-900/90 hover:bg-rose-800 text-white font-bold text-xs shadow-md border border-rose-500/50 transition cursor-pointer"
+              title="Decommission Principal account and reset platform to a clean uninitialized system"
+            >
+              <AlertOctagon className="w-4 h-4 text-rose-300" />
+              <span>Decommission Principal & Reset System</span>
+            </button>
+
             {onOpenResetModal && (
               <button
                 onClick={onOpenResetModal}
-                className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-rose-700/80 hover:bg-rose-600 text-white font-bold text-xs shadow-md border border-rose-400/40 transition cursor-pointer"
-                title="Principal Executive Touch: Reset entire institution to factory demonstration state"
+                className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white font-bold text-xs shadow-md border border-slate-600/40 transition cursor-pointer"
+                title="Reset institutional demonstration data"
               >
                 <RotateCcw className="w-4 h-4" />
-                <span>Reset Everything</span>
+                <span>Reset Demo Data</span>
               </button>
             )}
           </div>
@@ -315,8 +606,105 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
         <div className="absolute -right-16 -bottom-16 w-64 h-64 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
       </div>
 
+      {/* SECTION 0: ADMINISTRATIVE LEADERSHIP AUTHORITY STATUS GRID */}
+      <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center border border-amber-200">
+              <Crown className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-oskar-vintage text-base font-bold text-slate-900">
+                Administrative Leadership Account Authority
+              </h3>
+              <p className="text-xs text-slate-500">
+                These accounts should only be created by the Principal; otherwise, login to these portals is blocked.
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-200/80 text-slate-700">
+            {adminRolesSummary.filter(r => r.isCreated).length} of {adminRolesSummary.length} Roles Provisioned
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {adminRolesSummary.map((item) => {
+            const Icon = item.icon;
+            return (
+              <div
+                key={item.role}
+                className={`p-4 rounded-2xl border transition-all ${
+                  item.isCreated
+                    ? 'bg-white border-emerald-200 shadow-xs'
+                    : 'bg-amber-50/50 border-amber-200/90 shadow-xs'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${item.isCreated ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  {item.isCreated ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100/70 border border-emerald-200 px-2 py-0.5 rounded-full font-mono">
+                      <Check className="w-3 h-3" />
+                      Authorized
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-100/70 border border-rose-200 px-2 py-0.5 rounded-full font-mono">
+                      <Lock className="w-3 h-3" />
+                      Login Blocked
+                    </span>
+                  )}
+                </div>
+
+                <h4 className="text-xs font-bold text-slate-900 leading-tight">
+                  {item.title}
+                </h4>
+                <p className="text-[11px] text-slate-500 truncate mb-2">
+                  {item.department}
+                </p>
+
+                {item.isCreated && item.user ? (
+                  <div className="pt-2 border-t border-slate-100 text-[11px] space-y-1">
+                    <p className="font-semibold text-slate-800 truncate">{item.user.name}</p>
+                    <p className="text-slate-500 font-mono text-[10px] truncate">{item.user.email}</p>
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[10px] text-emerald-600 font-medium">
+                        ✓ Can log in
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAccountToDelete(item.user!)}
+                        className="inline-flex items-center gap-1 text-[10px] text-rose-600 hover:text-rose-800 font-bold hover:underline cursor-pointer"
+                        title={`Revoke ${item.title} account`}
+                      >
+                        <Trash2 className="w-2.5 h-2.5" />
+                        <span>Revoke</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="pt-2 border-t border-amber-200/70 text-[11px] space-y-2">
+                    <p className="text-amber-900 text-[11px] leading-tight">
+                      No account created yet. Staff cannot log in until you provision it.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickProvisionRole(item)}
+                      className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                    >
+                      <span>Provision This Role</span>
+                      <ArrowRight className="w-3 h-3 text-amber-400" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* SECTION 1: PROVISION NEW USER FORM */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div id="provisioning-form-anchor" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-100">
@@ -651,22 +1039,31 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
 
       {/* SECTION 2: INSTITUTIONAL USERS DIRECTORY */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden space-y-4">
-        <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* Header & Category Controls */}
+        <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h3 className="font-oskar-vintage text-base font-bold text-slate-900">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wider">
+                Access & Identity Directory
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
+                Categorized Authority
+              </span>
+            </div>
+            <h3 className="font-oskar-vintage text-lg font-bold text-slate-900">
               Institutional User Accounts Directory
             </h3>
             <p className="text-xs text-slate-500">
-              Active staff, faculty, scholars, and administrative credentials under Principal oversight ({institutionalUsers.length} Total)
+              Active accounts across all institutional categories ({allDirectoryUsers.length} total enrolled credentials)
             </p>
           </div>
 
           {/* Search bar */}
-          <div className="relative w-full sm:w-72">
+          <div className="relative w-full sm:w-80">
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="Search by name, email, ID..."
+              placeholder="Search by name, email, department, ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -674,41 +1071,145 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
           </div>
         </div>
 
-        {/* Filter Chips */}
+        {/* Category Navigation Tabs */}
+        <div className="px-6 border-b border-slate-100">
+          <div className="flex flex-wrap items-center gap-2 pb-4">
+            {categoryOptions.map((cat) => {
+              const Icon = cat.icon;
+              const isActive = activeCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => {
+                    setActiveCategory(cat.id);
+                    setRoleFilter('ALL');
+                  }}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    isActive
+                      ? `${cat.badgeClass} shadow-sm`
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80 hover:text-slate-900'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{cat.shortLabel}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                      isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {cat.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Active Category Description & Bulk Actions Bar */}
+          {(() => {
+            const currentCat = categoryOptions.find((c) => c.id === activeCategory) || categoryOptions[0];
+            return (
+              <div className="mb-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                    <span>{currentCat.title}</span>
+                    <span className="text-slate-400 font-normal">({currentCat.count} Active)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    {currentCat.description}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {activeCategory !== 'ALL' && activeCategory !== 'LEADERSHIP' && currentCat.count > 0 && (
+                    <button
+                      onClick={() => {
+                        setPurgeConfirmInput('');
+                        setCategoryToPurge(activeCategory);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition cursor-pointer flex items-center gap-1.5"
+                      title={`Remove all ${currentCat.shortLabel} accounts`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Purge {currentCat.shortLabel}</span>
+                    </button>
+                  )}
+
+                  {activeCategory === 'LEADERSHIP' && (
+                    <button
+                      onClick={() => {
+                        setPrincipalResetConfirmInput('');
+                        setIsDeletePrincipalModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                      title="Decommission Principal and reset to an entirely clean, new system"
+                    >
+                      <AlertOctagon className="w-3.5 h-3.5" />
+                      <span>Decommission Principal & Reset System</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Sub-Role Filter Chips */}
         <div className="px-6 flex flex-wrap items-center gap-1.5 pb-2">
           <button
             onClick={() => setRoleFilter('ALL')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+            className={`px-3 py-1 rounded-xl text-xs font-semibold transition cursor-pointer ${
               roleFilter === 'ALL'
-                ? 'bg-slate-900 text-white shadow-xs'
+                ? 'bg-slate-800 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            All Accounts ({institutionalUsers.length})
+            Show All Roles ({filteredUsers.length})
           </button>
-          {roleOptions.map((opt) => {
-            const count = institutionalUsers.filter((u) => u.role === opt.role).length;
-            const isSelected = roleFilter === opt.role;
-            return (
-              <button
-                key={opt.role}
-                onClick={() => setRoleFilter(opt.role)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-                  isSelected
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                <span>{opt.label}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-blue-800 text-blue-100' : 'bg-slate-200 text-slate-700'}`}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
+          {roleOptions
+            .filter((opt) => {
+              if (activeCategory === 'ALL') return true;
+              const catMeta = categoryOptions.find((c) => c.id === activeCategory);
+              return catMeta?.roles.includes(opt.role);
+            })
+            .map((opt) => {
+              const count = allDirectoryUsers.filter((u) => u.role === opt.role).length;
+              const isSelected = roleFilter === opt.role;
+              return (
+                <button
+                  key={opt.role}
+                  onClick={() => setRoleFilter(opt.role)}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                      isSelected ? 'bg-blue-800 text-blue-100' : 'bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
         </div>
 
-        {/* Re-send notice */}
+        {/* Action feedback banners */}
+        {deleteSuccessMsg && (
+          <div className="mx-6 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{deleteSuccessMsg}</span>
+            </div>
+            <button onClick={() => setDeleteSuccessMsg(null)} className="text-slate-400 hover:text-slate-600">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {resendSuccessMsg && (
           <div className="mx-6 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -723,32 +1224,52 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
               <tr className="bg-slate-50/80 border-y border-slate-100 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                 <th className="py-3 px-6">User & Identity</th>
                 <th className="py-3 px-4">Position & Role</th>
-                <th className="py-3 px-4">Department</th>
+                <th className="py-3 px-4">Department / Category</th>
                 <th className="py-3 px-4">Contact</th>
-                <th className="py-3 px-4">Password Status</th>
-                <th className="py-3 px-6 text-right">Actions</th>
+                <th className="py-3 px-4">Password & Access Status</th>
+                <th className="py-3 px-6 text-right">Actions & Security</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-slate-400 text-xs">
-                    No institutional accounts match your criteria.
+                    No institutional accounts match your active category or filter criteria.
                   </td>
                 </tr>
               ) : (
                 filteredUsers.map((user) => {
                   const roleMeta = roleOptions.find((r) => r.role === user.role) || roleOptions[0];
+                  const isPrincipal = user.role === 'PRINCIPAL';
+
                   return (
-                    <tr key={user.id} className="hover:bg-slate-50/60 transition">
+                    <tr
+                      key={user.id}
+                      className={`transition ${
+                        isPrincipal ? 'bg-amber-50/40 hover:bg-amber-50/70' : 'hover:bg-slate-50/60'
+                      }`}
+                    >
                       {/* Name & ID */}
                       <td className="py-3 px-6">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-xs shrink-0">
-                            {user.name.charAt(0)}
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                              isPrincipal
+                                ? 'bg-amber-200 text-amber-900 border border-amber-300'
+                                : 'bg-blue-100 text-blue-800'
+                            }`}
+                          >
+                            {isPrincipal ? <Crown className="w-4 h-4" /> : user.name.charAt(0)}
                           </div>
                           <div>
-                            <span className="font-bold text-slate-900 block">{user.name}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-900">{user.name}</span>
+                              {isPrincipal && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-200 text-amber-900">
+                                  System Head
+                                </span>
+                              )}
+                            </div>
                             <span className="font-mono text-[10px] text-slate-400">{user.id}</span>
                           </div>
                         </div>
@@ -779,7 +1300,7 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
                           <div className="space-y-1">
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
                               <AlertTriangle className="w-3 h-3 text-amber-600" />
-                              <span>Temp Password (Must Change on 1st Login)</span>
+                              <span>Temp Password (Must Change)</span>
                             </span>
                             {user.temporaryPassword && (
                               <div className="flex items-center gap-1">
@@ -810,17 +1331,42 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
 
                       {/* Actions */}
                       <td className="py-3 px-6 text-right">
-                        {user.mustChangePasswordOnFirstLogin && user.temporaryPassword && (
-                          <button
-                            onClick={() => handleResendTempPassword(user)}
-                            disabled={resendingId === user.id}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold transition border border-blue-200 cursor-pointer disabled:opacity-60"
-                            title="Resend temporary password email via Gmail"
-                          >
-                            <RefreshCw className={`w-3 h-3 ${resendingId === user.id ? 'animate-spin' : ''}`} />
-                            <span>{resendingId === user.id ? 'Sending...' : 'Resend Email'}</span>
-                          </button>
-                        )}
+                        <div className="flex items-center justify-end gap-2">
+                          {user.mustChangePasswordOnFirstLogin && user.temporaryPassword && (
+                            <button
+                              onClick={() => handleResendTempPassword(user)}
+                              disabled={resendingId === user.id}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition border border-blue-200 cursor-pointer disabled:opacity-60"
+                              title="Resend temporary password email via Gmail"
+                            >
+                              <RefreshCw className={`w-3 h-3 ${resendingId === user.id ? 'animate-spin' : ''}`} />
+                              <span>{resendingId === user.id ? 'Sending...' : 'Resend Email'}</span>
+                            </button>
+                          )}
+
+                          {isPrincipal ? (
+                            <button
+                              onClick={() => {
+                                setPrincipalResetConfirmInput('');
+                                setIsDeletePrincipalModalOpen(true);
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                              title="Remove Principal and reset to an entirely new system"
+                            >
+                              <AlertOctagon className="w-3.5 h-3.5" />
+                              <span>Remove Principal & Reset System</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setAccountToDelete(user)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold border border-rose-200 transition cursor-pointer"
+                              title={`Revoke access and delete ${user.name}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Remove</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -830,6 +1376,231 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
           </table>
         </div>
       </div>
+
+      {/* MODAL 1: Standard Institutional User Removal */}
+      <AnimatePresence>
+        {accountToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-slate-200 space-y-5"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Remove User Account
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Revoke credentials and institutional access
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Name:</span>
+                  <span className="font-bold text-slate-900">{accountToDelete.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Role & Position:</span>
+                  <span className="font-semibold text-slate-800">{accountToDelete.position} ({accountToDelete.role})</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Official Email:</span>
+                  <span className="font-mono text-slate-700">{accountToDelete.email}</span>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 leading-relaxed">
+                <strong>Security Impact:</strong> Once removed, this user will immediately lose access to the portal. 
+                {['REGISTRAR', 'FINANCE', 'PROGRAM_OFFICE', 'COUNSELLOR'].includes(accountToDelete.role) && (
+                  <span> Because this is a leadership role, login to the {accountToDelete.role} portal will be blocked until the Principal provisions a replacement account.</span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAccountToDelete(null)}
+                  disabled={isDeletingUser}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteUser}
+                  disabled={isDeletingUser}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isDeletingUser ? 'Removing...' : 'Confirm Account Removal'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 2: Principal Decommission & Complete System Reset */}
+      <AnimatePresence>
+        {isDeletePrincipalModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-rose-200 space-y-5"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-rose-600/30">
+                  <AlertOctagon className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="inline-block px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold uppercase tracking-wider mb-1">
+                    Nuclear Administrative Action
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    Decommission Principal & Reset to New System
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Removing the Principal wipes all institutional state and transforms the portal into a clean, brand-new system.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-950 space-y-2 leading-relaxed">
+                <p className="font-bold text-rose-900 flex items-center gap-1.5">
+                  <ShieldAlert className="w-4 h-4 text-rose-600" />
+                  Complete System Transformation:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-[11px] text-rose-900/90 pl-1">
+                  <li>The Principal's account and authorization credentials will be completely deleted.</li>
+                  <li>All subordinate institutional users, faculty, students, grades, and finance records will be wiped.</li>
+                  <li>All active sessions will be terminated and logged out.</li>
+                  <li>The system will return to an uninitialized factory state ready for a new Principal master code registration.</li>
+                </ul>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700">
+                  Type <span className="text-rose-600 font-mono font-black">RESET</span> to confirm decommission:
+                </label>
+                <input
+                  type="text"
+                  placeholder="Type RESET"
+                  value={principalResetConfirmInput}
+                  onChange={(e) => setPrincipalResetConfirmInput(e.target.value)}
+                  className="w-full px-3.5 py-2 text-xs border border-rose-300 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-rose-500 font-mono uppercase font-bold"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDeletePrincipalModalOpen(false);
+                    setPrincipalResetConfirmInput('');
+                  }}
+                  disabled={isDeletingPrincipal}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeletePrincipal}
+                  disabled={principalResetConfirmInput.trim().toUpperCase() !== 'RESET' || isDeletingPrincipal}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 disabled:bg-slate-200 disabled:text-slate-400 text-white shadow-lg shadow-rose-600/20 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <AlertOctagon className="w-4 h-4" />
+                  <span>{isDeletingPrincipal ? 'Resetting System...' : 'Decommission Principal & Reset System'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 3: Bulk Purge Category Modal */}
+      <AnimatePresence>
+        {categoryToPurge && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-slate-200 space-y-5"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Purge Category Accounts
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Bulk removal of all accounts in category: <strong>{categoryToPurge}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                This will revoke and delete all active accounts in the <strong>{categoryToPurge}</strong> category. 
+                Users in this category will immediately be blocked from logging in.
+              </p>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700">
+                  Type <span className="text-rose-600 font-mono font-black">DELETE</span> to confirm bulk purge:
+                </label>
+                <input
+                  type="text"
+                  placeholder="Type DELETE"
+                  value={purgeConfirmInput}
+                  onChange={(e) => setPurgeConfirmInput(e.target.value)}
+                  className="w-full px-3.5 py-2 text-xs border border-rose-300 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-rose-500 font-mono uppercase font-bold"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCategoryToPurge(null);
+                    setPurgeConfirmInput('');
+                  }}
+                  disabled={isPurgingCategory}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmPurgeCategory}
+                  disabled={purgeConfirmInput.trim().toUpperCase() !== 'DELETE' || isPurgingCategory}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 disabled:bg-slate-200 disabled:text-slate-400 text-white shadow-sm transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isPurgingCategory ? 'Purging Category...' : 'Purge All Accounts'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Change Principal Master Authorization Code Modal */}
+      <ChangeMasterCodeModal
+        isOpen={isChangeMasterCodeModalOpen}
+        onClose={() => setIsChangeMasterCodeModalOpen(false)}
+      />
     </div>
   );
 };

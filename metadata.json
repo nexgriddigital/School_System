@@ -1,6 +1,6 @@
 {
   "name": "Academy School Management System (SIS)",
-  "description": "Comprehensive school administration system featuring admissions with grade-specific document verification and auto ID generation, finance with bulk bank statement reconciliation, program office section allocation, counselling & disciplinary workflows, teacher homerooms & gradebooks, and student/parent portals.",
+  "description": "Comprehensive school administration system featuring admissions with grade-specific document verification and auto ID generation, finance with bulk bank statement reconciliation, executive data governance with full system snapshot JSON backups, monochrome institutional print reporting for dashboard records, teacher homerooms & gradebooks, and student/parent portals.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

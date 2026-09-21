@@ -15,6 +15,7 @@ import {
   UserCheck, 
   ShieldAlert, 
   CheckCircle2, 
+  Check,
   ArrowRight, 
   Eye, 
   EyeOff, 
@@ -56,7 +57,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     getUserByEmailOrId, 
     changeUserPassword,
     sessionExpiredNotification,
-    clearSessionExpiredNotification
+    clearSessionExpiredNotification,
+    verifyMasterCode,
   } = useSchool();
   
   const hasPrincipal = institutionalUsers.some(u => u.role === 'PRINCIPAL');
@@ -96,7 +98,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
   const [isSavingPermanentPassword, setIsSavingPermanentPassword] = useState(false);
 
   // Principal Sign Up States
-  const [principalMasterCode, setPrincipalMasterCode] = useState('System_Principal');
+  const [principalMasterCode, setPrincipalMasterCode] = useState('');
   const [showMasterCode, setShowMasterCode] = useState(false);
   const [principalName, setPrincipalName] = useState('');
   const [principalEmail, setPrincipalEmail] = useState('');
@@ -203,14 +205,39 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     .flatMap(c => c.roles)
     .find(r => r.role === selectedRole) || roleCategories[0].roles[0];
 
+  const adminLeadershipRoles: UserRole[] = ['REGISTRAR', 'FINANCE', 'PROGRAM_OFFICE', 'COUNSELLOR'];
+  const isSelectedRoleAdmin = adminLeadershipRoles.includes(selectedRole);
+  const provisionedAdminUser = isSelectedRoleAdmin ? institutionalUsers.find(u => u.role === selectedRole) : null;
+  const isSelectedRoleProvisionedByPrincipal = isSelectedRoleAdmin ? Boolean(provisionedAdminUser) : true;
+
   const handleRoleSelect = (role: UserRole) => {
     setSelectedRole(role);
     setErrorMsg(null);
     setIsOtpStep(false);
     const meta = roleCategories.flatMap(c => c.roles).find(r => r.role === role);
     if (meta) {
-      setIdentifier(meta.hintId);
-      setPassword(meta.defaultPass);
+      if (adminLeadershipRoles.includes(role)) {
+        const prov = institutionalUsers.find(u => u.role === role);
+        if (prov) {
+          setIdentifier(prov.email);
+          setPassword('');
+        } else {
+          setIdentifier('');
+          setPassword('');
+        }
+      } else if (role === 'PRINCIPAL') {
+        const principalUser = institutionalUsers.find(u => u.role === 'PRINCIPAL');
+        if (principalUser) {
+          setIdentifier(principalUser.email);
+          setPassword('');
+        } else {
+          setIdentifier('');
+          setPassword('');
+        }
+      } else {
+        setIdentifier(meta.hintId);
+        setPassword(meta.defaultPass);
+      }
     }
   };
 
@@ -242,6 +269,19 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     e.preventDefault();
     setErrorMsg(null);
 
+    // Enforce Principal-only creation requirement for administrative roles
+    if (isSelectedRoleAdmin && !isSelectedRoleProvisionedByPrincipal) {
+      setErrorMsg('Access Denied: This account has not been created by the Principal yet. Administrative leadership accounts must be officially created and authorized by the Principal before login is allowed.');
+      triggerShake();
+      return;
+    }
+
+    if (selectedRole === 'PRINCIPAL' && !hasPrincipal) {
+      setErrorMsg('No Principal account found. Please initialize the Executive Principal account first using Principal Sign Up.');
+      triggerShake();
+      return;
+    }
+
     if (!identifier.trim()) {
       setErrorMsg('Please enter your institutional email or account identifier.');
       triggerShake();
@@ -252,6 +292,36 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
       setErrorMsg('Please enter your account password.');
       triggerShake();
       return;
+    }
+
+    // Pre-validate credentials for administrative leadership before dispatching live Gmail OTP
+    if (isSelectedRoleAdmin && provisionedAdminUser) {
+      const cleanId = identifier.trim().toLowerCase();
+      if (provisionedAdminUser.email.toLowerCase() !== cleanId && provisionedAdminUser.id.toLowerCase() !== cleanId) {
+        setErrorMsg(`No authorized account found for this department matching "${identifier.trim()}". Only accounts created by the Principal can log in.`);
+        triggerShake();
+        return;
+      }
+      const isPasswordValid = password === provisionedAdminUser.password || (Boolean(provisionedAdminUser.temporaryPassword) && password === provisionedAdminUser.temporaryPassword);
+      if (!isPasswordValid) {
+        setErrorMsg('Incorrect password. Please enter the password or temporary credential issued by the Principal.');
+        triggerShake();
+        return;
+      }
+    }
+
+    if (selectedRole === 'PRINCIPAL' && existingPrincipal) {
+      const cleanId = identifier.trim().toLowerCase();
+      if (existingPrincipal.email.toLowerCase() !== cleanId && existingPrincipal.id.toLowerCase() !== cleanId) {
+        setErrorMsg('Invalid Principal email or account ID.');
+        triggerShake();
+        return;
+      }
+      if (password !== existingPrincipal.password) {
+        setErrorMsg('Incorrect Principal password. Please verify your credentials.');
+        triggerShake();
+        return;
+      }
     }
 
     // If Gmail sender is connected, dispatch real OTP code via Gmail
@@ -310,9 +380,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     e.preventDefault();
     setErrorMsg(null);
 
-    // Verify master code if provided (or if not initial setup)
-    if (principalMasterCode.trim() && principalMasterCode.trim() !== 'System_Principal') {
-      setErrorMsg('Invalid Master Authorization Code. Use "System_Principal" to authorize Principal registration.');
+    // Verify master code
+    if (!principalMasterCode.trim() || !verifyMasterCode(principalMasterCode.trim())) {
+      setErrorMsg('Invalid Master Authorization Code. Please enter the confidential key issued for institutional Principal authorization.');
       triggerShake();
       return;
     }
@@ -827,7 +897,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                   />
                 </motion.div>
               ) : authMode === 'PRINCIPAL_SIGN_UP' ? (
-                /* STEP 1 (B): PRINCIPAL SIGN UP (MASTERCODE GATED: "System_Principal") */
+                /* STEP 1 (B): PRINCIPAL SIGN UP (MASTERCODE GATED) */
                 <motion.div
                   key="principal-signup-step"
                   initial={{ opacity: 0, x: 20 }}
@@ -859,13 +929,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                   </div>
 
                   {/* Principal Registration Notice */}
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 space-y-1">
+                  <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-2xl text-xs text-amber-900 space-y-1">
                     <div className="flex items-center gap-1.5 font-bold text-amber-950">
                       <Crown className="w-4 h-4 text-amber-600" />
                       <span>Authorized Principal Registration</span>
                     </div>
                     <p className="text-[11px] text-amber-800 leading-relaxed">
-                      Only the institutional Principal can register an executive account. You must provide the official mastercode <strong className="font-mono text-amber-950 bg-amber-100 px-1 py-0.2 rounded border border-amber-300">System_Principal</strong>. A live 6-digit OTP will be dispatched to your email for confirmation.
+                      Only the institutional Principal can register an executive account. You must enter the confidential institutional master authorization key. A live 6-digit OTP will be dispatched to your email for confirmation.
                     </p>
                   </div>
 
@@ -890,8 +960,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
                         <span>Principal Master Authorization Code *</span>
-                        <span className="text-[10px] font-mono text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                          System_Principal
+                        <span className="text-[10px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 flex items-center gap-1">
+                          <Lock className="w-2.5 h-2.5 text-slate-500" />
+                          Confidential Key
                         </span>
                       </label>
                       <div className="relative">
@@ -902,7 +973,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                             setPrincipalMasterCode(e.target.value);
                             if (errorMsg) setErrorMsg(null);
                           }}
-                          placeholder="Enter Master Code (System_Principal)"
+                          placeholder="Enter confidential master authorization key"
                           className="w-full pl-9 pr-10 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent font-mono transition"
                         />
                         <ShieldCheck className="w-4 h-4 text-amber-600 absolute left-3 top-3" />
@@ -1101,6 +1172,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                             {cat.roles.map(({ role, label, icon: Icon }) => {
                               const isSelected = selectedRole === role;
+                              const isAdmin = adminLeadershipRoles.includes(role);
+                              const isCreated = isAdmin ? institutionalUsers.some(u => u.role === role) : true;
+                              const isPrinc = role === 'PRINCIPAL';
+
                               return (
                                 <button
                                   key={role}
@@ -1109,6 +1184,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                                   className={`relative flex items-center justify-between p-2 rounded-xl text-left border text-xs transition-all cursor-pointer ${
                                     isSelected
                                       ? 'bg-blue-600 text-white font-bold shadow-md border-blue-500'
+                                      : isAdmin && !isCreated
+                                      ? 'bg-amber-50/60 border-amber-200 text-slate-700 hover:bg-amber-100/60'
                                       : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                                   }`}
                                 >
@@ -1120,14 +1197,43 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                                     />
                                   )}
                                   <div className="flex items-center gap-2 truncate">
-                                    <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
+                                    <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-white' : isAdmin && !isCreated ? 'text-amber-600' : 'text-slate-400'}`} />
                                     <span className="truncate">{label}</span>
                                   </div>
-                                  <span 
-                                    className={`text-[9px] px-1 py-0.2 rounded font-mono ${isSelected ? 'bg-blue-800 text-blue-200' : 'bg-slate-200 text-slate-500'}`}
-                                  >
-                                    OTP
-                                  </span>
+
+                                  {isPrinc ? (
+                                    <span 
+                                      className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-0.5 ${
+                                        isSelected 
+                                          ? 'bg-blue-800 text-blue-100' 
+                                          : hasPrincipal 
+                                          ? 'bg-emerald-100 text-emerald-800' 
+                                          : 'bg-amber-100 text-amber-800'
+                                      }`}
+                                    >
+                                      {hasPrincipal ? <Check className="w-2.5 h-2.5" /> : null}
+                                      {hasPrincipal ? 'Active' : 'Setup'}
+                                    </span>
+                                  ) : isAdmin ? (
+                                    <span 
+                                      className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-0.5 ${
+                                        isSelected 
+                                          ? isCreated ? 'bg-blue-800 text-blue-100' : 'bg-rose-900 text-rose-100'
+                                          : isCreated 
+                                          ? 'bg-emerald-100 text-emerald-800' 
+                                          : 'bg-rose-50 text-rose-700 border border-rose-200'
+                                      }`}
+                                    >
+                                      {isCreated ? <Check className="w-2.5 h-2.5" /> : <Lock className="w-2.5 h-2.5" />}
+                                      {isCreated ? 'Created' : 'Not Created'}
+                                    </span>
+                                  ) : (
+                                    <span 
+                                      className={`text-[9px] px-1 py-0.2 rounded font-mono ${isSelected ? 'bg-blue-800 text-blue-200' : 'bg-slate-200 text-slate-500'}`}
+                                    >
+                                      OTP
+                                    </span>
+                                  )}
                                 </button>
                               );
                             })}
@@ -1154,6 +1260,70 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                       >
                         Sign Up with Master Code
                       </button>
+                    </div>
+                  )}
+
+                  {/* Account Not Created by Principal Banner */}
+                  {isSelectedRoleAdmin && !isSelectedRoleProvisionedByPrincipal && (
+                    <div className="p-3.5 bg-amber-50 rounded-2xl border-2 border-amber-300 text-amber-950 shadow-xs">
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-amber-200 text-amber-900 flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                          <Lock className="w-4 h-4" />
+                        </div>
+                        <div className="space-y-1 text-xs flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-sm text-amber-950">
+                              Account Not Created by Principal
+                            </span>
+                            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-amber-200 text-amber-900 border border-amber-300">
+                              Login Restricted
+                            </span>
+                          </div>
+                          <p className="text-amber-900/90 leading-relaxed text-xs">
+                            This account should only be created by the Principal. Because no account has been provisioned for <strong>{currentRoleMeta.label}</strong> yet, login is restricted until the Principal creates it from the <em>User Provisioning</em> portal.
+                          </p>
+                          <div className="pt-1.5 flex flex-wrap items-center gap-2">
+                            {hasPrincipal ? (
+                              <button
+                                type="button"
+                                onClick={() => handleRoleSelect('PRINCIPAL')}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow transition cursor-pointer"
+                              >
+                                <Crown className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Log in as Principal to Provision Account</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAuthMode('PRINCIPAL_SIGN_UP');
+                                  setErrorMsg(null);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow transition cursor-pointer"
+                              >
+                                <Crown className="w-3.5 h-3.5" />
+                                <span>Set Up Principal Account First</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Account Authorized & Created by Principal Badge */}
+                  {isSelectedRoleAdmin && isSelectedRoleProvisionedByPrincipal && provisionedAdminUser && (
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-950 text-xs flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <div>
+                          <span className="font-bold text-emerald-900">Account Authorized by Principal: </span>
+                          <span className="text-emerald-800">{provisionedAdminUser.name} ({provisionedAdminUser.email})</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                        Ready
+                      </span>
                     </div>
                   )}
 
@@ -1188,16 +1358,25 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                       <div className="relative">
                         <input
                           type="text"
+                          disabled={isSelectedRoleAdmin && !isSelectedRoleProvisionedByPrincipal}
                           value={identifier}
                           onChange={(e) => {
                             setIdentifier(e.target.value);
                             if (errorMsg) setErrorMsg(null);
                           }}
-                          placeholder={`e.g. ${currentRoleMeta.hintId} or your Gmail`}
-                          className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                          placeholder={
+                            isSelectedRoleAdmin && !isSelectedRoleProvisionedByPrincipal
+                              ? 'Account must be created by Principal first'
+                              : `e.g. ${currentRoleMeta.hintId} or your Gmail`
+                          }
+                          className={`w-full pl-9 pr-3 py-2.5 text-sm rounded-xl transition ${
+                            isSelectedRoleAdmin && !isSelectedRoleProvisionedByPrincipal
+                              ? 'bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed'
+                              : 'bg-slate-50 border border-slate-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                          }`}
                         />
                         <UserCheck className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                        {identifier && (
+                        {identifier && !isSelectedRoleAdmin && (
                           <button
                             type="button"
                             onClick={() => setIdentifier('')}
@@ -1235,6 +1414,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                       <div className="relative">
                         <input
                           type={showPassword ? 'text' : 'password'}
+                          disabled={isSelectedRoleAdmin && !isSelectedRoleProvisionedByPrincipal}
                           value={password}
                           onFocus={() => setIsPasswordFocused(true)}
                           onBlur={() => setIsPasswordFocused(false)}
@@ -1242,14 +1422,23 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                             setPassword(e.target.value);
                             if (errorMsg) setErrorMsg(null);
                           }}
-                          placeholder="Enter security password"
-                          className="w-full pl-9 pr-10 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                          placeholder={
+                            isSelectedRoleAdmin && !isSelectedRoleProvisionedByPrincipal
+                              ? 'Login blocked until account is created'
+                              : 'Enter security password'
+                          }
+                          className={`w-full pl-9 pr-10 py-2.5 text-sm rounded-xl transition ${
+                            isSelectedRoleAdmin && !isSelectedRoleProvisionedByPrincipal
+                              ? 'bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed'
+                              : 'bg-slate-50 border border-slate-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                          }`}
                         />
                         <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                         <button
                           type="button"
+                          disabled={isSelectedRoleAdmin && !isSelectedRoleProvisionedByPrincipal}
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                          className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 transition cursor-pointer disabled:cursor-not-allowed"
                           title={showPassword ? 'Hide password' : 'Show password'}
                         >
                           {showPassword ? <EyeOff className="w-4 h-4 text-blue-600" /> : <Eye className="w-4 h-4" />}
@@ -1322,43 +1511,63 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                     </div>
 
                     {/* Submit Button with Dynamic Animation */}
-                    <motion.button
-                      type="submit"
-                      disabled={isLoading || isSuccess || isSendingGmail}
-                      whileHover={!isLoading && !isSuccess ? { scale: 1.01 } : {}}
-                      whileTap={!isLoading && !isSuccess ? { scale: 0.99 } : {}}
-                      className={`w-full py-3 px-4 rounded-xl text-sm font-semibold shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                        isSuccess
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white'
-                      }`}
-                    >
-                      {isLoading || isSendingGmail ? (
-                        <div className="flex items-center gap-2">
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
-                            className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
-                          />
-                          <span>Dispatching Real Gmail OTP...</span>
-                        </div>
-                      ) : isSuccess ? (
-                        <motion.div
-                          initial={{ scale: 0.8, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          className="flex items-center gap-2 text-white"
+                    {isSelectedRoleAdmin && !isSelectedRoleProvisionedByPrincipal ? (
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          disabled
+                          className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-slate-100 text-slate-400 cursor-not-allowed flex items-center justify-center gap-2 border border-slate-200 shadow-none"
                         >
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>Access Granted • Redirecting...</span>
-                        </motion.div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <Mail className="w-4 h-4" />
-                          <span>Send OTP via Gmail & Verify</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </div>
-                      )}
-                    </motion.button>
+                          <Lock className="w-4 h-4 text-slate-400" />
+                          <span>Account Not Created by Principal (Login Blocked)</span>
+                        </button>
+                        <p className="text-[11px] text-center text-slate-500">
+                          To access this department, the Principal must first provision the account from the Executive Portal.
+                        </p>
+                      </div>
+                    ) : (
+                      <motion.button
+                        type="submit"
+                        disabled={isLoading || isSuccess || isSendingGmail}
+                        whileHover={!isLoading && !isSuccess ? { scale: 1.01 } : {}}
+                        whileTap={!isLoading && !isSuccess ? { scale: 0.99 } : {}}
+                        className={`w-full py-3 px-4 rounded-xl text-sm font-semibold shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                          isSuccess
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white'
+                        }`}
+                      >
+                        {isLoading || isSendingGmail ? (
+                          <div className="flex items-center gap-2">
+                            <motion.div
+                              animate={{ rotate: 360 }}
+                              transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                              className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                            />
+                            <span>Dispatching Real Gmail OTP...</span>
+                          </div>
+                        ) : isSuccess ? (
+                          <motion.div
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="flex items-center gap-2 text-white"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Access Granted • Redirecting...</span>
+                          </motion.div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Mail className="w-4 h-4" />
+                            <span>
+                              {isSelectedRoleAdmin && provisionedAdminUser
+                                ? `Sign In as ${provisionedAdminUser.name}`
+                                : 'Send OTP via Gmail & Verify'}
+                            </span>
+                            <ArrowRight className="w-4 h-4" />
+                          </div>
+                        )}
+                      </motion.button>
+                    )}
                   </form>
                 </motion.div>
               )}
