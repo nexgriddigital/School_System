@@ -34,7 +34,8 @@ export const CounsellorView: React.FC = () => {
     submitCounsellorEvaluation,
     sendChatMessage,
     schoolName,
-    openDocumentViewer
+    openDocumentViewer,
+    currentUser
   } = useSchool();
 
   const [activeTab, setActiveTab] = useState<'DISCIPLINARY' | 'EVALUATIONS' | 'RECOMMENDATIONS' | 'PARENT_MAIL'>('DISCIPLINARY');
@@ -80,13 +81,13 @@ export const CounsellorView: React.FC = () => {
       incidentType,
       description,
       actionTaken,
-      counsellorName: 'Sister Marta Wolde (Head Counselor)',
+      counsellorName: currentUser?.name || 'Head Guidance Counsellor',
       autoNotifyParent: scheduleHearingInForm,
       hearingScheduled: scheduleHearingInForm,
       hearingDate: scheduleHearingInForm ? formHearingDate : undefined,
       hearingTime: scheduleHearingInForm ? formHearingTime : undefined,
       hearingLocation: scheduleHearingInForm ? formHearingLocation : undefined,
-      hearingCommittee: scheduleHearingInForm ? ['Prof. Mengistu Haile (Principal)', 'Sister Marta Wolde (Counsellor)'] : undefined,
+      hearingCommittee: scheduleHearingInForm ? ['Office of the Principal', currentUser?.name || 'Head Guidance Counsellor'] : undefined,
       hearingStatus: scheduleHearingInForm ? 'SCHEDULED' : undefined,
     });
 
@@ -104,8 +105,8 @@ export const CounsellorView: React.FC = () => {
     submitCounsellorEvaluation({
       studentId: st.id,
       studentName: st.fullName,
-      teacherId: 'COUNS-01',
-      teacherName: 'Sister Marta Wolde',
+      teacherId: currentUser?.id || 'COUNS-01',
+      teacherName: currentUser?.name || 'Guidance Counsellor',
       subject: 'Counseling & Student Life',
       date: new Date().toISOString().split('T')[0],
       conductRating,
@@ -627,7 +628,7 @@ export const CounsellorView: React.FC = () => {
                             grade: rec.grade,
                             recipientName: rec.recipientName,
                             purpose: rec.purpose,
-                            counsellorName: 'Dr. Almaz Bekele',
+                            counsellorName: currentUser?.name || 'Head Guidance Counsellor',
                             schoolName,
                             letterContent: rec.letterContent || '',
                             date: new Date().toISOString().split('T')[0],
@@ -672,7 +673,7 @@ export const CounsellorView: React.FC = () => {
                             grade: rec.grade,
                             recipientName: rec.recipientName,
                             purpose: rec.purpose,
-                            counsellorName: 'Dr. Almaz Bekele',
+                            counsellorName: currentUser?.name || 'Head Guidance Counsellor',
                             schoolName,
                             letterContent: defaultLetter,
                             date: new Date().toISOString().split('T')[0],

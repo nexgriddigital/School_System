@@ -56,7 +56,7 @@ export const DisciplinaryHearingModal: React.FC<DisciplinaryHearingModalProps> =
   const [committeeText, setCommitteeText] = useState<string>(
     (action.hearingCommittee && action.hearingCommittee.length > 0)
       ? action.hearingCommittee.join(', ')
-      : 'Prof. Mengistu Haile (Principal), Sister Marta Wolde (Counsellor), Homeroom Teacher'
+      : 'Office of the Principal, Head of Guidance & Counselling, Homeroom Teacher'
   );
 
   const [activeTab, setActiveTab] = useState<'CONFIG' | 'PREVIEW'>('CONFIG');
@@ -316,7 +316,7 @@ export const DisciplinaryHearingModal: React.FC<DisciplinaryHearingModalProps> =
                     </div>
 
                     <div className="p-2.5 rounded-lg bg-blue-950/30 border border-blue-800/40 text-[11px] text-blue-300">
-                      <strong>Parent Contact on Record:</strong> {student?.parents?.fatherName || 'Melaku Tadesse'} (Father) &bull; {student?.parents?.fatherPhone || '+251 91 123 4567'}
+                      <strong>Parent Contact on Record:</strong> {student?.parents?.fatherName || student?.parents?.motherName || 'Parent on Record'} &bull; {student?.parents?.fatherPhone || student?.parents?.motherPhone || 'Phone on file'}
                     </div>
                   </div>
                 </div>

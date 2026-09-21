@@ -10,10 +10,12 @@ interface ReceiptModalProps {
 }
 
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ invoice: propInvoice, onClose: propOnClose }) => {
-  const { schoolName, selectedInvoiceForReceipt, setSelectedInvoiceForReceipt } = useSchool();
+  const { schoolName, selectedInvoiceForReceipt, setSelectedInvoiceForReceipt, institutionalUsers } = useSchool();
 
   const invoice = propInvoice || selectedInvoiceForReceipt;
   const onClose = propOnClose || (() => setSelectedInvoiceForReceipt(null));
+
+  const financeOfficer = institutionalUsers?.find(u => u.role === 'FINANCE')?.name || 'Bursar & Finance Office';
 
   if (!invoice) {
     return null;
@@ -139,10 +141,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ invoice: propInvoice
             {/* Footer Signature & Seal */}
             <div className="mt-8 pt-4 border-t border-dashed border-slate-200 flex justify-between items-end text-[10px] text-slate-400">
               <div>
-                <div className="w-28 border-b border-slate-300 pb-1 mb-1 font-serif italic text-slate-600">
-                  Fisseha Tamrat
+                <div className="w-36 border-b border-slate-300 pb-1 mb-1 font-serif italic text-slate-700">
+                  {financeOfficer}
                 </div>
-                <span>Chief Financial Officer Signature</span>
+                <span>Authorized Financial Signature</span>
               </div>
               <div className="text-right">
                 <div className="flex items-center justify-end gap-1 text-slate-500 font-medium">

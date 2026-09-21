@@ -44,7 +44,8 @@ export const FinanceView: React.FC = () => {
     grantLeavingClearance,
     clearLostIdFinance,
     postNotice,
-    openDocumentViewer
+    openDocumentViewer,
+    currentUser
   } = useSchool();
 
   const [activeTab, setActiveTab] = useState<'INVOICES' | 'BULK_RECONCILE' | 'CLEARANCES'>('INVOICES');
@@ -72,7 +73,7 @@ export const FinanceView: React.FC = () => {
       title: `Payment Due Notice - Academic Term 1 (Grade ${noticeGrade})`,
       category: 'Payment Due',
       content: noticeMessage,
-      postedBy: 'Ato Fisseha Tamrat (Chief Financial Officer)',
+      postedBy: currentUser?.name ? `${currentUser.name} (${currentUser.title || 'Finance'})` : 'Finance & Accounts Division',
       postedRole: 'Finance',
       targetAudience: 'PARENTS',
       isUrgent: true,

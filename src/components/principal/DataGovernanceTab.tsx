@@ -243,9 +243,9 @@ export const DataGovernanceTab: React.FC = () => {
         schemaVersion: '2.8.5-enterprise',
         environment: 'NexGrid Digital Systems Cloud Run Engine',
         exportedBy: {
-          name: currentUser?.name || 'Dr. Henok Kebede',
+          name: currentUser?.name || 'Executive Principal',
           role: currentUser?.role || 'PRINCIPAL',
-          email: currentUser?.email || 'principal@oskaracademy.edu',
+          email: currentUser?.email || 'principal@institution.edu',
           executiveTitle: currentUser?.title || 'Executive Principal & Headmaster',
         },
         integritySignature: `SHA256:OSKAR-${Math.abs(totalRecordCount * 31337 + Date.now()).toString(16).toUpperCase()}`,
@@ -356,7 +356,7 @@ export const DataGovernanceTab: React.FC = () => {
           category: 'DATA_GOVERNANCE',
           severity: 'WARNING',
           performedBy: {
-            name: currentUser?.name || 'Dr. Henok Kebede (Principal)',
+            name: currentUser?.name || 'Executive Principal',
             role: currentUser?.role || 'PRINCIPAL',
             email: currentUser?.email
           },

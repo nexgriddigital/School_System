@@ -679,7 +679,7 @@ export const ParentView: React.FC = () => {
                 Chat with Kid's Teachers, Principal & All Other Offices
               </h3>
               <p className="text-xs text-slate-500">
-                Direct Telegram SIS messaging with your child's teachers, Principal Prof. Mengistu, Finance, Registrar, Academic Program Office, and the 24/7 Smart School AI Assistant.
+                Direct Telegram SIS messaging with your child's teachers, Principal's Office, Finance, Registrar, Academic Program Office, and the 24/7 Smart School AI Assistant.
               </p>
             </div>
             <span className="px-3 py-1 bg-sky-50 text-[#2481cc] border border-sky-200 rounded-full text-xs font-bold flex items-center gap-1.5 w-fit">

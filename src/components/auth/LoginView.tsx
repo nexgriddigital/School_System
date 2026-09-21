@@ -184,19 +184,75 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     {
       title: 'Administrative Leadership',
       roles: [
-        { role: 'REGISTRAR', label: 'Admissions & Registrar', icon: Building2, hintId: 'registrar@oskaracademy.edu', defaultPass: 'Admin@2026', description: 'Student registrations, ID generation & verify documents' },
-        { role: 'FINANCE', label: 'Finance Office', icon: CreditCard, hintId: 'finance@oskaracademy.edu', defaultPass: 'Finance#2026', description: 'Bank reconciliation, invoices, tuition & waivers' },
-        { role: 'PRINCIPAL', label: 'Principal / Head', icon: GraduationCap, hintId: 'principal@oskaracademy.edu', defaultPass: 'Principal#2026', description: 'Executive analytics, teacher leaves & stream change approvals' },
-        { role: 'PROGRAM_OFFICE', label: 'Program Office', icon: Layers, hintId: 'program.office@oskaracademy.edu', defaultPass: 'Program#2026', description: 'Section capacity & automated allocation' },
-        { role: 'COUNSELLOR', label: 'Counsellor & Discipline', icon: HeartHandshake, hintId: 'counselling@oskaracademy.edu', defaultPass: 'Counsellor#2026', description: 'Student conduct, parent conferences & pastoral care' },
+        { 
+          role: 'REGISTRAR', 
+          label: 'Admissions & Registrar', 
+          icon: Building2, 
+          hintId: institutionalUsers.find(u => u.role === 'REGISTRAR')?.email || '', 
+          defaultPass: '', 
+          description: 'Student registrations, ID generation & verify documents' 
+        },
+        { 
+          role: 'FINANCE', 
+          label: 'Finance Office', 
+          icon: CreditCard, 
+          hintId: institutionalUsers.find(u => u.role === 'FINANCE')?.email || '', 
+          defaultPass: '', 
+          description: 'Bank reconciliation, invoices, tuition & waivers' 
+        },
+        { 
+          role: 'PRINCIPAL', 
+          label: 'Principal / Head', 
+          icon: GraduationCap, 
+          hintId: existingPrincipal?.email || '', 
+          defaultPass: '', 
+          description: 'Executive analytics, teacher leaves & stream change approvals' 
+        },
+        { 
+          role: 'PROGRAM_OFFICE', 
+          label: 'Program Office', 
+          icon: Layers, 
+          hintId: institutionalUsers.find(u => u.role === 'PROGRAM_OFFICE')?.email || '', 
+          defaultPass: '', 
+          description: 'Section capacity & automated allocation' 
+        },
+        { 
+          role: 'COUNSELLOR', 
+          label: 'Counsellor & Discipline', 
+          icon: HeartHandshake, 
+          hintId: institutionalUsers.find(u => u.role === 'COUNSELLOR')?.email || '', 
+          defaultPass: '', 
+          description: 'Student conduct, parent conferences & pastoral care' 
+        },
       ]
     },
     {
       title: 'Faculty & Scholars',
       roles: [
-        { role: 'TEACHER', label: 'Teacher Portal', icon: Users, hintId: teachers[0]?.id || 'TCH-001', defaultPass: 'Teacher@2026', description: 'Homeroom roster, continuous grading & day-off requests' },
-        { role: 'STUDENT', label: 'Student Scholar', icon: User, hintId: students[0]?.id || 'OSK-2026-0901', defaultPass: 'Password@123', description: 'Report card, digital ID, schedule & tuition status' },
-        { role: 'PARENT', label: 'Parent / Guardian', icon: Home, hintId: students[0]?.parents?.fatherPhone || '+251 91 123 4567', defaultPass: 'Parent@2026', description: 'Child progress monitoring, attendance & billing history' },
+        { 
+          role: 'TEACHER', 
+          label: 'Teacher Portal', 
+          icon: Users, 
+          hintId: teachers[0]?.id || '', 
+          defaultPass: '', 
+          description: 'Homeroom roster, continuous grading & day-off requests' 
+        },
+        { 
+          role: 'STUDENT', 
+          label: 'Student Scholar', 
+          icon: User, 
+          hintId: students[0]?.id || '', 
+          defaultPass: '', 
+          description: 'Report card, digital ID, schedule & tuition status' 
+        },
+        { 
+          role: 'PARENT', 
+          label: 'Parent / Guardian', 
+          icon: Home, 
+          hintId: students[0]?.parents?.fatherPhone || '', 
+          defaultPass: '', 
+          description: 'Child progress monitoring, attendance & billing history' 
+        },
       ]
     }
   ];
@@ -935,7 +991,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                       <span>Authorized Principal Registration</span>
                     </div>
                     <p className="text-[11px] text-amber-800 leading-relaxed">
-                      Only the institutional Principal can register an executive account. You must enter the confidential institutional master authorization key.
+                      {!hasPrincipal 
+                        ? "Institutional Initialization: No School Principal account is currently registered. Enter a Master Authorization Key (e.g. OSKAR#APEX-2026 or any 6+ character key) to initialize the Principal executive account."
+                        : "Only the institutional Principal can register an executive account. You must enter the confidential institutional master authorization key."}
                     </p>
                   </div>
 
@@ -985,6 +1043,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                           {showMasterCode ? <EyeOff className="w-4 h-4 text-amber-600" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
+                      {!hasPrincipal && (
+                        <p className="text-[11px] text-amber-700 mt-1.5 flex items-center gap-1">
+                          <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                          <span>Initial Setup: You can use <button type="button" onClick={() => setPrincipalMasterCode('OSKAR#APEX-2026')} className="font-mono font-semibold underline hover:text-amber-900 cursor-pointer">OSKAR#APEX-2026</button> or any 6+ char master key.</span>
+                        </p>
+                      )}
                     </div>
 
                     {/* Principal Full Name */}
@@ -1000,7 +1064,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                             setPrincipalName(e.target.value);
                             if (errorMsg) setErrorMsg(null);
                           }}
-                          placeholder="e.g. Prof. Mengistu Haile"
+                          placeholder="Enter Principal Full Name"
                           className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
                         />
                         <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />

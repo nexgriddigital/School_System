@@ -54,9 +54,9 @@ interface SchoolContextType {
   setActiveStudentId: (id: string) => void;
   activeTeacherId: string;
   setActiveTeacherId: (id: string) => void;
-  currentStudent: Student;
-  currentTeacher: Teacher;
-  currentParentStudent: Student;
+  currentStudent: Student | null;
+  currentTeacher: Teacher | null;
+  currentParentStudent: Student | null;
   
   // Data State
   students: Student[];
@@ -245,261 +245,78 @@ interface SchoolContextType {
 const SchoolContext = createContext<SchoolContextType | null>(null);
 
 export const getRolePersona = (role: UserRole) => {
-  switch (role) {
-    case 'STUDENT':
-      return {
-        id: 'OSK-2026-0901',
-        name: 'Yared Melaku',
-        role: 'STUDENT' as UserRole,
-        title: 'Grade 9 Scholar (Sec 9A)'
-      };
-    case 'PARENT':
-      return {
-        id: 'PAR-01',
-        name: 'Melaku Tadesse',
-        role: 'PARENT' as UserRole,
-        title: 'Parent of Yared Melaku'
-      };
-    case 'TEACHER':
-      return {
-        id: 'TCH-01',
-        name: 'Ato Dawit Lemma',
-        role: 'TEACHER' as UserRole,
-        email: 'dawit.lemma@oskaracademy.edu',
-        title: 'Faculty & Homeroom 9A'
-      };
-    case 'REGISTRAR':
-      return {
-        id: 'REG-01',
-        name: 'W/ro Genet Assefa',
-        role: 'REGISTRAR' as UserRole,
-        email: 'registrar@oskaracademy.edu',
-        title: 'Admissions Officer & Registrar'
-      };
-    case 'FINANCE':
-      return {
-        id: 'FIN-01',
-        name: 'Ato Tamrat Bekele',
-        role: 'FINANCE' as UserRole,
-        email: 'finance@oskaracademy.edu',
-        title: 'Bursar & Chief Financial Controller'
-      };
-    case 'PROGRAM_OFFICE':
-      return {
-        id: 'PRG-01',
-        name: 'Dr. Yared Kassa',
-        role: 'PROGRAM_OFFICE' as UserRole,
-        email: 'curriculum@oskaracademy.edu',
-        title: 'Head of Academic Program Office'
-      };
-    case 'COUNSELLOR':
-      return {
-        id: 'CNS-01',
-        name: 'Dr. Bethlehem Tadesse',
-        role: 'COUNSELLOR' as UserRole,
-        email: 'guidance@oskaracademy.edu',
-        title: 'Lead Guidance Counsellor'
-      };
-    case 'PRINCIPAL':
-      return {
-        id: 'PRN-01',
-        name: 'Prof. Mengistu Haile',
-        role: 'PRINCIPAL' as UserRole,
-        email: 'principal@oskaracademy.edu',
-        title: 'Principal & Headmaster'
-      };
-    default:
-      return {
-        id: 'REG-01',
-        name: 'W/ro Genet Assefa',
-        role: 'REGISTRAR' as UserRole,
-        email: 'registrar@oskaracademy.edu',
-        title: 'Admissions Officer & Registrar'
-      };
-  }
+  const titles: Record<UserRole, string> = {
+    PRINCIPAL: 'Principal & Executive Oversight',
+    REGISTRAR: 'Admissions Officer & Registrar',
+    FINANCE: 'Chief Bursar & Finance Director',
+    PROGRAM_OFFICE: 'Head of Academic Program Office',
+    COUNSELLOR: 'Lead Guidance Counsellor',
+    TEACHER: 'Faculty Member',
+    STUDENT: 'Student Scholar',
+    PARENT: 'Parent / Guardian',
+  };
+  return {
+    id: `USER-${role}`,
+    name: titles[role] || 'Institutional User',
+    role: role,
+    title: titles[role] || 'User',
+    email: '' as string | undefined,
+  };
 };
 
-export const INITIAL_CHAT_MESSAGES: ChatMessage[] = [
-  // 1. Homeroom Teacher Thread (Ato Dawit Lemma)
-  {
-    id: 'CM-01',
-    senderRole: 'PARENT',
-    senderName: 'Melaku Tadesse Gebre',
-    recipientRole: 'TEACHER',
-    recipientName: 'Ato Dawit Lemma (Homeroom 9A)',
-    studentId: 'OSK-2026-0901',
-    channelId: 'TEACHER_HOMEROOM',
-    timestamp: 'Sep 14, 10:15 AM',
-    text: 'Good morning Ato Dawit, I wanted to inquire how Yared is adjusting to the new 9th Grade Algebra curriculum?',
-    status: 'read',
-    isRead: true,
-  },
-  {
-    id: 'CM-02',
-    senderRole: 'TEACHER',
-    senderName: 'Ato Dawit Lemma (Homeroom 9A)',
-    recipientRole: 'PARENT',
-    recipientName: 'Melaku Tadesse Gebre',
-    studentId: 'OSK-2026-0901',
-    channelId: 'TEACHER_HOMEROOM',
-    timestamp: 'Sep 14, 11:30 AM',
-    text: 'Greetings Ato Melaku. Yared scored 23/25 on Test 1 and participates actively in class. He is demonstrating excellent focus and analytical capability!',
-    status: 'read',
-    isRead: true,
-  },
-  {
-    id: 'CM-03',
-    senderRole: 'PARENT',
-    senderName: 'Melaku Tadesse Gebre',
-    recipientRole: 'TEACHER',
-    recipientName: 'Ato Dawit Lemma (Homeroom 9A)',
-    studentId: 'OSK-2026-0901',
-    channelId: 'TEACHER_HOMEROOM',
-    timestamp: 'Today, 09:10 AM',
-    text: 'Thank you for the reassuring feedback! Will there be any supplemental reading material provided for next week’s mid-term prep?',
-    status: 'delivered',
-    isRead: false,
-  },
+export const INITIAL_CHAT_MESSAGES: ChatMessage[] = [];
 
-  // 2. Principal & Headmaster Office Thread (Prof. Mengistu Haile)
-  {
-    id: 'CM-PR-01',
-    senderRole: 'PRINCIPAL',
-    senderName: 'Prof. Mengistu Haile (Headmaster & Principal)',
-    recipientRole: 'PARENT',
-    recipientName: 'Melaku Tadesse Gebre',
-    studentId: 'OSK-2026-0901',
-    channelId: 'OFFICE_PRINCIPAL',
-    timestamp: 'Sep 10, 08:30 AM',
-    text: 'Welcome to the 2026/27 Academic Year! The Executive Office is committed to academic rigor and character building. Please review our institutional guidelines and feel free to reach out for formal administrative consultations.',
-    status: 'read',
-    isRead: true,
-  },
-
-  // 3. Finance & Bursar Office Thread (Ato Tamrat Bekele)
-  {
-    id: 'CM-FN-01',
-    senderRole: 'FINANCE',
-    senderName: 'Ato Tamrat Bekele (Chief Bursar & Finance)',
-    recipientRole: 'PARENT',
-    recipientName: 'Melaku Tadesse Gebre',
-    studentId: 'OSK-2026-0901',
-    channelId: 'OFFICE_FINANCE',
-    timestamp: 'Sep 12, 11:00 AM',
-    text: 'Finance Office Notice: Term 1 tuition invoice (4,200 ETB) has been billed. Bank deposit slips from CBE or Telebirr can be submitted directly here or via the Tuition tab. Digital stamped receipts will be released immediately upon reconciliation.',
-    status: 'read',
-    isRead: true,
-  },
-
-  // 4. Admissions & Registrar Office Thread (W/ro Genet Assefa)
-  {
-    id: 'CM-RG-01',
-    senderRole: 'REGISTRAR',
-    senderName: 'W/ro Genet Assefa (Chief Admissions Officer)',
-    recipientRole: 'PARENT',
-    recipientName: 'Melaku Tadesse Gebre',
-    studentId: 'OSK-2026-0901',
-    channelId: 'OFFICE_REGISTRAR',
-    timestamp: 'Sep 08, 02:15 PM',
-    text: 'Admissions & Records: Yared Melaku’s 8th-grade national certification documents have been officially authenticated and cataloged in the SIS archive. Digital student ID card is fully active.',
-    status: 'read',
-    isRead: true,
-  },
-
-  // 5. Academic Program Office Thread (Dr. Yared Kassa)
-  {
-    id: 'CM-PO-01',
-    senderRole: 'PROGRAM_OFFICE',
-    senderName: 'Dr. Yared Kassa (Head of Academic Program)',
-    recipientRole: 'PARENT',
-    recipientName: 'Melaku Tadesse Gebre',
-    studentId: 'OSK-2026-0901',
-    channelId: 'OFFICE_PROGRAM_OFFICE',
-    timestamp: 'Sep 13, 04:00 PM',
-    text: 'Curriculum Advisory: The Grade 9 Semester 1 examination timetable and laboratory rotation schedules are finalized. All scholars must adhere to the 15-day stream assignment policy.',
-    status: 'read',
-    isRead: true,
-  },
-
-  // 6. Guidance & Counselling Office Thread (Dr. Bethlehem Tadesse)
-  {
-    id: 'CM-CS-01',
-    senderRole: 'COUNSELLOR',
-    senderName: 'Dr. Bethlehem Tadesse (Lead Guidance Counsellor)',
-    recipientRole: 'PARENT',
-    recipientName: 'Melaku Tadesse Gebre',
-    studentId: 'OSK-2026-0901',
-    channelId: 'OFFICE_COUNSELLOR',
-    timestamp: 'Sep 11, 03:20 PM',
-    text: 'Warm greetings from Pastoral Care. We are here to support your scholar’s personal wellbeing, study habits, and transition into high school. Feel free to request confidential consultations at any time.',
-    status: 'read',
-    isRead: true,
-  },
-
-  // 7. 24/7 Smart School AI Assistant Thread
-  {
-    id: 'CM-AI-01',
-    senderRole: 'REGISTRAR',
-    senderName: '🤖 Oskar Smart School SIS Bot',
-    recipientRole: 'PARENT',
-    recipientName: 'Melaku Tadesse Gebre',
-    studentId: 'OSK-2026-0901',
-    channelId: 'AI_SCHOOL_BOT',
-    timestamp: 'Today, 08:00 AM',
-    text: 'Hello Ato Melaku! I am the Oskar Academy 24/7 SIS Assistant Bot. You can ask me about Yared’s tuition balance, latest exam scores, attendance records, school bus schedules, or request me to route a message to his teachers or any school office!',
-    status: 'read',
-    isRead: true,
-  },
-
-  // Additional Teacher / Class Parents sample threads
-  {
-    id: 'CM-04',
-    senderRole: 'PARENT',
-    senderName: 'Hailemariam Mengistu',
-    recipientRole: 'TEACHER',
-    recipientName: 'Ato Dawit Lemma',
-    studentId: 'OSK-2026-0902',
-    channelId: 'PARENT_OSK-2026-0902',
-    timestamp: 'Yesterday, 04:20 PM',
-    text: 'Ato Dawit, Sara informed us she was selected for the Inter-School Science Olympiad squad. We are very proud and appreciate your mentorship!',
-    status: 'read',
-    isRead: true,
-  },
-  {
-    id: 'CM-05',
-    senderRole: 'TEACHER',
-    senderName: 'Ato Dawit Lemma (Homeroom 9A)',
-    recipientRole: 'PARENT',
-    recipientName: 'Hailemariam Mengistu',
-    studentId: 'OSK-2026-0902',
-    channelId: 'PARENT_OSK-2026-0902',
-    timestamp: 'Yesterday, 05:05 PM',
-    text: 'Indeed, Ato Hailemariam! Sara demonstrated exceptional scientific problem-solving in the lab assessments. Practice sessions will be on Tuesdays.',
-    status: 'read',
-    isRead: true,
-  },
-  {
-    id: 'CM-06',
-    senderRole: 'PARENT',
-    senderName: 'Martha Gebeyehu',
-    recipientRole: 'TEACHER',
-    recipientName: 'Ato Dawit Lemma',
-    studentId: 'OSK-2026-1101',
-    channelId: 'PARENT_OSK-2026-1101',
-    timestamp: 'Sep 12, 02:45 PM',
-    text: 'Greetings teacher. Dawit confirmed his Natural Science stream allocation. Thank you for signing the approval advisory.',
-    status: 'read',
-    isRead: true,
-  },
-];
+// Clean slate initialization: ensures all pre-populated demo data AND all old accounts are completely purged
+const CLEAN_SLATE_KEY = 'oskar_clean_slate_v5_wipe_all_accounts';
+if (typeof window !== 'undefined' && !localStorage.getItem(CLEAN_SLATE_KEY)) {
+  const keysToWipe = [
+    'oskar_school_students',
+    'oskar_school_sections',
+    'oskar_school_teachers',
+    'oskar_school_invoices',
+    'oskar_school_notices',
+    'oskar_school_dayoffs',
+    'oskar_school_disciplinary',
+    'oskar_school_recommendations',
+    'oskar_school_grades',
+    'oskar_school_evaluations',
+    'oskar_school_attendance',
+    'oskar_school_bankstatements',
+    'oskar_school_chat_messages',
+    'oskar_school_parent_email_logs',
+    'oskar_school_audit_logs',
+    'oskar_school_users',
+    'oskar_school_auth',
+    'oskar_school_user',
+    'oskar_school_role',
+    'oskar_principal_master_code',
+    'oskar_remember_identifier',
+    'oskar_school_remember',
+    'oskar_school_credentials',
+    'oskar_school_passwords',
+    'oskar_user_profile'
+  ];
+  keysToWipe.forEach(k => {
+    try {
+      localStorage.removeItem(k);
+    } catch {
+      // ignore
+    }
+  });
+  try {
+    localStorage.setItem(CLEAN_SLATE_KEY, 'true');
+  } catch {
+    // ignore
+  }
+}
 
 export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load initial states from LocalStorage or seed defaults
   const [currentRole, setCurrentRoleState] = useState<UserRole>(() => {
     return (localStorage.getItem('oskar_school_role') as UserRole) || 'REGISTRAR';
   });
-  const [activeStudentId, setActiveStudentId] = useState<string>('OSK-2026-0901');
-  const [activeTeacherId, setActiveTeacherId] = useState<string>('TCH-01'); // Ato Dawit Lemma (Homeroom 9A)
+  const [activeStudentId, setActiveStudentId] = useState<string>('');
+  const [activeTeacherId, setActiveTeacherId] = useState<string>('');
 
   const [students, setStudents] = useState<Student[]>(() => {
     const saved = localStorage.getItem('oskar_school_students');
@@ -904,10 +721,10 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     URL.revokeObjectURL(url);
   }, [auditLogs, schoolName]);
 
-  // Active Personas with resilient fallbacks
-  const currentStudent: Student = students.find(s => s.id === activeStudentId) || students[0] || INITIAL_STUDENTS[0];
-  const currentTeacher: Teacher = teachers.find(t => t.id === activeTeacherId) || teachers[0] || INITIAL_TEACHERS[0];
-  const currentParentStudent: Student = students.find(s => s.id === activeStudentId) || students[0] || INITIAL_STUDENTS[0];
+  // Active Personas with resilient fallbacks (nullable when no records exist)
+  const currentStudent: Student | null = students.find(s => s.id === activeStudentId) || students[0] || null;
+  const currentTeacher: Teacher | null = teachers.find(t => t.id === activeTeacherId) || teachers[0] || null;
+  const currentParentStudent: Student | null = students.find(s => s.id === activeStudentId) || students[0] || null;
 
   // Sync to LocalStorage
   useEffect(() => {
@@ -1141,7 +958,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       isTemporaryPassword: true,
       mustChangePasswordOnFirstLogin: true,
       createdAt: new Date().toISOString().split('T')[0],
-      createdBy: currentUser?.name || 'Prof. Mengistu Haile (Principal)',
+      createdBy: currentUser?.name ? `${currentUser.name} (${currentUser.title || 'Administrator'})` : 'Institutional Administration',
       phone: params.phone,
       extraCredentials: params.extraCredentials,
     };
@@ -1233,7 +1050,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       category: 'USER_MANAGEMENT',
       severity: 'INFO',
       performedBy: {
-        name: currentUser?.name || 'Dr. Henok Kebede (Principal)',
+        name: currentUser?.name || 'Executive Principal',
         role: currentUser?.role || 'PRINCIPAL',
         email: currentUser?.email
       },
@@ -1900,7 +1717,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const hearingDate = customDetails?.hearingDate || action.hearingDate || new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0];
     const hearingTime = customDetails?.hearingTime || action.hearingTime || '10:00 AM';
     const hearingLocation = customDetails?.hearingLocation || action.hearingLocation || 'Academic Disciplinary Board Room (Hall B, Rm 204)';
-    const hearingCommittee = customDetails?.hearingCommittee || action.hearingCommittee || ['Prof. Mengistu Haile (Principal)', 'Sister Marta Wolde (Counsellor)'];
+    const hearingCommittee = customDetails?.hearingCommittee || action.hearingCommittee || ['Office of the Principal', 'Head Guidance Counsellor'];
 
     try {
       const res = await sendDisciplinaryHearingEmailViaGmail({
@@ -2378,7 +2195,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (currentRole === 'PARENT') {
       senderTitle = student?.parents.fatherName || student?.parents.motherName || `Parent of ${student?.fullName || 'Student'}`;
     } else if (currentRole === 'TEACHER') {
-      senderTitle = currentTeacher ? `${currentTeacher.name} (Faculty)` : 'Ato Dawit Lemma (Homeroom 9A)';
+      senderTitle = currentTeacher ? `${currentTeacher.name} (Faculty)` : 'Faculty Member';
     } else if (currentRole === 'COUNSELLOR') {
       senderTitle = 'Office of Student Counseling';
     } else if (currentRole === 'PRINCIPAL') {
@@ -2438,40 +2255,45 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           if (lowerText.includes('fee') || lowerText.includes('tuition') || lowerText.includes('balance') || lowerText.includes('pay') || lowerText.includes('receipt')) {
             replyText = `Regarding tuition for ${studentName}: The current term invoice is 4,200 ETB. You can pay via CBE or Telebirr and submit your deposit slip under the Tuition tab. Once reconciled, an official stamped receipt will be immediately generated for you!`;
           } else if (lowerText.includes('grade') || lowerText.includes('score') || lowerText.includes('exam') || lowerText.includes('test') || lowerText.includes('mark')) {
-            replyText = `Academic Progress Check: ${studentName} is in Grade ${student?.grade || 9} (Sec ${student?.sectionId || '9A'}). Latest recorded average is 90.3% (A). Mathematics: 94, English: 91, Physics: 86. Homeroom teacher: Ato Dawit Lemma.`;
+            replyText = `Academic Progress Check: ${studentName} is in Grade ${student?.grade || 9} (Sec ${student?.sectionId || '9A'}). Term evaluation records are maintained in the official portal. You can reach out directly to assigned faculty for subject insights.`;
           } else if (lowerText.includes('attendance') || lowerText.includes('absent') || lowerText.includes('late')) {
-            replyText = `Attendance Summary: ${studentName} holds a 98% attendance rate this semester with zero unexcused infractions. Morning homeroom starts strictly at 08:00 AM.`;
+            replyText = `Attendance Summary: Attendance records for ${studentName} are logged daily by the morning homeroom supervisor. Official academy hours start strictly at 08:00 AM.`;
           } else if (lowerText.includes('stream') || lowerText.includes('natural') || lowerText.includes('social')) {
-            replyText = `Stream Allocation Information: Natural vs. Social Science placement window is open for 15 days following the start of term. Inquiries can be forwarded directly to Dr. Yared Kassa at the Academic Program Office.`;
-          } else if (lowerText.includes('teacher') || lowerText.includes('homeroom') || lowerText.includes('dawit')) {
-            replyText = `${studentName}'s Homeroom Teacher is Ato Dawit Lemma (Section 9A). You can switch to the "Ato Dawit Lemma" chat tab to send him a direct message or request a progress consultation.`;
+            replyText = `Stream Allocation Information: Natural vs. Social Science placement window is managed through the Academic Program Office in accordance with Ministry standards.`;
+          } else if (lowerText.includes('teacher') || lowerText.includes('homeroom')) {
+            replyText = `Homeroom & Faculty Communication: You can message teachers directly from the Teacher consultation channels or request an in-person conference.`;
           } else {
-            replyText = `Thank you for your question! I have logged this inquiry for ${studentName}. You can ask me anytime about grades, fees, attendance, exam schedules, or use the tabs to message teachers and administration directly.`;
+            replyText = `Thank you for your inquiry regarding ${studentName}. You can ask anytime about academic status, billing, or consult with administration through this portal.`;
           }
         } else if (effectiveChannelId === 'OFFICE_FINANCE' || recipientRole === 'FINANCE') {
-          replySenderName = 'Ato Tamrat Bekele (Chief Bursar & Finance)';
+          const financeUser = institutionalUsers.find(u => u.role === 'FINANCE');
+          replySenderName = financeUser ? `${financeUser.name} (${financeUser.position || 'Finance'})` : 'Office of Finance & Accounts';
           replySenderRole = 'FINANCE';
-          replyText = `Finance Office Update: Greetings. We have logged your message regarding ${studentName}'s account (${student?.accountNumber || 'ACC-90412'}). Bank deposit slips submitted via portal are verified daily at 11:30 AM and 04:00 PM. Digital stamped receipts will be released under your Tuition tab upon bank confirmation.`;
+          replyText = `Finance Office Update: Greetings. We have received your inquiry regarding ${studentName}'s account (${student?.accountNumber || 'Tuition Record'}). Bank deposit slips submitted via the portal are verified upon clearance. Digital stamped receipts will be released under your Tuition tab.`;
         } else if (effectiveChannelId === 'OFFICE_PRINCIPAL' || recipientRole === 'PRINCIPAL') {
-          replySenderName = 'Prof. Mengistu Haile (Headmaster & Principal)';
+          const principalUser = institutionalUsers.find(u => u.role === 'PRINCIPAL');
+          replySenderName = principalUser ? `${principalUser.name} (${principalUser.position || 'Principal'})` : 'Office of the Principal';
           replySenderRole = 'PRINCIPAL';
-          replyText = `Office of the Principal: Greetings. Your message has been received at the Executive Desk. For scheduled in-person consultations, executive office hours are Tuesdays and Thursdays 2:00 PM – 4:30 PM. We appreciate your partnership in educational excellence.`;
+          replyText = `Office of the Principal: Greetings. Your message has been received at the Executive Desk. For scheduled in-person consultations, executive office hours are held on Tuesdays and Thursdays. We appreciate your partnership in educational excellence.`;
         } else if (effectiveChannelId === 'OFFICE_REGISTRAR' || recipientRole === 'REGISTRAR') {
-          replySenderName = 'W/ro Genet Assefa (Chief Admissions Officer)';
+          const registrarUser = institutionalUsers.find(u => u.role === 'REGISTRAR');
+          replySenderName = registrarUser ? `${registrarUser.name} (${registrarUser.position || 'Registrar'})` : 'Admissions & Registrar Office';
           replySenderRole = 'REGISTRAR';
-          replyText = `Admissions & Registrar: We have received your inquiry. Official grade transcripts, enrollment certificates, and Ministry authentication stamps require 24–48 hours standard processing. We will notify you once sealed.`;
+          replyText = `Admissions & Registrar: We have received your inquiry. Official grade transcripts, enrollment certificates, and authentication stamps require standard institutional processing. We will notify you once sealed.`;
         } else if (effectiveChannelId === 'OFFICE_PROGRAM_OFFICE' || recipientRole === 'PROGRAM_OFFICE') {
-          replySenderName = 'Dr. Yared Kassa (Head of Academic Program)';
+          const progUser = institutionalUsers.find(u => u.role === 'PROGRAM_OFFICE');
+          replySenderName = progUser ? `${progUser.name} (${progUser.position || 'Program Office'})` : 'Academic Program Office';
           replySenderRole = 'PROGRAM_OFFICE';
-          replyText = `Academic Program Office: We acknowledge your curriculum inquiry. The mid-term and semester examination timetables are posted on the institutional board. Stream placement guidelines strictly adhere to the academic committee's 15-day policy.`;
+          replyText = `Academic Program Office: We acknowledge your curriculum inquiry. The mid-term and semester examination timetables are posted on the institutional noticeboard. Stream placement guidelines strictly adhere to academic committee policies.`;
         } else if (effectiveChannelId === 'OFFICE_COUNSELLOR' || recipientRole === 'COUNSELLOR') {
-          replySenderName = 'Dr. Bethlehem Tadesse (Lead Guidance Counsellor)';
+          const cnsUser = institutionalUsers.find(u => u.role === 'COUNSELLOR');
+          replySenderName = cnsUser ? `${cnsUser.name} (${cnsUser.position || 'Counsellor'})` : 'Student Guidance & Pastoral Care';
           replySenderRole = 'COUNSELLOR';
-          replyText = `Student Guidance & Pastoral Care: Thank you for reaching out. We will review ${studentName}'s progress in close coordination with the homeroom faculty. Confidential student welfare consultations can be arranged any weekday.`;
+          replyText = `Student Guidance & Pastoral Care: Thank you for reaching out. We will review ${studentName}'s progress in close coordination with faculty. Confidential student welfare consultations can be arranged any weekday.`;
         } else if (effectiveChannelId === 'TEACHER_HOMEROOM' || recipientRole === 'TEACHER') {
-          replySenderName = recipientName || 'Ato Dawit Lemma (Homeroom 9A)';
+          replySenderName = recipientName || (currentTeacher ? `${currentTeacher.name} (Faculty)` : 'Assigned Faculty Member');
           replySenderRole = 'TEACHER';
-          replyText = `Greetings! Thank you for following up regarding ${studentName}. I will review this promptly. ${studentName} continues to be an active, dedicated scholar in our class. Let me know if you would like to schedule a 10-minute conference this week.`;
+          replyText = `Greetings! Thank you for following up regarding ${studentName}. I will review this promptly. Let me know if you would like to schedule a conference.`;
         }
 
         if (replyText) {
@@ -2780,47 +2602,213 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return { success: true };
     }
 
-    // Faculty & Scholars (TEACHER, STUDENT, PARENT)
-    setCurrentRoleState(role);
-    const userObj = getRolePersona(role);
-
-    // If identifier matches an institutional user or roster, check password if provided
-    if (identifier) {
-      const match = getUserByEmailOrId(identifier);
-      if (match) {
-        if (password && password.trim()) {
-          const passValid = password === match.password || (Boolean(match.temporaryPassword) && password === match.temporaryPassword);
-          if (!passValid) {
-            return {
-              success: false,
-              error: 'Incorrect password. Please enter the password or temporary credential issued by the institution.'
-            };
-          }
-        }
-        userObj.name = match.name;
-        userObj.email = match.email;
-        userObj.title = match.position;
-        userObj.id = match.id;
-
-        if (match.role === 'TEACHER') {
-          const matchingTeacher = teachers.find(t => t.email.toLowerCase() === match.email.toLowerCase() || t.name.toLowerCase() === match.name.toLowerCase());
-          if (matchingTeacher) {
-            setActiveTeacherId(matchingTeacher.id);
-          }
-        }
-        if (match.role === 'STUDENT') {
-          const matchingStudent = students.find(s => 
-            s.id.toLowerCase() === match.id.toLowerCase() || 
-            (match.extraCredentials?.studentId && s.id.toLowerCase() === match.extraCredentials.studentId.toLowerCase()) || 
-            (match.email && s.parents?.email?.toLowerCase() === match.email.toLowerCase())
-          );
-          if (matchingStudent) {
-            setActiveStudentId(matchingStudent.id);
-          }
-        }
+    // Faculty (TEACHER)
+    if (role === 'TEACHER') {
+      const hasTeacherAccounts = teachers.length > 0 || institutionalUsers.some(u => u.role === 'TEACHER');
+      if (!hasTeacherAccounts) {
+        return {
+          success: false,
+          error: 'No Teacher accounts exist in the system. Faculty accounts must be provisioned by the Principal first.'
+        };
       }
+      if (!identifier || !identifier.trim()) {
+        return {
+          success: false,
+          error: 'Please enter your Teacher ID or institutional email.'
+        };
+      }
+      const cleanId = identifier.trim().toLowerCase();
+      const matchInst = institutionalUsers.find(u => u.role === 'TEACHER' && (u.email.toLowerCase() === cleanId || u.id.toLowerCase() === cleanId));
+      const matchTeacher = teachers.find(t => t.id.toLowerCase() === cleanId || t.email.toLowerCase() === cleanId);
+      if (!matchInst && !matchTeacher) {
+        return {
+          success: false,
+          error: `No teacher account found matching "${identifier.trim()}".`
+        };
+      }
+      if (!password || !password.trim()) {
+        return {
+          success: false,
+          error: 'Please enter your teacher account password.'
+        };
+      }
+      const expectedPass = matchInst ? (matchInst.password || matchInst.temporaryPassword) : 'Teacher@2026';
+      const passValid = password === expectedPass || (matchInst && Boolean(matchInst.temporaryPassword) && password === matchInst.temporaryPassword);
+      if (!passValid) {
+        return {
+          success: false,
+          error: 'Incorrect teacher password. Please verify your credentials.'
+        };
+      }
+      setCurrentRoleState('TEACHER');
+      const teacherName = matchInst?.name || matchTeacher?.name || customName || 'Faculty Member';
+      const teacherEmail = matchInst?.email || matchTeacher?.email || (identifier.includes('@') ? identifier.trim() : 'faculty@academy.edu');
+      const teacherId = matchInst?.id || matchTeacher?.id || 'TCH-001';
+      const userObj = {
+        id: teacherId,
+        name: teacherName,
+        email: teacherEmail,
+        role: 'TEACHER' as UserRole,
+        title: matchInst?.position || 'Faculty Member',
+      };
+      if (matchTeacher) {
+        setActiveTeacherId(matchTeacher.id);
+      } else if (matchInst) {
+        setActiveTeacherId(matchInst.id);
+      }
+      setCurrentUser(userObj);
+      setIsAuthenticated(true);
+      clearSessionExpiredNotification();
+      setLastActivityTimestamp(Date.now());
+      try {
+        localStorage.setItem('oskar_school_role', 'TEACHER');
+        localStorage.setItem('oskar_school_user', JSON.stringify(userObj));
+        localStorage.setItem('oskar_school_auth', 'true');
+      } catch (e) {
+        console.error(e);
+      }
+      return { success: true };
     }
 
+    // Scholars (STUDENT)
+    if (role === 'STUDENT') {
+      const hasStudentAccounts = students.length > 0 || institutionalUsers.some(u => u.role === 'STUDENT');
+      if (!hasStudentAccounts) {
+        return {
+          success: false,
+          error: 'No Student Scholar accounts exist. Students must be registered and admitted by the Admissions Office first.'
+        };
+      }
+      if (!identifier || !identifier.trim()) {
+        return {
+          success: false,
+          error: 'Please enter your Student ID or institutional account identifier.'
+        };
+      }
+      const cleanId = identifier.trim().toLowerCase();
+      const matchInst = institutionalUsers.find(u => u.role === 'STUDENT' && (u.email.toLowerCase() === cleanId || u.id.toLowerCase() === cleanId));
+      const matchStudent = students.find(s => s.id.toLowerCase() === cleanId || s.accountNumber?.toLowerCase() === cleanId);
+      if (!matchInst && !matchStudent) {
+        return {
+          success: false,
+          error: `No student record found matching "${identifier.trim()}".`
+        };
+      }
+      if (!password || !password.trim()) {
+        return {
+          success: false,
+          error: 'Please enter your student portal password.'
+        };
+      }
+      const expectedPass = matchInst ? (matchInst.password || matchInst.temporaryPassword) : (matchStudent?.portalPassword || 'Password@123');
+      const passValid = password === expectedPass || (matchInst && Boolean(matchInst.temporaryPassword) && password === matchInst.temporaryPassword);
+      if (!passValid) {
+        return {
+          success: false,
+          error: 'Incorrect student password. Please verify your credentials.'
+        };
+      }
+      setCurrentRoleState('STUDENT');
+      const studentName = matchInst?.name || matchStudent?.fullName || customName || 'Student Scholar';
+      const studentEmail = matchInst?.email || matchStudent?.parents?.email || (identifier.includes('@') ? identifier.trim() : 'scholar@academy.edu');
+      const studentId = matchInst?.id || matchStudent?.id || 'STU-001';
+      const userObj = {
+        id: studentId,
+        name: studentName,
+        email: studentEmail,
+        role: 'STUDENT' as UserRole,
+        title: matchStudent ? `Grade ${matchStudent.grade} Scholar (${matchStudent.section})` : 'Student Scholar',
+      };
+      if (matchStudent) {
+        setActiveStudentId(matchStudent.id);
+      }
+      setCurrentUser(userObj);
+      setIsAuthenticated(true);
+      clearSessionExpiredNotification();
+      setLastActivityTimestamp(Date.now());
+      try {
+        localStorage.setItem('oskar_school_role', 'STUDENT');
+        localStorage.setItem('oskar_school_user', JSON.stringify(userObj));
+        localStorage.setItem('oskar_school_auth', 'true');
+      } catch (e) {
+        console.error(e);
+      }
+      return { success: true };
+    }
+
+    // Parents (PARENT)
+    if (role === 'PARENT') {
+      const hasParentAccounts = students.length > 0 || institutionalUsers.some(u => u.role === 'PARENT');
+      if (!hasParentAccounts) {
+        return {
+          success: false,
+          error: 'No Parent accounts exist. Parent portals are linked to admitted student profiles.'
+        };
+      }
+      if (!identifier || !identifier.trim()) {
+        return {
+          success: false,
+          error: 'Please enter your registered phone number or email address.'
+        };
+      }
+      const cleanId = identifier.trim().toLowerCase();
+      const matchInst = institutionalUsers.find(u => u.role === 'PARENT' && (u.email.toLowerCase() === cleanId || u.id.toLowerCase() === cleanId));
+      const matchStudent = students.find(s => 
+        (s.parents?.fatherPhone && s.parents.fatherPhone.replace(/\s+/g, '').toLowerCase() === cleanId.replace(/\s+/g, '')) ||
+        (s.parents?.motherPhone && s.parents.motherPhone.replace(/\s+/g, '').toLowerCase() === cleanId.replace(/\s+/g, '')) ||
+        (s.parents?.email && s.parents.email.toLowerCase() === cleanId) ||
+        s.id.toLowerCase() === cleanId
+      );
+      if (!matchInst && !matchStudent) {
+        return {
+          success: false,
+          error: `No parent record found linked to "${identifier.trim()}".`
+        };
+      }
+      if (!password || !password.trim()) {
+        return {
+          success: false,
+          error: 'Please enter your parent portal password.'
+        };
+      }
+      const expectedPass = matchInst ? (matchInst.password || matchInst.temporaryPassword) : 'Parent@2026';
+      const passValid = password === expectedPass || (matchInst && Boolean(matchInst.temporaryPassword) && password === matchInst.temporaryPassword);
+      if (!passValid) {
+        return {
+          success: false,
+          error: 'Incorrect parent portal password. Please verify your credentials.'
+        };
+      }
+      setCurrentRoleState('PARENT');
+      const parentName = matchInst?.name || matchStudent?.parents?.fatherName || matchStudent?.parents?.motherName || customName || 'Parent / Guardian';
+      const parentEmail = matchInst?.email || matchStudent?.parents?.email || (identifier.includes('@') ? identifier.trim() : 'parent@academy.edu');
+      const userObj = {
+        id: matchInst?.id || `PAR-${matchStudent?.id || '001'}`,
+        name: parentName,
+        email: parentEmail,
+        role: 'PARENT' as UserRole,
+        title: matchStudent ? `Parent of ${matchStudent.fullName}` : 'Parent / Guardian',
+      };
+      if (matchStudent) {
+        setActiveStudentId(matchStudent.id);
+      }
+      setCurrentUser(userObj);
+      setIsAuthenticated(true);
+      clearSessionExpiredNotification();
+      setLastActivityTimestamp(Date.now());
+      try {
+        localStorage.setItem('oskar_school_role', 'PARENT');
+        localStorage.setItem('oskar_school_user', JSON.stringify(userObj));
+        localStorage.setItem('oskar_school_auth', 'true');
+      } catch (e) {
+        console.error(e);
+      }
+      return { success: true };
+    }
+
+    // Generic fallback
+    setCurrentRoleState(role);
+    const userObj = getRolePersona(role);
     if (customName && customName.trim()) {
       userObj.name = customName.trim();
     }
@@ -2931,8 +2919,8 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setAuditLogs(cleanAuditLogs);
     setInstitutionalUsers(cleanUsers);
     setSchoolNameState('Academy of Excellence');
-    setActiveStudentId('OSK-2026-0901');
-    setActiveTeacherId('TCH-01');
+    setActiveStudentId('');
+    setActiveTeacherId('');
     setSelectedStudentForIdCard(null);
     setSelectedInvoiceForReceipt(null);
     setActiveDocumentModal(null);
@@ -2960,17 +2948,19 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     // 4. Handle session: keep Principal authenticated unless explicitly requested otherwise
-    if (keepPrincipal) {
-      const principalAccount = cleanUsers.find(u => u.role === 'PRINCIPAL') || {
-        id: 'PRIN-ROOT-001',
-        name: 'Dr. Henok Kebede',
-        email: 'principal@oskaracademy.edu',
+    if (keepPrincipal && currentUser?.role === 'PRINCIPAL') {
+      const principalAccount: InstitutionalUser = institutionalUsers.find(u => u.role === 'PRINCIPAL') || {
+        id: currentUser.id,
+        name: currentUser.name,
+        email: currentUser.email,
         role: 'PRINCIPAL' as UserRole,
-        position: 'Executive Principal',
-        password: 'Principal#2026',
-        createdAt: '2026-09-01',
-        createdBy: 'System Root',
+        position: currentUser.title || 'Executive Principal',
+        password: '',
+        createdAt: new Date().toISOString().split('T')[0],
+        createdBy: 'Principal Session',
       };
+      setInstitutionalUsers([principalAccount]);
+      localStorage.setItem('oskar_school_users', JSON.stringify([principalAccount]));
       setCurrentRoleState('PRINCIPAL');
       const principalUser = {
         id: principalAccount.id,
@@ -2993,6 +2983,8 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setCurrentUser(null);
       localStorage.removeItem('oskar_school_auth');
       localStorage.removeItem('oskar_school_user');
+      localStorage.removeItem('oskar_school_role');
+      setCurrentRoleState('PRINCIPAL');
       try {
         localStorage.removeItem('oskar_principal_master_code');
       } catch (e) {
@@ -3060,7 +3052,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       category: 'USER_MANAGEMENT',
       severity: 'WARNING',
       performedBy: {
-        name: currentUser?.name || 'Dr. Henok Kebede (Principal)',
+        name: currentUser?.name || 'Executive Principal',
         role: currentUser?.role || 'PRINCIPAL',
         email: currentUser?.email
       },
@@ -3117,7 +3109,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       category: 'USER_MANAGEMENT',
       severity: 'WARNING',
       performedBy: {
-        name: currentUser?.name || 'Dr. Henok Kebede (Principal)',
+        name: currentUser?.name || 'Executive Principal',
         role: currentUser?.role || 'PRINCIPAL'
       },
       targetEntity: {
@@ -3208,7 +3200,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       title: 'Executive Governance: Master Authorization Key Rotated',
       category: 'General Event',
       content: 'The Office of the Principal has successfully rotated and updated the confidential Master Authorization Code for executive credentials and catastrophic recovery.',
-      postedBy: currentUser?.name || 'Dr. Henok Kebede (Headmaster & Principal)',
+      postedBy: currentUser?.name ? `${currentUser.name} (Principal)` : 'Office of the Principal',
       postedRole: 'School Principal',
       date: new Date().toISOString().split('T')[0],
       targetAudience: 'STAFF',
@@ -3222,7 +3214,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       category: 'SECURITY_CREDENTIALS',
       severity: 'CRITICAL',
       performedBy: {
-        name: currentUser?.name || 'Dr. Henok Kebede (Principal)',
+        name: currentUser?.name || 'Executive Principal',
         role: 'PRINCIPAL',
         email: currentUser?.email
       },

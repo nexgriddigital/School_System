@@ -50,7 +50,8 @@ export const PrincipalView: React.FC = () => {
     assignHomeroomTeacher,
     setSelectedStudentForIdCard,
     openDocumentViewer,
-    auditLogs
+    auditLogs,
+    currentUser
   } = useSchool();
 
   const [activeTab, setActiveTab] = useState<'INSTITUTIONAL_HEALTH' | 'AUDIT_TRAIL' | 'AUTHORIZATIONS' | 'USER_PROVISIONING' | 'DATA_GOVERNANCE' | 'BROADCAST' | 'TEACHER_MANAGEMENT' | 'DISCIPLINARY_REVERSAL' | 'INSTITUTION_SETTINGS'>('INSTITUTIONAL_HEALTH');
@@ -82,7 +83,7 @@ export const PrincipalView: React.FC = () => {
       title: noticeTitle,
       category: noticeCategory,
       content: noticeContent,
-      postedBy: 'Dr. Henok Kebede (Headmaster & Principal)',
+      postedBy: currentUser?.name ? `${currentUser.name} (${currentUser.title || 'Principal'})` : 'Office of the Principal',
       postedRole: 'School Principal',
       targetAudience,
       isUrgent,

@@ -761,7 +761,7 @@ export const AdmissionsView: React.FC = () => {
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="e.g. Almaz Bekele Tadesse"
+                  placeholder="Enter student full name"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>

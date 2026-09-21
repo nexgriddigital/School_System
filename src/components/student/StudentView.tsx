@@ -106,7 +106,7 @@ export const StudentView: React.FC = () => {
       grade: student.grade,
       targetRole: recTargetRole,
       recipientId: recTargetRole === 'TEACHER' ? recTargetTeacherId : 'COUNS-01',
-      recipientName: recTargetRole === 'TEACHER' ? (targetTeacher?.name || 'Faculty Member') : 'Sister Marta Wolde',
+      recipientName: recTargetRole === 'TEACHER' ? (targetTeacher?.name || 'Faculty Member') : 'Guidance & Counselling Office',
       purpose: recPurpose,
       hardCopyRequested: recHardCopy,
     });

@@ -479,7 +479,7 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
         title: 'Admissions & Registrar',
         department: 'Admissions & Records Office',
         defaultPosition: 'Senior Admissions & Records Officer',
-        defaultName: 'Ato Sisay Desta',
+        defaultName: '',
         defaultEmail: 'admissions@oskaracademy.edu',
         icon: Building2,
       },
@@ -488,7 +488,7 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
         title: 'Finance & Bursar',
         department: 'Finance & Accounts Division',
         defaultPosition: 'Chief Bursar & Finance Director',
-        defaultName: 'W/ro Selamawit Bekele',
+        defaultName: '',
         defaultEmail: 'bursar@oskaracademy.edu',
         icon: CreditCard,
       },
@@ -497,7 +497,7 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
         title: 'Program Office',
         department: 'Curriculum & Academic Affairs',
         defaultPosition: 'Curriculum & Examinations Dean',
-        defaultName: 'Dr. Zewdu Tadesse',
+        defaultName: '',
         defaultEmail: 'programoffice@oskaracademy.edu',
         icon: Layers,
       },
@@ -506,7 +506,7 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
         title: 'Guidance & Pastoral Care',
         department: 'Student Support Services',
         defaultPosition: 'Head of Student Welfare & Mentorship',
-        defaultName: 'W/ro Marta Solomon',
+        defaultName: '',
         defaultEmail: 'pastoral@oskaracademy.edu',
         icon: HeartHandshake,
       },
@@ -524,14 +524,9 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
 
   const handleQuickProvisionRole = (roleMeta: (typeof adminRolesSummary)[0]) => {
     handleRoleChange(roleMeta.role);
-    if (!fullName.trim() || fullName === 'Ato Sisay Desta' || fullName === 'W/ro Selamawit Bekele' || fullName === 'Dr. Zewdu Tadesse' || fullName === 'W/ro Marta Solomon') {
-      setFullName(roleMeta.defaultName);
-    }
-    if (!email.trim() || email.includes('@oskaracademy.edu')) {
-      setEmail(roleMeta.defaultEmail);
-    }
     setPosition(roleMeta.defaultPosition);
     setDepartment(roleMeta.department);
+    setEmail(roleMeta.defaultEmail);
     const formEl = document.getElementById('provisioning-form-anchor');
     if (formEl) {
       formEl.scrollIntoView({ behavior: 'smooth' });
@@ -725,7 +720,7 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
           </div>
 
           <span className="text-[11px] font-mono px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 border border-slate-200 font-semibold">
-            Authorized by: {currentUser?.name || 'Prof. Mengistu Haile (Principal)'}
+            Authorized by: {currentUser?.name || 'Office of the Principal'}
           </span>
         </div>
 

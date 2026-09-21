@@ -547,7 +547,7 @@ export const PrincipalPrintReportModal: React.FC<PrincipalPrintReportModalProps>
                 </div>
                 <div>
                   <span className="text-slate-500 block">ISSUING OFFICER:</span>
-                  <span className="font-bold text-black">{currentUser?.name || 'Dr. Henok Kebede, Ph.D.'}</span>
+                  <span className="font-bold text-black">{currentUser?.name || 'Office of the Principal'}</span>
                 </div>
               </div>
             </div>
@@ -926,11 +926,11 @@ export const PrincipalPrintReportModal: React.FC<PrincipalPrintReportModalProps>
                 <div className="space-y-1 text-left">
                   <div className="h-10 border-b-2 border-black flex items-end pb-1">
                     <span className="font-serif italic text-base font-black text-black">
-                      Henok Kebede, Ph.D.
+                      {currentUser?.name || 'Executive Principal'}
                     </span>
                   </div>
                   <p className="font-bold text-[10px] uppercase font-serif text-black">
-                    Dr. Henok Kebede, Ph.D.
+                    {currentUser?.name || 'Office of the Principal'}
                   </p>
                   <p className="text-[9px] font-mono text-slate-600 uppercase">
                     Executive Principal & Headmaster

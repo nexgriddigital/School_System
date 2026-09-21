@@ -66,7 +66,8 @@ export const TelegramInbox: React.FC<TelegramInboxProps> = ({
     invoices,
     grades,
     attendanceRecords,
-    openDocumentViewer
+    openDocumentViewer,
+    institutionalUsers
   } = useSchool();
 
   // Current active scholar for parent mode
@@ -115,12 +116,18 @@ export const TelegramInbox: React.FC<TelegramInboxProps> = ({
       // 2. Kid's Teachers (Homeroom & Subject Teachers)
       // 3. Principal & Headmaster Office
       // 4. All Other Offices (Finance, Registrar, Academic Program, Guidance Counsellor)
+      const principalUser = institutionalUsers.find(u => u.role === 'PRINCIPAL');
+      const financeUser = institutionalUsers.find(u => u.role === 'FINANCE');
+      const registrarUser = institutionalUsers.find(u => u.role === 'REGISTRAR');
+      const programUser = institutionalUsers.find(u => u.role === 'PROGRAM_OFFICE');
+      const counsellorUser = institutionalUsers.find(u => u.role === 'COUNSELLOR');
+
       const list: ChatContact[] = [
         {
           id: 'AI_SCHOOL_BOT',
           channelId: 'AI_SCHOOL_BOT',
-          name: '🤖 Oskar 24/7 Smart SIS Assistant',
-          subtitle: 'Instant AI Chatbot • Tuition, Grades, Schedules & Routing',
+          name: '🤖 Smart Academy Assistant',
+          subtitle: 'Instant AI Support • Tuition, Grades, Schedules & Routing',
           role: 'BOT',
           category: 'BOT',
           officeHours: 'Always active (24/7 Instant Responses)',
@@ -128,129 +135,107 @@ export const TelegramInbox: React.FC<TelegramInboxProps> = ({
           initials: '🤖',
           studentId: currentStudent?.id,
           studentName: currentStudent?.fullName,
-          gradeSection: `Grade ${currentStudent?.grade} ${currentStudent?.sectionId || ''}`
+          gradeSection: currentStudent ? `Grade ${currentStudent.grade} ${currentStudent.sectionId || ''}` : undefined
         },
-        {
-          id: 'TEACHER_HOMEROOM',
-          channelId: 'TEACHER_HOMEROOM',
-          name: 'Ato Dawit Lemma',
-          subtitle: `Homeroom & Mathematics Teacher (Grade ${currentStudent?.sectionId || '9A'})`,
+      ];
+
+      // Dynamic teacher channels
+      teachers.forEach(t => {
+        list.push({
+          id: `TEACHER_${t.id}`,
+          channelId: `TEACHER_${t.id}`,
+          name: t.name,
+          subtitle: `${t.subject} Faculty • Grade ${t.assignedSectionId || ''}`,
           role: 'TEACHER',
           category: 'TEACHER',
-          phone: '+251 91 123 4567',
+          phone: t.phone || '',
           officeHours: 'Mon-Fri 08:00 AM – 04:30 PM',
           avatarGradient: 'from-blue-600 to-indigo-700',
-          initials: 'DL',
+          initials: t.name.split(' ').map(n => n[0]).join('').slice(0, 2) || 'TC',
           studentId: currentStudent?.id,
           studentName: currentStudent?.fullName,
-          gradeSection: `Grade ${currentStudent?.grade} ${currentStudent?.sectionId || ''}`
-        },
-        {
-          id: 'TEACHER_ENGLISH',
-          channelId: 'TEACHER_ENGLISH',
-          name: 'W/ro Almaz Tefera',
-          subtitle: 'English Language & World Literature Teacher',
-          role: 'TEACHER',
-          category: 'TEACHER',
-          phone: '+251 91 234 5678',
-          officeHours: 'Tue & Thu 02:00 PM – 04:00 PM',
-          avatarGradient: 'from-violet-600 to-purple-700',
-          initials: 'AT',
-          studentId: currentStudent?.id,
-          studentName: currentStudent?.fullName,
-          gradeSection: `Grade ${currentStudent?.grade} ${currentStudent?.sectionId || ''}`
-        },
-        {
-          id: 'TEACHER_PHYSICS',
-          channelId: 'TEACHER_PHYSICS',
-          name: 'Dr. Kebede Worku',
-          subtitle: 'General Science & Physics Department Lead',
-          role: 'TEACHER',
-          category: 'TEACHER',
-          phone: '+251 91 345 6789',
-          officeHours: 'Mon & Wed 03:00 PM – 05:00 PM',
-          avatarGradient: 'from-teal-600 to-emerald-700',
-          initials: 'KW',
-          studentId: currentStudent?.id,
-          studentName: currentStudent?.fullName,
-          gradeSection: `Grade ${currentStudent?.grade} ${currentStudent?.sectionId || ''}`
-        },
+          gradeSection: currentStudent ? `Grade ${currentStudent.grade} ${currentStudent.sectionId || ''}` : undefined
+        });
+      });
+
+      // Administration Offices
+      list.push(
         {
           id: 'OFFICE_PRINCIPAL',
           channelId: 'OFFICE_PRINCIPAL',
-          name: 'Prof. Mengistu Haile',
-          subtitle: 'Office of the Principal & Headmaster',
+          name: principalUser ? principalUser.name : 'Office of the Principal',
+          subtitle: 'Executive Leadership & Headmaster Desk',
           role: 'PRINCIPAL',
           category: 'OFFICE',
-          phone: '+251 11 123 0001',
+          phone: principalUser?.email || '',
           officeHours: 'Tuesdays & Thursdays 02:00 PM – 04:30 PM',
           avatarGradient: 'from-amber-600 to-orange-700',
-          initials: 'MH',
+          initials: principalUser ? principalUser.name.split(' ').map(n => n[0]).join('').slice(0, 2) : 'PR',
           studentId: currentStudent?.id,
           studentName: currentStudent?.fullName,
-          gradeSection: `Grade ${currentStudent?.grade} ${currentStudent?.sectionId || ''}`
+          gradeSection: currentStudent ? `Grade ${currentStudent.grade} ${currentStudent.sectionId || ''}` : undefined
         },
         {
           id: 'OFFICE_FINANCE',
           channelId: 'OFFICE_FINANCE',
-          name: 'Ato Tamrat Bekele',
-          subtitle: 'Finance & Bursar Office (Tuition, Receipts & CBE Slips)',
+          name: financeUser ? financeUser.name : 'Finance & Bursar Office',
+          subtitle: 'Tuition, Receipts, Invoicing & Bank Slips',
           role: 'FINANCE',
           category: 'OFFICE',
-          phone: '+251 11 123 0002',
+          phone: financeUser?.email || '',
           officeHours: 'Mon-Fri 08:30 AM – 05:00 PM',
           avatarGradient: 'from-emerald-600 to-teal-800',
-          initials: 'TB',
+          initials: financeUser ? financeUser.name.split(' ').map(n => n[0]).join('').slice(0, 2) : 'FN',
           studentId: currentStudent?.id,
           studentName: currentStudent?.fullName,
-          gradeSection: `Grade ${currentStudent?.grade} ${currentStudent?.sectionId || ''}`
+          gradeSection: currentStudent ? `Grade ${currentStudent.grade} ${currentStudent.sectionId || ''}` : undefined
         },
         {
           id: 'OFFICE_REGISTRAR',
           channelId: 'OFFICE_REGISTRAR',
-          name: 'W/ro Genet Assefa',
-          subtitle: 'Admissions & Registrar Office (Transcripts & Certificates)',
+          name: registrarUser ? registrarUser.name : 'Admissions & Registrar Office',
+          subtitle: 'Student Admissions, Transcripts & Certification',
           role: 'REGISTRAR',
           category: 'OFFICE',
-          phone: '+251 11 123 0003',
+          phone: registrarUser?.email || '',
           officeHours: 'Mon-Fri 08:00 AM – 04:30 PM',
           avatarGradient: 'from-cyan-600 to-blue-700',
-          initials: 'GA',
+          initials: registrarUser ? registrarUser.name.split(' ').map(n => n[0]).join('').slice(0, 2) : 'RG',
           studentId: currentStudent?.id,
           studentName: currentStudent?.fullName,
-          gradeSection: `Grade ${currentStudent?.grade} ${currentStudent?.sectionId || ''}`
+          gradeSection: currentStudent ? `Grade ${currentStudent.grade} ${currentStudent.sectionId || ''}` : undefined
         },
         {
           id: 'OFFICE_PROGRAM_OFFICE',
           channelId: 'OFFICE_PROGRAM_OFFICE',
-          name: 'Dr. Yared Kassa',
-          subtitle: 'Academic Program Office (Curriculum, Timetable & Streams)',
+          name: programUser ? programUser.name : 'Academic Program Office',
+          subtitle: 'Curriculum, Examination Timetables & Streams',
           role: 'PROGRAM_OFFICE',
           category: 'OFFICE',
-          phone: '+251 11 123 0004',
+          phone: programUser?.email || '',
           officeHours: 'Mon-Thu 09:00 AM – 04:00 PM',
           avatarGradient: 'from-pink-600 to-rose-700',
-          initials: 'YK',
+          initials: programUser ? programUser.name.split(' ').map(n => n[0]).join('').slice(0, 2) : 'PO',
           studentId: currentStudent?.id,
           studentName: currentStudent?.fullName,
-          gradeSection: `Grade ${currentStudent?.grade} ${currentStudent?.sectionId || ''}`
+          gradeSection: currentStudent ? `Grade ${currentStudent.grade} ${currentStudent.sectionId || ''}` : undefined
         },
         {
           id: 'OFFICE_COUNSELLOR',
           channelId: 'OFFICE_COUNSELLOR',
-          name: 'Dr. Bethlehem Tadesse',
-          subtitle: 'Guidance & Pastoral Care Office (Confidential Student Welfare)',
+          name: counsellorUser ? counsellorUser.name : 'Guidance & Pastoral Care Office',
+          subtitle: 'Confidential Student Welfare & Academic Guidance',
           role: 'COUNSELLOR',
           category: 'OFFICE',
-          phone: '+251 11 123 0005',
+          phone: counsellorUser?.email || '',
           officeHours: 'Daily 08:30 AM – 04:30 PM',
           avatarGradient: 'from-purple-600 to-indigo-800',
-          initials: 'BT',
+          initials: counsellorUser ? counsellorUser.name.split(' ').map(n => n[0]).join('').slice(0, 2) : 'CN',
           studentId: currentStudent?.id,
           studentName: currentStudent?.fullName,
-          gradeSection: `Grade ${currentStudent?.grade} ${currentStudent?.sectionId || ''}`
+          gradeSection: currentStudent ? `Grade ${currentStudent.grade} ${currentStudent.sectionId || ''}` : undefined
         }
-      ];
+      );
       return list;
     } else {
       // Teacher mode:
@@ -410,32 +395,32 @@ export const TelegramInbox: React.FC<TelegramInboxProps> = ({
       }
       if (activeContact?.category === 'OFFICE' && activeContact.role === 'FINANCE') {
         return [
-          { label: '💳 Check Invoice Status', text: `Good day Ato Tamrat, could you please verify if our CBE payment for invoice INV-2026-0901 has cleared?` },
+          { label: '💳 Check Payment Status', text: `Good day, could you please verify if our bank deposit slip for tuition payment has been reconciled?` },
           { label: '🧾 Request Stamped Receipt', text: `Greetings, we submitted our deposit slip. Could you confirm when the official stamped receipt will be generated?` },
           { label: '🏦 Payment Installment Plan', text: `We would like to inquire about setting up a structured installment plan for second term tuition.` }
         ];
       }
       if (activeContact?.category === 'OFFICE' && activeContact.role === 'PRINCIPAL') {
         return [
-          { label: '📅 Request Consultation', text: `Honorable Principal Prof. Mengistu, we would appreciate requesting a brief consultation during Tuesday office hours regarding our scholar's academic pathway.` },
+          { label: '📅 Request Consultation', text: `Honorable Principal, we would appreciate requesting a brief consultation during office hours regarding our scholar's academic pathway.` },
           { label: '📜 Institutional Policy Inquiry', text: `Greetings Headmaster, we would like clarification regarding the school's high-honor scholarship guidelines.` }
         ];
       }
       if (activeContact?.category === 'OFFICE' && activeContact.role === 'REGISTRAR') {
         return [
-          { label: '📜 Official Transcript Request', text: `Good day W/ro Genet, we require an officially sealed academic transcript copy for foreign transfer evaluation.` },
-          { label: '📄 Enrollment Verification', text: `Greetings, could you prepare an official Letter of Enrollment stating ${currentStudent?.fullName} is currently enrolled in Grade ${currentStudent?.grade}?` }
+          { label: '📜 Official Transcript Request', text: `Good day, we require an officially sealed academic transcript copy for foreign transfer evaluation.` },
+          { label: '📄 Enrollment Verification', text: `Greetings, could you prepare an official Letter of Enrollment stating ${currentStudent?.fullName || 'our scholar'} is currently enrolled in Grade ${currentStudent?.grade || 'our current level'}?` }
         ];
       }
       if (activeContact?.category === 'OFFICE' && activeContact.role === 'PROGRAM_OFFICE') {
         return [
-          { label: '🔬 Stream Placement Query', text: `Good day Dr. Yared, we would like to confirm our scholar's placement in the Natural Science stream for this semester.` },
-          { label: '⏰ Class Timetable Copy', text: `Could you kindly share the updated laboratory and tutorial schedule for Grade ${currentStudent?.grade}?` }
+          { label: '🔬 Stream Placement Query', text: `Good day, we would like to confirm our scholar's placement in the Natural vs. Social Science stream for this semester.` },
+          { label: '⏰ Class Timetable Copy', text: `Could you kindly share the updated laboratory and tutorial schedule for Grade ${currentStudent?.grade || 'our level'}?` }
         ];
       }
       if (activeContact?.category === 'OFFICE' && activeContact.role === 'COUNSELLOR') {
         return [
-          { label: '🤝 Request Guidance Meeting', text: `Greetings Dr. Bethlehem, we would like to arrange a confidential session to discuss study habits and focus support for ${currentStudent?.fullName}.` }
+          { label: '🤝 Request Guidance Meeting', text: `Greetings, we would like to arrange a confidential session to discuss study habits and focus support for ${currentStudent?.fullName || 'our scholar'}.` }
         ];
       }
       // Teachers
@@ -566,11 +551,23 @@ export const TelegramInbox: React.FC<TelegramInboxProps> = ({
       studentId: studentToReport.id,
       grade: studentToReport.grade,
       schoolName: schoolName || 'Academy of Excellence',
-      grades: [
-        { subject: 'Mathematics / Algebra', teacherName: 'Ato Dawit Lemma', quiz: 19, test1Score: 23, assessment: 18, midExam: 27, finalExam: 36, total: 94, letterGrade: 'A+' },
-        { subject: 'English & Literature', teacherName: 'W/ro Almaz Tefera', quiz: 18, test1Score: 22, assessment: 19, midExam: 25, finalExam: 34, total: 91, letterGrade: 'A' },
-        { subject: 'General Science / Physics', teacherName: 'Dr. Kebede Worku', quiz: 17, test1Score: 21, assessment: 17, midExam: 24, finalExam: 33, total: 86, letterGrade: 'A' },
-      ]
+      grades: grades.filter(g => g.studentId === studentToReport.id).length > 0 
+        ? grades.filter(g => g.studentId === studentToReport.id).map(g => ({
+            subject: g.subject,
+            teacherName: teachers.find(t => t.id === g.teacherId)?.name || 'Faculty Member',
+            quiz: g.quiz,
+            test1Score: g.test1Score,
+            assessment: g.assessment,
+            midExam: g.midExam,
+            finalExam: g.finalExam,
+            total: g.total,
+            letterGrade: g.letterGrade
+          }))
+        : [
+            { subject: 'Mathematics / Algebra', teacherName: teachers[0]?.name || 'Department Faculty', quiz: 19, test1Score: 23, assessment: 18, midExam: 27, finalExam: 36, total: 94, letterGrade: 'A+' },
+            { subject: 'English & Literature', teacherName: teachers[1]?.name || 'Department Faculty', quiz: 18, test1Score: 22, assessment: 19, midExam: 25, finalExam: 34, total: 91, letterGrade: 'A' },
+            { subject: 'General Science / Physics', teacherName: teachers[2]?.name || 'Department Faculty', quiz: 17, test1Score: 21, assessment: 17, midExam: 24, finalExam: 33, total: 86, letterGrade: 'A' },
+          ]
     });
 
     setAttachedFile({
@@ -628,8 +625,8 @@ export const TelegramInbox: React.FC<TelegramInboxProps> = ({
             <span className="text-white/70">Logged In:</span>
             <span className="font-bold text-white">
               {mode === 'TEACHER' 
-                ? (currentTeacher ? `${currentTeacher.name} (Faculty)` : 'Ato Dawit Lemma') 
-                : `${currentStudent?.parents.fatherName || currentStudent?.parents.motherName || 'Parent / Guardian'}`}
+                ? (currentTeacher ? `${currentTeacher.name} (Faculty)` : 'Faculty Member') 
+                : `${currentStudent?.parents?.fatherName || currentStudent?.parents?.motherName || 'Parent / Guardian'}`}
             </span>
           </div>
 

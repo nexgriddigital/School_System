@@ -59,9 +59,9 @@ export function generateDisciplinaryHearingEmailHtml(params: DisciplinaryHearing
     hearingDate,
     hearingTime,
     hearingLocation,
-    hearingCommittee = ['Prof. Mengistu Haile (Principal)', 'Sister Marta Wolde (Counsellor)'],
+    hearingCommittee = ['Office of the Principal', 'Head Guidance Counsellor'],
     schoolName,
-    counsellorName = 'Sister Marta Wolde',
+    counsellorName = 'Head Guidance Counsellor',
   } = params;
 
   return `
@@ -225,7 +225,7 @@ export function generateUrgentFeeDeadlineEmailHtml(params: UrgentFeeDeadlineEmai
     daysRemaining = 3,
     isOverdue = false,
     schoolName,
-    senderName = 'Ato Fisseha Tamrat (Chief Financial Officer)',
+    senderName = 'Finance & Bursar Office',
     customMessage,
   } = params;
 
