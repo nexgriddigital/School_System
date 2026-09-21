@@ -414,7 +414,11 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
       const res = deleteInstitutionalUser(targetId);
       if (res.success) {
         setIsDeletePrincipalModalOpen(false);
-        // The system is reset to brand-new uninitialized state and user is logged out!
+        setPrincipalResetConfirmInput('');
+        setIsDeletingPrincipal(false);
+      } else {
+        setErrorMessage(res.error || 'Error decommissioning system.');
+        setIsDeletingPrincipal(false);
       }
     } catch (e: any) {
       setErrorMessage(e.message || 'Error decommissioning system.');

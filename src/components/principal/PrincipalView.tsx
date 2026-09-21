@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSchool } from '../../context/SchoolContext';
 import { generateMedicalLeavePdf } from '../../utils/pdfGenerator';
 import { 
@@ -60,6 +60,10 @@ export const PrincipalView: React.FC = () => {
   const [isChangeMasterCodeModalOpen, setIsChangeMasterCodeModalOpen] = useState(false);
   const [isPrintReportModalOpen, setIsPrintReportModalOpen] = useState(false);
   const [resetSuccessBanner, setResetSuccessBanner] = useState(false);
+
+  useEffect(() => {
+    setCustomNameInput(schoolName);
+  }, [schoolName]);
 
   // Broadcast Notice Form State
   const [noticeTitle, setNoticeTitle] = useState('');

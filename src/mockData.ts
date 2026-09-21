@@ -918,4 +918,55 @@ export const INITIAL_ATTENDANCE: AttendanceRecord[] = [
   { id: 'ATT-2026-0910-12NAT', date: '2026-09-10', sectionId: '12-NAT-A', takenByTeacherId: 'TCH-06', takenByTeacherName: 'Dr. Tariku Shibeshi', studentId: 'OSK-2026-1201', status: 'PRESENT', records: [{ studentId: 'OSK-2026-1201', status: 'PRESENT' }] },
 ];
 
-export const INITIAL_USERS: InstitutionalUser[] = [];
+export const INITIAL_USERS: InstitutionalUser[] = [
+  {
+    id: 'PRIN-ROOT-001',
+    name: 'Dr. Henok Kebede',
+    email: 'principal@oskaracademy.edu',
+    role: 'PRINCIPAL',
+    position: 'Executive Principal',
+    password: 'Principal#2026',
+    createdAt: '2026-09-01',
+    createdBy: 'System Root Provisioning',
+  },
+  {
+    id: 'USR-REG-01',
+    name: 'W/ro Bethlehem Tadesse',
+    email: 'registrar@oskaracademy.edu',
+    role: 'REGISTRAR',
+    position: 'Admissions & Registrar Officer',
+    password: 'Admin@2026',
+    createdAt: '2026-09-01',
+    createdBy: 'Executive Principal',
+  },
+  {
+    id: 'USR-FIN-01',
+    name: 'Ato Yohannes Haile',
+    email: 'finance@oskaracademy.edu',
+    role: 'FINANCE',
+    position: 'Chief Bursar & Finance Director',
+    password: 'Finance#2026',
+    createdAt: '2026-09-01',
+    createdBy: 'Executive Principal',
+  },
+  {
+    id: 'USR-PRG-01',
+    name: 'Ato Solomon Bekele',
+    email: 'program.office@oskaracademy.edu',
+    role: 'PROGRAM_OFFICE',
+    position: 'Academic Program Coordinator',
+    password: 'Program#2026',
+    createdAt: '2026-09-01',
+    createdBy: 'Executive Principal',
+  },
+  {
+    id: 'USR-CNS-01',
+    name: 'W/ro Rahel Mengistu',
+    email: 'counselling@oskaracademy.edu',
+    role: 'COUNSELLOR',
+    position: 'Head Counsellor & Pastoral Director',
+    password: 'Counsellor#2026',
+    createdAt: '2026-09-01',
+    createdBy: 'Executive Principal',
+  },
+];

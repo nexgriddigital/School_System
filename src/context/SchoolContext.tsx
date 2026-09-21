@@ -623,22 +623,14 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          // If all users are legacy demo users, clear them to start with a pristine clean slate
-          const hasLegacyDemo = parsed.some((u: any) => u.id === 'USR-REG-01' || u.id === 'USR-FIN-01');
-          if (hasLegacyDemo) {
-            localStorage.removeItem('oskar_school_users');
-            localStorage.removeItem('oskar_school_auth');
-            localStorage.removeItem('oskar_school_user');
-            return [];
-          }
+        if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed;
         }
       } catch {
-        return [];
+        return INITIAL_USERS;
       }
     }
-    return [];
+    return INITIAL_USERS;
   });
 
   useEffect(() => {
@@ -2882,7 +2874,9 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       'oskar_school_user',
       'oskar_school_remember',
       'oskar_session_timeout_mins',
-      'oskar_school_parent_email_logs'
+      'oskar_school_parent_email_logs',
+      'oskar_school_audit_logs',
+      'oskar_school_theme'
     ];
 
     keysToRemove.forEach(k => {
@@ -2915,24 +2909,11 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const cleanAttendance = JSON.parse(JSON.stringify(INITIAL_ATTENDANCE));
     const cleanBank = JSON.parse(JSON.stringify(INITIAL_BANK_STATEMENT));
     const cleanChat = JSON.parse(JSON.stringify(INITIAL_CHAT_MESSAGES));
+    const cleanAuditLogs = JSON.parse(JSON.stringify(INITIAL_AUDIT_LOGS));
+    const cleanUsers: InstitutionalUser[] = JSON.parse(JSON.stringify(INITIAL_USERS));
     
     // Preserve Principal if keepPrincipalLoggedIn is requested
     const keepPrincipal = options?.keepPrincipalLoggedIn !== false;
-    let cleanUsers: InstitutionalUser[] = [];
-    if (keepPrincipal) {
-      const existingPrincipal = institutionalUsers.find(u => u.role === 'PRINCIPAL');
-      const principalAccount: InstitutionalUser = existingPrincipal || {
-        id: (currentUser?.role === 'PRINCIPAL' && currentUser.id) || 'PRIN-ROOT-001',
-        name: (currentUser?.role === 'PRINCIPAL' && currentUser.name) || 'Dr. Henok Kebede',
-        email: (currentUser?.role === 'PRINCIPAL' && currentUser.email) || 'principal@academy.edu.et',
-        role: 'PRINCIPAL',
-        status: 'ACTIVE',
-        position: (currentUser?.role === 'PRINCIPAL' && currentUser.title) || 'Executive Principal',
-        createdAt: '2026-09-01',
-        lastLogin: new Date().toISOString(),
-      };
-      cleanUsers = [principalAccount];
-    }
 
     setStudents(cleanStudents);
     setSections(cleanSections);
@@ -2947,6 +2928,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setAttendanceRecords(cleanAttendance);
     setBankStatements(cleanBank);
     setChatMessages(cleanChat);
+    setAuditLogs(cleanAuditLogs);
     setInstitutionalUsers(cleanUsers);
     setSchoolNameState('Academy of Excellence');
     setActiveStudentId('OSK-2026-0901');
@@ -2970,6 +2952,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       localStorage.setItem('oskar_school_attendance', JSON.stringify(cleanAttendance));
       localStorage.setItem('oskar_school_bankstatements', JSON.stringify(cleanBank));
       localStorage.setItem('oskar_school_chat_messages', JSON.stringify(cleanChat));
+      localStorage.setItem('oskar_school_audit_logs', JSON.stringify(cleanAuditLogs));
       localStorage.setItem('oskar_school_users', JSON.stringify(cleanUsers));
       localStorage.setItem('academy_school_name', 'Academy of Excellence');
     } catch (e) {
@@ -2977,14 +2960,24 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     // 4. Handle session: keep Principal authenticated unless explicitly requested otherwise
-    if (keepPrincipal && cleanUsers.length > 0) {
+    if (keepPrincipal) {
+      const principalAccount = cleanUsers.find(u => u.role === 'PRINCIPAL') || {
+        id: 'PRIN-ROOT-001',
+        name: 'Dr. Henok Kebede',
+        email: 'principal@oskaracademy.edu',
+        role: 'PRINCIPAL' as UserRole,
+        position: 'Executive Principal',
+        password: 'Principal#2026',
+        createdAt: '2026-09-01',
+        createdBy: 'System Root',
+      };
       setCurrentRoleState('PRINCIPAL');
       const principalUser = {
-        id: cleanUsers[0].id,
-        name: cleanUsers[0].name,
+        id: principalAccount.id,
+        name: principalAccount.name,
         role: 'PRINCIPAL' as UserRole,
-        email: cleanUsers[0].email,
-        title: cleanUsers[0].position || 'Executive Principal',
+        email: principalAccount.email,
+        title: principalAccount.position || 'Executive Principal',
       };
       setCurrentUser(principalUser);
       setIsAuthenticated(true);
@@ -3014,6 +3007,14 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!userId) return { success: false, error: 'User ID is required.' };
 
     const targetUser = institutionalUsers.find(u => u.id === userId);
+
+    // If removing the Principal (by ID, by role, or current logged in Principal requesting full decommission):
+    if (userId === 'PRIN-ROOT-001' || targetUser?.role === 'PRINCIPAL' || (currentUser?.role === 'PRINCIPAL' && (!targetUser || targetUser.id === currentUser.id))) {
+      // Decommission entire institution and reset to brand-new clean uninitialized system
+      resetEverything({ keepPrincipalLoggedIn: false });
+      return { success: true, isPrincipalDeleted: true };
+    }
+
     if (!targetUser) {
       return { success: false, error: 'Account not found in directory.' };
     }

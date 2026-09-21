@@ -27,19 +27,22 @@ export const MasterResetModal: React.FC<MasterResetModalProps> = ({
 }) => {
   const { resetEverything, schoolName } = useSchool();
   const [keepPrincipalLoggedIn, setKeepPrincipalLoggedIn] = useState(true);
-  const [isConfirmed, setIsConfirmed] = useState(false);
+  const [isConfirmed, setIsConfirmed] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
 
   if (!isOpen) return null;
 
   const handleExecuteReset = () => {
+    if (!isConfirmed) {
+      setIsConfirmed(true);
+    }
     setIsResetting(true);
     setTimeout(() => {
       resetEverything({ keepPrincipalLoggedIn });
       setIsResetting(false);
       onSuccess();
       onClose();
-    }, 600);
+    }, 400);
   };
 
   return (
@@ -185,10 +188,12 @@ export const MasterResetModal: React.FC<MasterResetModalProps> = ({
 
           <button
             onClick={handleExecuteReset}
-            disabled={!isConfirmed || isResetting}
+            disabled={isResetting}
             className={`w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-md ${
-              !isConfirmed || isResetting
+              isResetting
                 ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
+                : !isConfirmed
+                ? 'bg-rose-500 hover:bg-rose-600 text-white cursor-pointer shadow-rose-200 active:scale-98'
                 : 'bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white hover:from-rose-500 hover:to-red-600 cursor-pointer shadow-rose-200 active:scale-98'
             }`}
           >
