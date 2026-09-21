@@ -1518,9 +1518,66 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setStudents(updatedStudents);
   };
 
-  // Reset or reload initial bank statement test feed
+  // Reset or reload initial bank statement test feed & linked tuition verification states
   const resetBankStatementsDemoFeed = () => {
-    setBankStatements(INITIAL_BANK_STATEMENT);
+    // 1. Pristine clone of initial bank statements
+    const cleanBank: BankStatementRow[] = JSON.parse(JSON.stringify(INITIAL_BANK_STATEMENT));
+    setBankStatements(cleanBank);
+
+    // 2. Reset test invoices linked to statement cross-checking back to pending/unpaid
+    const updatedInvoices = invoices.map(inv => {
+      if (inv.id === 'INV-2026-004') {
+        return {
+          ...inv,
+          status: 'PENDING_APPROVAL' as const,
+          paidWatermark: false,
+          paidDate: undefined,
+          receiptNumber: undefined,
+        };
+      }
+      if (inv.id === 'INV-2026-003') {
+        return {
+          ...inv,
+          status: 'UNPAID' as const,
+          paidWatermark: false,
+          paidDate: undefined,
+          receiptNumber: undefined,
+        };
+      }
+      return inv;
+    });
+    setInvoices(updatedInvoices);
+
+    // 3. Reset student registration and clearance flags for linked test accounts
+    const updatedStudents = students.map(s => {
+      if (s.id === 'OSK-2026-1101') {
+        return {
+          ...s,
+          registrationStatus: 'PENDING_TUITION_CLEARANCE' as const,
+        };
+      }
+      if (s.id === 'OSK-2026-1001' && s.lostIdRequest) {
+        return {
+          ...s,
+          lostIdRequest: {
+            ...s.lostIdRequest,
+            replacementFeePaid: false,
+            status: 'PENDING_FINANCE' as const,
+          },
+        };
+      }
+      return s;
+    });
+    setStudents(updatedStudents);
+
+    // 4. Immediately persist to localStorage for instant synchronization
+    try {
+      localStorage.setItem('oskar_school_bankstatements', JSON.stringify(cleanBank));
+      localStorage.setItem('oskar_school_invoices', JSON.stringify(updatedInvoices));
+      localStorage.setItem('oskar_school_students', JSON.stringify(updatedStudents));
+    } catch (e) {
+      console.error('Failed to persist reset bank feed to localStorage:', e);
+    }
   };
 
   const grantLeavingClearance = (studentId: string) => {
@@ -2575,6 +2632,13 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const setCurrentRole = (role: UserRole) => {
+    // Security Access Control: Once logged in, changing into any other responsibility portal is prohibited.
+    // Users must sign out to switch responsibility portals.
+    if (isAuthenticated && currentRole !== role) {
+      console.warn(`[Security] Portal switch prevented: Authenticated session is strictly locked to ${currentRole}. Sign out first to change responsibility portal.`);
+      return;
+    }
+
     // If attempting to switch to an administrative leadership role:
     const adminRoles: UserRole[] = ['REGISTRAR', 'FINANCE', 'PROGRAM_OFFICE', 'COUNSELLOR'];
     if (adminRoles.includes(role)) {
@@ -2857,9 +2921,17 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     let cleanUsers: InstitutionalUser[] = [];
     if (keepPrincipal) {
       const existingPrincipal = institutionalUsers.find(u => u.role === 'PRINCIPAL');
-      if (existingPrincipal) {
-        cleanUsers = [existingPrincipal];
-      }
+      const principalAccount: InstitutionalUser = existingPrincipal || {
+        id: (currentUser?.role === 'PRINCIPAL' && currentUser.id) || 'PRIN-ROOT-001',
+        name: (currentUser?.role === 'PRINCIPAL' && currentUser.name) || 'Dr. Henok Kebede',
+        email: (currentUser?.role === 'PRINCIPAL' && currentUser.email) || 'principal@academy.edu.et',
+        role: 'PRINCIPAL',
+        status: 'ACTIVE',
+        position: (currentUser?.role === 'PRINCIPAL' && currentUser.title) || 'Executive Principal',
+        createdAt: '2026-09-01',
+        lastLogin: new Date().toISOString(),
+      };
+      cleanUsers = [principalAccount];
     }
 
     setStudents(cleanStudents);

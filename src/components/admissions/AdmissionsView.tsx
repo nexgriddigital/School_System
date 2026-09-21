@@ -27,7 +27,8 @@ import {
   FileCheck2,
   Check,
   CheckSquare,
-  FileBadge
+  FileBadge,
+  RotateCcw
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ExportDataModal } from '../common/ExportDataModal';
@@ -251,6 +252,11 @@ export const AdmissionsView: React.FC = () => {
     });
 
     // Reset Form
+    handleResetRegistrationForm();
+  };
+
+  // Manual Reset Form Handler
+  const handleResetRegistrationForm = () => {
     setFullName('');
     setFatherName('');
     setFatherPhone('');
@@ -261,6 +267,22 @@ export const AdmissionsView: React.FC = () => {
     setEmergencyPhone2('');
     setPreviousSchoolName('');
     setIsSameSchool(false);
+    setSelectedGrade(9);
+    setSelectedStream(null);
+    setEntranceExamScore('');
+    setPhotoUrl('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80');
+    setCertFileName('Ministry_Grade8_Exam_Certificate.pdf');
+    setCertDataUrl('');
+    setEighthGradeCertAttached(true);
+    setG9Math('88');
+    setG9English('84');
+    setG9Science('82');
+    setG10Math('86');
+    setG10English('82');
+    setG10Science('85');
+    setG11Math('88');
+    setG11Major1('85');
+    setG11Major2('83');
   };
 
   // Document verification helper for each student record
@@ -1295,17 +1317,28 @@ export const AdmissionsView: React.FC = () => {
           </div>
 
           {/* Submit Button */}
-          <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
+          <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <p className="text-xs text-slate-500">
               Upon registration: Auto-generates ID badge, temporary student & parent credentials, and finance tuition account.
             </p>
-            <button
-              type="submit"
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/30 flex items-center gap-2 cursor-pointer transition"
-            >
-              <UserPlus className="w-4 h-4" />
-              Complete Registration & Generate ID
-            </button>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={handleResetRegistrationForm}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer border border-slate-200"
+                title="Reset all form inputs"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset Form
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/30 flex items-center gap-2 cursor-pointer transition"
+              >
+                <UserPlus className="w-4 h-4" />
+                Complete Registration & Generate ID
+              </button>
+            </div>
           </div>
         </form>
       )}

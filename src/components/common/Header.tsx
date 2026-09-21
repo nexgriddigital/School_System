@@ -19,6 +19,8 @@ import {
   Search,
   BookOpen,
   Shield,
+  ShieldCheck,
+  Lock,
   Download,
   Sun,
   Moon
@@ -39,7 +41,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
     theme,
     toggleTheme,
     currentRole, 
-    setCurrentRole, 
     activeStudentId, 
     setActiveStudentId, 
     students,
@@ -397,32 +398,41 @@ export const Header: React.FC<HeaderProps> = ({ onOpenTerms, onOpenManual }) => 
           </div>
         )}
 
-        {/* Sub-navigation role tabs bar: ONLY rendered after login */}
+        {/* Active Authorized Responsibility Banner (Session strictly locked to authenticated portal) */}
         {isAuthenticated && (
-          <div className="py-1.5 flex items-center gap-2.5 overflow-x-auto no-scrollbar">
-            <div className="hidden lg:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 shrink-0 pl-1 pr-2 border-r border-slate-800 select-none">
-              <Sparkles className="w-3 h-3 text-blue-400" />
-              <span>Portals</span>
+          <div className="py-2 flex items-center justify-between gap-3 text-xs border-t border-slate-800/60">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex items-center gap-2 px-3 py-1 bg-blue-950/80 border border-blue-800/80 rounded-lg text-white font-medium shadow-xs shrink-0">
+                {(() => {
+                  const activeConfig = roleConfigs.find(r => r.role === currentRole);
+                  const Icon = activeConfig?.icon || Shield;
+                  return (
+                    <>
+                      <Icon className="w-3.5 h-3.5 text-blue-400" />
+                      <span className="font-semibold text-xs tracking-wide">{activeConfig?.label || 'Authorized Portal'}</span>
+                    </>
+                  );
+                })()}
+              </div>
+
+              <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-400 truncate">
+                <Lock className="w-3 h-3 text-emerald-400 shrink-0" />
+                <span>Single-Portal Responsibility Mode Active &bull; Sign out to switch portals</span>
+              </div>
             </div>
-            <nav className="flex items-center space-x-1 shrink-0">
-              {roleConfigs.map(({ role, label, icon: Icon }) => {
-                const isActive = currentRole === role;
-                return (
-                  <button
-                    key={role}
-                    onClick={() => setCurrentRole(role)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                      isActive
-                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-900/40 border border-blue-400/50'
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-                    }`}
-                  >
-                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                    <span>{label}</span>
-                  </button>
-                );
-              })}
-            </nav>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/90 hover:bg-rose-950/60 text-slate-300 hover:text-rose-200 border border-slate-700 hover:border-rose-800/70 rounded-lg text-[11px] font-medium transition cursor-pointer"
+                title="Sign out to change responsibility portal"
+              >
+                <LogOut className="w-3 h-3 text-rose-400" />
+                <span className="hidden sm:inline">Sign Out to Switch Portal</span>
+                <span className="sm:hidden">Sign Out</span>
+              </button>
+            </div>
           </div>
         )}
       </div>

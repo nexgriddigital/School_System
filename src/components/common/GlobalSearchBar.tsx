@@ -48,7 +48,7 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ isMobileTrigge
     teachers,
     invoices,
     bankStatements,
-    setCurrentRole,
+    currentRole,
     setActiveStudentId,
     setActiveTeacherId,
     setSelectedStudentForIdCard,
@@ -333,22 +333,25 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ isMobileTrigge
     }
   };
 
-  // Primary action on selecting an item
+  // Primary action on selecting an item (respects active portal responsibility)
   const handleSelectResult = (item: SearchResultItem) => {
     setIsOpen(false);
     if (item.type === 'STUDENT') {
       const student = item.rawItem as Student;
-      setActiveStudentId(student.id);
-      setCurrentRole('STUDENT');
+      if (currentRole === 'STUDENT' || currentRole === 'PARENT') {
+        setActiveStudentId(student.id);
+      } else {
+        // Open ID Card preview modal in-place for administrative review
+        setSelectedStudentForIdCard(student);
+      }
     } else if (item.type === 'TEACHER') {
       const teacher = item.rawItem as Teacher;
-      setActiveTeacherId(teacher.id);
-      setCurrentRole('TEACHER');
+      if (currentRole === 'TEACHER') {
+        setActiveTeacherId(teacher.id);
+      }
     } else if (item.type === 'INVOICE') {
       const inv = item.rawItem as Invoice;
       setSelectedInvoiceForReceipt(inv);
-    } else if (item.type === 'BANK') {
-      setCurrentRole('FINANCE');
     }
   };
 
@@ -357,19 +360,6 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ isMobileTrigge
     e.stopPropagation();
     setIsOpen(false);
     setSelectedStudentForIdCard(student);
-  };
-
-  const handleOpenParentPortal = (e: React.MouseEvent, studentId: string) => {
-    e.stopPropagation();
-    setIsOpen(false);
-    setActiveStudentId(studentId);
-    setCurrentRole('PARENT');
-  };
-
-  const handleOpenFinancePortal = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsOpen(false);
-    setCurrentRole('FINANCE');
   };
 
   const handleClear = () => {
@@ -648,108 +638,80 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ isMobileTrigge
                 </div>
               </div>
 
-              {/* Right Column: Contextual Quick-Action Buttons */}
+              {/* Right Column: Contextual In-Portal Actions (No Cross-Portal Switching) */}
               <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
                 {item.type === 'STUDENT' && (
                   <>
                     <button
                       type="button"
                       onClick={(e) => handleOpenStudentIdCard(e, item.rawItem as Student)}
-                      className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-medium border border-slate-700 transition flex items-center gap-1 cursor-pointer"
-                      title="Open Student ID Card"
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-medium border border-slate-700 transition flex items-center gap-1 cursor-pointer"
+                      title="Preview Official Student ID Card"
                     >
                       <ShieldCheck className="w-3 h-3 text-amber-400" />
                       <span>ID Card</span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={(e) => handleOpenParentPortal(e, (item.rawItem as Student).id)}
-                      className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-medium border border-slate-700 transition flex items-center gap-1 cursor-pointer"
-                      title="View Parent Portal perspective"
-                    >
-                      <User className="w-3 h-3 text-purple-400" />
-                      <span>Parent View</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleSelectResult(item)}
-                      className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-semibold transition flex items-center gap-1 shadow-xs cursor-pointer"
-                      title="Open Student Portal"
-                    >
-                      <span>View Portal</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </button>
+                    {(currentRole === 'STUDENT' || currentRole === 'PARENT') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveStudentId((item.rawItem as Student).id);
+                          setIsOpen(false);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-semibold transition flex items-center gap-1 shadow-xs cursor-pointer"
+                        title="Select Student for Current View"
+                      >
+                        <span>Select</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    )}
                   </>
                 )}
 
                 {item.type === 'TEACHER' && (
                   <>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsOpen(false);
-                        setCurrentRole('PROGRAM_OFFICE');
-                      }}
-                      className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-medium border border-slate-700 transition flex items-center gap-1 cursor-pointer"
-                      title="View in Program Office"
-                    >
-                      <Layers className="w-3 h-3 text-cyan-400" />
-                      <span>Section Allocation</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleSelectResult(item)}
-                      className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-semibold transition flex items-center gap-1 shadow-xs cursor-pointer"
-                      title="Open Teacher Portal"
-                    >
-                      <span>Teacher Portal</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </button>
+                    {currentRole === 'TEACHER' ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTeacherId((item.rawItem as Teacher).id);
+                          setIsOpen(false);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-semibold transition flex items-center gap-1 shadow-xs cursor-pointer"
+                        title="Select Teacher Profile"
+                      >
+                        <span>Select Profile</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    ) : (
+                      <span className="px-2 py-1 rounded-lg bg-slate-800 text-slate-300 text-[10px] border border-slate-700">
+                        Faculty Record
+                      </span>
+                    )}
                   </>
                 )}
 
                 {item.type === 'INVOICE' && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsOpen(false);
-                        setSelectedInvoiceForReceipt(item.rawItem as Invoice);
-                      }}
-                      className="px-2 py-1 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 hover:text-white text-[10px] font-medium border border-emerald-700 transition flex items-center gap-1 cursor-pointer"
-                      title="View Official Receipt Voucher"
-                    >
-                      <Receipt className="w-3 h-3 text-emerald-400" />
-                      <span>Official Receipt</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleOpenFinancePortal}
-                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-semibold border border-slate-700 transition flex items-center gap-1 cursor-pointer"
-                      title="Open Finance Ledger"
-                    >
-                      <span>Finance Ledger</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsOpen(false);
+                      setSelectedInvoiceForReceipt(item.rawItem as Invoice);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 hover:text-white text-[10px] font-medium border border-emerald-700 transition flex items-center gap-1 cursor-pointer"
+                    title="View Official Receipt Voucher"
+                  >
+                    <Receipt className="w-3 h-3 text-emerald-400" />
+                    <span>Official Receipt</span>
+                  </button>
                 )}
 
                 {item.type === 'BANK' && (
-                  <button
-                    type="button"
-                    onClick={handleOpenFinancePortal}
-                    className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-semibold transition flex items-center gap-1 shadow-xs cursor-pointer"
-                    title="Open Bank Reconciliation"
-                  >
-                    <span>Reconcile in Finance</span>
-                    <ArrowRight className="w-3 h-3" />
-                  </button>
+                  <span className="px-2 py-1 rounded-lg bg-slate-800 text-amber-300 text-[10px] border border-slate-700">
+                    Bank Record
+                  </span>
                 )}
               </div>
             </div>

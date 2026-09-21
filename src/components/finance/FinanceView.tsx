@@ -59,6 +59,7 @@ export const FinanceView: React.FC = () => {
 
   // Bulk Reconciliation simulation feedback
   const [reconciliationResult, setReconciliationResult] = useState<{ matchedCount: number; approvedTotal: number } | null>(null);
+  const [resetFeedNotification, setResetFeedNotification] = useState<string | null>(null);
 
   // Payment notice broadcaster modal
   const [showNoticeModal, setShowNoticeModal] = useState(false);
@@ -656,19 +657,38 @@ export const FinanceView: React.FC = () => {
 
             <div className="flex items-center gap-2 self-start md:self-auto">
               <button
+                id="reset-bank-feed-btn"
                 type="button"
                 onClick={() => {
                   resetBankStatementsDemoFeed();
                   setReconciliationResult(null);
+                  setResetFeedNotification('Demo bank feed & linked test invoices successfully reset to un-reconciled testing state.');
+                  setTimeout(() => setResetFeedNotification(null), 4000);
                 }}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer active:scale-95"
+                className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer active:scale-95 border border-slate-200"
                 title="Reset bank statements to initial state with mixed pending transactions to test the reconciliation progress workflow"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
                 Reset Feed for Testing
               </button>
             </div>
           </div>
+
+          {/* Feedback banner when feed is reset */}
+          {resetFeedNotification && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-xs text-blue-900 animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>{resetFeedNotification}</span>
+              </div>
+              <button 
+                onClick={() => setResetFeedNotification(null)}
+                className="text-blue-500 hover:text-blue-800 font-bold ml-2 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           {/* Visual Bank Statement Reconciliation Task Completion Tracker */}
           <div className="p-5 bg-gradient-to-br from-slate-50 to-blue-50/30 rounded-2xl border border-slate-200 space-y-4">
