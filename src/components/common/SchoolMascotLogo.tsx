@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef, useId } from 'react';
 
 interface SchoolMascotLogoProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
@@ -6,6 +6,7 @@ interface SchoolMascotLogoProps {
   showGlow?: boolean;
   withBackground?: boolean;
   interactive?: boolean;
+  followCursor?: boolean;
 }
 
 const sizeMap = {
@@ -19,7 +20,7 @@ const sizeMap = {
 
 /**
  * Official School Mascot Guy (Scholar Blue Owl with Graduation Cap & Round Spectacles)
- * Matches the user's provided official character design.
+ * Features dynamic cursor-tracking eyes and natural blinking animations.
  */
 export const SchoolMascotLogo: React.FC<SchoolMascotLogoProps> = ({
   size = 'md',
@@ -27,12 +28,135 @@ export const SchoolMascotLogo: React.FC<SchoolMascotLogoProps> = ({
   showGlow = false,
   withBackground = false,
   interactive = false,
+  followCursor = true,
 }) => {
   const sizeClasses = sizeMap[size] || sizeMap.md;
+  const rawId = useId();
+  const idPrefix = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const rawMouseRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Pupil offsets in SVG coordinate units
+  const [pupilPos, setPupilPos] = useState({
+    leftX: 0,
+    leftY: 0,
+    rightX: 0,
+    rightY: 0,
+  });
+
+  // Natural blink state
+  const [isBlinking, setIsBlinking] = useState(false);
+
+  // Cursor Tracking Animation Logic
+  useEffect(() => {
+    if (!followCursor) return;
+
+    const handlePointerMove = (e: PointerEvent | MouseEvent) => {
+      rawMouseRef.current = { x: e.clientX, y: e.clientY };
+
+      if (animFrameRef.current === null) {
+        animFrameRef.current = requestAnimationFrame(() => {
+          animFrameRef.current = null;
+          if (!containerRef.current || !rawMouseRef.current) return;
+
+          const rect = containerRef.current.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) return;
+
+          const mouseX = rawMouseRef.current.x;
+          const mouseY = rawMouseRef.current.y;
+
+          // Eye centers in screen pixels (left eye at 38%, right eye at 62%, vertical center at 49%)
+          const leftEyeScreenX = rect.left + rect.width * 0.38;
+          const leftEyeScreenY = rect.top + rect.height * 0.49;
+
+          const rightEyeScreenX = rect.left + rect.width * 0.62;
+          const rightEyeScreenY = rect.top + rect.height * 0.49;
+
+          // Left eye angle and displacement
+          const ldx = mouseX - leftEyeScreenX;
+          const ldy = mouseY - leftEyeScreenY;
+          const ldist = Math.hypot(ldx, ldy);
+          const lAngle = Math.atan2(ldy, ldx);
+          const maxDeflection = 5.2; // in SVG units
+          const lStrength = Math.min(1, ldist / 120);
+          const lRadius = maxDeflection * lStrength;
+
+          // Right eye angle and displacement
+          const rdx = mouseX - rightEyeScreenX;
+          const rdy = mouseY - rightEyeScreenY;
+          const rdist = Math.hypot(rdx, rdy);
+          const rAngle = Math.atan2(rdy, rdx);
+          const rStrength = Math.min(1, rdist / 120);
+          const rRadius = maxDeflection * rStrength;
+
+          setPupilPos({
+            leftX: Math.cos(lAngle) * lRadius,
+            leftY: Math.sin(lAngle) * lRadius,
+            rightX: Math.cos(rAngle) * rRadius,
+            rightY: Math.sin(rAngle) * rRadius,
+          });
+        });
+      }
+    };
+
+    const handleMouseLeave = () => {
+      // Gently return to forward gaze when mouse exits viewport
+      setPupilPos({ leftX: 0, leftY: 0, rightX: 0, rightY: 0 });
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: true });
+    document.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('mouseleave', handleMouseLeave);
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+      }
+    };
+  }, [followCursor]);
+
+  // Periodic natural blinking animation
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const scheduleNextBlink = () => {
+      // Periodic blink between 3.5s and 7.5s
+      const delay = 3500 + Math.random() * 4000;
+      timeoutId = setTimeout(() => {
+        setIsBlinking(true);
+        setTimeout(() => {
+          setIsBlinking(false);
+          scheduleNextBlink();
+        }, 130);
+      }, delay);
+    };
+
+    scheduleNextBlink();
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  // Interactive click triggers a cute rapid wink/blink
+  const handleClick = () => {
+    if (interactive) {
+      setIsBlinking(true);
+      setTimeout(() => {
+        setIsBlinking(false);
+        setTimeout(() => {
+          setIsBlinking(true);
+          setTimeout(() => setIsBlinking(false), 120);
+        }, 80);
+      }, 120);
+    }
+  };
 
   return (
     <div
-      className={`relative inline-flex items-center justify-center flex-shrink-0 select-none ${sizeClasses} ${
+      ref={containerRef}
+      onClick={handleClick}
+      className={`relative inline-flex items-center justify-center shrink-0 select-none ${sizeClasses} ${
         withBackground
           ? 'rounded-2xl bg-gradient-to-br from-blue-900/40 via-slate-900/60 to-blue-950/80 p-1.5 border border-blue-400/30 shadow-md'
           : ''
@@ -48,17 +172,25 @@ export const SchoolMascotLogo: React.FC<SchoolMascotLogoProps> = ({
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
-          <linearGradient id="owlMascotBodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient id={`owlMascotBodyGrad_${idPrefix}`} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#2563EB" />
             <stop offset="100%" stopColor="#1D4ED8" />
           </linearGradient>
-          <linearGradient id="owlMascotBellyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <linearGradient id={`owlMascotBellyGrad_${idPrefix}`} x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor="#FFFFFF" />
             <stop offset="100%" stopColor="#E0F2FE" />
           </linearGradient>
-          <filter id="mascotShadow" x="-15%" y="-15%" width="130%" height="130%">
+          <filter id={`mascotShadow_${idPrefix}`} x="-15%" y="-15%" width="130%" height="130%">
             <feDropShadow dx="0" dy="2" stdDeviation="1.5" floodColor="#0F172A" floodOpacity="0.3" />
           </filter>
+
+          {/* Sclera clip paths to prevent pupils from spilling beyond the eyes */}
+          <clipPath id={`leftEyeClip_${idPrefix}`}>
+            <circle cx="38" cy="49" r="13" />
+          </clipPath>
+          <clipPath id={`rightEyeClip_${idPrefix}`}>
+            <circle cx="62" cy="49" r="13" />
+          </clipPath>
         </defs>
 
         {/* Ear Tufts */}
@@ -66,10 +198,10 @@ export const SchoolMascotLogo: React.FC<SchoolMascotLogoProps> = ({
         <polygon points="72,26 79,13 60,22" fill="#1E40AF" />
 
         {/* Main Owl Body */}
-        <ellipse cx="50" cy="58" rx="33" ry="32" fill="url(#owlMascotBodyGrad)" stroke="#1E3A8A" strokeWidth="1.5" />
+        <ellipse cx="50" cy="58" rx="33" ry="32" fill={`url(#owlMascotBodyGrad_${idPrefix})`} stroke="#1E3A8A" strokeWidth="1.5" />
 
         {/* White/Sky Blue Belly */}
-        <ellipse cx="50" cy="65" rx="19" ry="20" fill="url(#owlMascotBellyGrad)" stroke="#BAE6FD" strokeWidth="1" />
+        <ellipse cx="50" cy="65" rx="19" ry="20" fill={`url(#owlMascotBellyGrad_${idPrefix})`} stroke="#BAE6FD" strokeWidth="1" />
 
         {/* Scholar Orange Tie on Belly */}
         <path d="M 48 64 L 52 64 L 51.5 77 L 50 82 L 48.5 77 Z" fill="#F59E0B" />
@@ -100,20 +232,62 @@ export const SchoolMascotLogo: React.FC<SchoolMascotLogoProps> = ({
         <circle cx="73" cy="58" r="2" fill="#60A5FA" fillOpacity="0.6" />
         <circle cx="69" cy="61" r="1.8" fill="#60A5FA" fillOpacity="0.6" />
 
-        {/* Golden Spectacles Frame Background White Eyes */}
-        <circle cx="38" cy="49" r="14.5" fill="#FFFFFF" />
-        <circle cx="62" cy="49" r="14.5" fill="#FFFFFF" />
+        {/* ------------------------------------------------------------- */}
+        {/* ANIMATED EYES (Follows cursor + Blink animation) */}
+        {/* ------------------------------------------------------------- */}
+        <g
+          style={{
+            transformOrigin: '50px 49px',
+            transform: isBlinking ? 'scaleY(0.06)' : 'scaleY(1)',
+            transition: 'transform 0.09s ease-in-out',
+          }}
+        >
+          {/* White Eye Scleras */}
+          <circle cx="38" cy="49" r="14.5" fill="#FFFFFF" />
+          <circle cx="62" cy="49" r="14.5" fill="#FFFFFF" />
 
-        {/* Large Expressive Eyes (Glossy black pupils with reflections) */}
-        <circle cx="41" cy="49" r="7.5" fill="#0F172A" />
-        <circle cx="65" cy="49" r="7.5" fill="#0F172A" />
-        {/* Highlights (Large reflection top left, small bottom right) */}
-        <circle cx="39" cy="46.5" r="2.6" fill="#FFFFFF" />
-        <circle cx="42.5" cy="51.5" r="1.3" fill="#FFFFFF" />
-        <circle cx="63" cy="46.5" r="2.6" fill="#FFFFFF" />
-        <circle cx="66.5" cy="51.5" r="1.3" fill="#FFFFFF" />
+          {/* Left Eye Pupil + Highlights */}
+          <g clipPath={`url(#leftEyeClip_${idPrefix})`}>
+            <g
+              transform={`translate(${pupilPos.leftX.toFixed(2)}, ${pupilPos.leftY.toFixed(2)})`}
+              style={{
+                transition: 'transform 0.05s ease-out',
+              }}
+            >
+              {/* Glossy black pupil */}
+              <circle cx="38" cy="49" r="7.6" fill="#0F172A" />
+              {/* Highlights (Large reflection top left, small reflection bottom right) */}
+              <circle cx="36" cy="46.5" r="2.6" fill="#FFFFFF" />
+              <circle cx="39.5" cy="51.5" r="1.3" fill="#FFFFFF" />
+            </g>
+          </g>
 
-        {/* Golden Spectacles Rims & Bridge */}
+          {/* Right Eye Pupil + Highlights */}
+          <g clipPath={`url(#rightEyeClip_${idPrefix})`}>
+            <g
+              transform={`translate(${pupilPos.rightX.toFixed(2)}, ${pupilPos.rightY.toFixed(2)})`}
+              style={{
+                transition: 'transform 0.05s ease-out',
+              }}
+            >
+              {/* Glossy black pupil */}
+              <circle cx="62" cy="49" r="7.6" fill="#0F172A" />
+              {/* Highlights */}
+              <circle cx="60" cy="46.5" r="2.6" fill="#FFFFFF" />
+              <circle cx="63.5" cy="51.5" r="1.3" fill="#FFFFFF" />
+            </g>
+          </g>
+        </g>
+
+        {/* Closed Eye Arcs during blink for cute character expression */}
+        {isBlinking && (
+          <g stroke="#1E3A8A" strokeWidth="2" strokeLinecap="round">
+            <path d="M 28 49 Q 38 53 48 49" fill="none" />
+            <path d="M 52 49 Q 62 53 72 49" fill="none" />
+          </g>
+        )}
+
+        {/* Golden Spectacles Rims & Bridge (Drawn on top of eyes) */}
         <circle cx="38" cy="49" r="14" fill="none" stroke="#F59E0B" strokeWidth="2.6" />
         <circle cx="62" cy="49" r="14" fill="none" stroke="#F59E0B" strokeWidth="2.6" />
         {/* Spectacle Bridge */}
@@ -123,7 +297,7 @@ export const SchoolMascotLogo: React.FC<SchoolMascotLogoProps> = ({
         <polygon points="47,54 53,54 50,62" fill="#F97316" stroke="#EA580C" strokeWidth="0.8" />
 
         {/* Graduation Cap (Mortarboard) with Shadow */}
-        <g filter="url(#mascotShadow)">
+        <g filter={`url(#mascotShadow_${idPrefix})`}>
           {/* Skullcap Base */}
           <path d="M 37 25 C 37 19, 63 19, 63 25 Z" fill="#0F172A" />
           {/* Diamond Mortarboard Top */}
