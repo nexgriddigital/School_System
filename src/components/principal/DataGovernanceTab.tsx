@@ -50,6 +50,7 @@ export const DataGovernanceTab: React.FC = () => {
     parentEmailAlertLogs,
     institutionalUsers,
     principalMasterCode,
+    startGlobalLoading,
   } = useSchool();
 
   const [isExporting, setIsExporting] = useState(false);
@@ -319,6 +320,7 @@ export const DataGovernanceTab: React.FC = () => {
 
   const handleDownloadSnapshot = () => {
     setIsExporting(true);
+    startGlobalLoading('Generating & encrypting institutional system snapshot JSON...', 1800);
     
     setTimeout(() => {
       try {

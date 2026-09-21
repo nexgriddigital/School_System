@@ -16,6 +16,7 @@ import { StudentView } from './components/student/StudentView';
 import { ParentView } from './components/parent/ParentView';
 import { LoginView } from './components/auth/LoginView';
 import { SessionTimeoutManager } from './components/common/SessionTimeoutManager';
+import { FloatingMascotCompanion } from './components/common/FloatingMascotCompanion';
 import { Sparkles, Shield, BookOpen, Download } from 'lucide-react';
 import { downloadInstructionsManualPdf } from './services/manualPdfService';
 
@@ -64,11 +65,12 @@ const AppFooter: React.FC<{
   onOpenTerms: () => void;
   onOpenManual: () => void;
 }> = ({ onOpenTerms, onOpenManual }) => {
-  const { schoolName } = useSchool();
+  const { schoolName, startGlobalLoading } = useSchool();
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownloadManual = () => {
     setIsDownloading(true);
+    startGlobalLoading('Generating System Documentation Manual PDF with letterhead...', 1200);
     try {
       downloadInstructionsManualPdf(schoolName);
     } catch (e) {
@@ -157,6 +159,9 @@ const MainApp: React.FC = () => {
       
       {/* Institutional Session Security Inactivity Monitor & Modal */}
       <SessionTimeoutManager />
+
+      {/* Floating Mascot Scholar Companion (Floats around UI, shows loading flight animations when logged in) */}
+      <FloatingMascotCompanion />
 
       <div className="flex-1">
         {isAuthenticated ? (

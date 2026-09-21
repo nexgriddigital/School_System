@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 
 interface AnimatedMascotProps {
@@ -13,27 +13,135 @@ interface AnimatedMascotProps {
 export const AnimatedMascot: React.FC<AnimatedMascotProps> = ({
   isPasswordFocused,
   showPassword,
-  inputLength,
+  inputLength: _inputLength,
   isAuthenticating,
   isSuccess,
   hasError,
 }) => {
-  // Calculate eye look direction based on input length (max ~30 chars)
-  const lookX = Math.min(Math.max((inputLength - 15) * 0.4, -6), 6);
-  const lookY = isPasswordFocused ? 0 : 2;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const rawMouseRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Dynamic eye tracking coordinates (SVG user coordinates)
+  const [eyeOffsets, setEyeOffsets] = useState({
+    leftX: 0,
+    leftY: 0,
+    rightX: 0,
+    rightY: 0,
+  });
+
+  // Natural subtle blink
+  const [isBlinking, setIsBlinking] = useState(false);
 
   // Eyes covered state
   const isCoveringEyes = isPasswordFocused && !showPassword;
   const isPeeking = isPasswordFocused && showPassword;
 
+  // Track cursor across the screen
+  useEffect(() => {
+    const handlePointerMove = (e: PointerEvent | MouseEvent) => {
+      rawMouseRef.current = { x: e.clientX, y: e.clientY };
+
+      if (animFrameRef.current === null) {
+        animFrameRef.current = requestAnimationFrame(() => {
+          animFrameRef.current = null;
+          if (!containerRef.current || !rawMouseRef.current) return;
+
+          const rect = containerRef.current.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) return;
+
+          const mouseX = rawMouseRef.current.x;
+          const mouseY = rawMouseRef.current.y;
+
+          // Eye centers in screen pixels (Left eye at 62/160, Right eye at 98/160, Y at 50/120)
+          const leftEyeScreenX = rect.left + (62 / 160) * rect.width;
+          const leftEyeScreenY = rect.top + (50 / 120) * rect.height;
+
+          const rightEyeScreenX = rect.left + (98 / 160) * rect.width;
+          const rightEyeScreenY = rect.top + (50 / 120) * rect.height;
+
+          // Left eye deflection
+          const ldx = mouseX - leftEyeScreenX;
+          const ldy = mouseY - leftEyeScreenY;
+          const ldist = Math.hypot(ldx, ldy);
+          const lAngle = Math.atan2(ldy, ldx);
+          const maxLook = 5.5; // Max SVG unit deflection
+          const lStrength = Math.min(1, ldist / 140);
+          const lRadius = maxLook * lStrength;
+
+          // Right eye deflection
+          const rdx = mouseX - rightEyeScreenX;
+          const rdy = mouseY - rightEyeScreenY;
+          const rdist = Math.hypot(rdx, rdy);
+          const rAngle = Math.atan2(rdy, rdx);
+          const rStrength = Math.min(1, rdist / 140);
+          const rRadius = maxLook * rStrength;
+
+          setEyeOffsets({
+            leftX: Math.cos(lAngle) * lRadius,
+            leftY: Math.sin(lAngle) * lRadius,
+            rightX: Math.cos(rAngle) * rRadius,
+            rightY: Math.sin(rAngle) * rRadius,
+          });
+        });
+      }
+    };
+
+    const handleMouseLeave = () => {
+      setEyeOffsets({ leftX: 0, leftY: 0, rightX: 0, rightY: 0 });
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: true });
+    document.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('mouseleave', handleMouseLeave);
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+      }
+    };
+  }, []);
+
+  // Periodic natural blink
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const scheduleNextBlink = () => {
+      const delay = 3500 + Math.random() * 4000;
+      timeoutId = setTimeout(() => {
+        setIsBlinking(true);
+        setTimeout(() => {
+          setIsBlinking(false);
+          scheduleNextBlink();
+        }, 130);
+      }, delay);
+    };
+
+    scheduleNextBlink();
+    return () => clearTimeout(timeoutId);
+  }, []);
+
   return (
-    <div className="relative w-36 h-28 mx-auto -mb-2 select-none flex items-end justify-center pointer-events-none">
+    <div
+      ref={containerRef}
+      className="relative w-36 h-28 mx-auto -mb-2 select-none flex items-end justify-center pointer-events-none"
+    >
       <svg
         viewBox="0 0 160 120"
         className="w-full h-full overflow-visible drop-shadow-md"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
+        <defs>
+          {/* Sclera clip paths to prevent pupils from spilling beyond the eyes */}
+          <clipPath id="bigOwlLeftEyeClip">
+            <ellipse cx="62" cy="50" rx="13.2" ry="13.2" />
+          </clipPath>
+          <clipPath id="bigOwlRightEyeClip">
+            <ellipse cx="98" cy="50" rx="13.2" ry="13.2" />
+          </clipPath>
+        </defs>
+
         {/* Ambient Glow behind mascot */}
         <circle cx="80" cy="65" r="45" fill="#3B82F6" fillOpacity="0.15" />
 
@@ -78,35 +186,41 @@ export const AnimatedMascot: React.FC<AnimatedMascotProps> = ({
         <ellipse cx="62" cy="50" rx="14" ry="14" fill="#FFFFFF" stroke="#93C5FD" strokeWidth="1.5" />
         <ellipse cx="98" cy="50" rx="14" ry="14" fill="#FFFFFF" stroke="#93C5FD" strokeWidth="1.5" />
 
-        {/* LEFT EYE PUPIL */}
-        <motion.g
-          animate={{
-            x: isCoveringEyes ? 0 : isPeeking ? 2 : lookX,
-            y: isCoveringEyes ? 0 : isPeeking ? -1 : lookY,
-            scaleY: isCoveringEyes ? 0.1 : 1,
-          }}
-          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-        >
-          <circle cx="62" cy="50" r="7.5" fill="#0F172A" />
-          {/* Pupil light reflections */}
-          <circle cx="64" cy="48" r="2.5" fill="#FFFFFF" />
-          <circle cx="60" cy="52" r="1.2" fill="#FFFFFF" />
-        </motion.g>
+        {/* LEFT EYE PUPIL (Tracks cursor, covers during password, blinks) */}
+        <g clipPath="url(#bigOwlLeftEyeClip)">
+          <motion.g
+            animate={{
+              x: isCoveringEyes ? 0 : isPeeking ? 0 : eyeOffsets.leftX,
+              y: isCoveringEyes ? 0 : isPeeking ? 0 : eyeOffsets.leftY,
+              scaleY: isCoveringEyes ? 0.1 : isBlinking ? 0.08 : 1,
+            }}
+            transition={{ type: 'spring', stiffness: 350, damping: 28 }}
+            style={{ transformOrigin: '62px 50px' }}
+          >
+            <circle cx="62" cy="50" r="7.5" fill="#0F172A" />
+            {/* Pupil light reflections */}
+            <circle cx="64" cy="48" r="2.5" fill="#FFFFFF" />
+            <circle cx="60" cy="52" r="1.2" fill="#FFFFFF" />
+          </motion.g>
+        </g>
 
-        {/* RIGHT EYE PUPIL */}
-        <motion.g
-          animate={{
-            x: isCoveringEyes ? 0 : isPeeking ? 4 : lookX,
-            y: isCoveringEyes ? 0 : isPeeking ? -1 : lookY,
-            scaleY: isCoveringEyes ? 0.1 : isPeeking ? 1 : 1,
-          }}
-          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-        >
-          <circle cx="98" cy="50" r="7.5" fill="#0F172A" />
-          {/* Pupil light reflections */}
-          <circle cx="100" cy="48" r="2.5" fill="#FFFFFF" />
-          <circle cx="96" cy="52" r="1.2" fill="#FFFFFF" />
-        </motion.g>
+        {/* RIGHT EYE PUPIL (Tracks cursor, peeks when showPassword, blinks) */}
+        <g clipPath="url(#bigOwlRightEyeClip)">
+          <motion.g
+            animate={{
+              x: isCoveringEyes ? 0 : isPeeking ? eyeOffsets.rightX : eyeOffsets.rightX,
+              y: isCoveringEyes ? 0 : isPeeking ? eyeOffsets.rightY : eyeOffsets.rightY,
+              scaleY: isCoveringEyes ? 0.1 : isBlinking ? 0.08 : 1,
+            }}
+            transition={{ type: 'spring', stiffness: 350, damping: 28 }}
+            style={{ transformOrigin: '98px 50px' }}
+          >
+            <circle cx="98" cy="50" r="7.5" fill="#0F172A" />
+            {/* Pupil light reflections */}
+            <circle cx="100" cy="48" r="2.5" fill="#FFFFFF" />
+            <circle cx="96" cy="52" r="1.2" fill="#FFFFFF" />
+          </motion.g>
+        </g>
 
         {/* Glasses / Golden Scholar Rim (Matching official mascot) */}
         <circle cx="62" cy="50" r="14.5" stroke="#F59E0B" strokeWidth="2.6" fill="none" />
@@ -157,7 +271,7 @@ export const AnimatedMascot: React.FC<AnimatedMascotProps> = ({
             isCoveringEyes
               ? { x: -22, y: -24, rotate: -22 }
               : isPeeking
-              ? { x: -14, y: -8, rotate: -8 } // Lowered slightly so one eye peeks!
+              ? { x: -14, y: -8, rotate: -8 } // Lowered so right eye peeks at cursor!
               : { x: 0, y: 0, rotate: 0 }
           }
           transition={{ type: 'spring', stiffness: 220, damping: 18 }}

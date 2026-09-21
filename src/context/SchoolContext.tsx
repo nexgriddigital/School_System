@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Student, 
   Section, 
@@ -212,6 +212,12 @@ interface SchoolContextType {
 
   // Principal Touch: Executive Master System Reset
   resetEverything: (options?: { keepPrincipalLoggedIn?: boolean }) => void;
+
+  // Global System Loading State for Animated Mascot Flight
+  isGlobalLoading: boolean;
+  globalLoadingMessage: string;
+  startGlobalLoading: (message?: string, durationMs?: number) => void;
+  stopGlobalLoading: () => void;
 
   // View Helper / Alias methods
   markAttendance?: (studentId: string, date: string, status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED', sectionId: string) => void;
@@ -661,6 +667,31 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     return null;
   });
+
+  // Global System Loading State for Animated Mascot Flight & UI Loading Indicators
+  const [isGlobalLoading, setIsGlobalLoading] = useState<boolean>(false);
+  const [globalLoadingMessage, setGlobalLoadingMessage] = useState<string>('Processing institutional update...');
+  const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const startGlobalLoading = useCallback((message = 'Processing institutional update...', durationMs = 1500) => {
+    if (loadingTimerRef.current) {
+      clearTimeout(loadingTimerRef.current);
+    }
+    setGlobalLoadingMessage(message);
+    setIsGlobalLoading(true);
+    if (durationMs > 0) {
+      loadingTimerRef.current = setTimeout(() => {
+        setIsGlobalLoading(false);
+      }, durationMs);
+    }
+  }, []);
+
+  const stopGlobalLoading = useCallback(() => {
+    if (loadingTimerRef.current) {
+      clearTimeout(loadingTimerRef.current);
+    }
+    setIsGlobalLoading(false);
+  }, []);
 
   // Session Security & Inactivity Timeout (Institutional Standard: 15 minutes)
   const [sessionTimeoutMinutes, setSessionTimeoutMinutesState] = useState<number>(() => {
@@ -2328,6 +2359,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return;
       }
     }
+    startGlobalLoading(`Switching to ${role.replace(/_/g, ' ')} Workspace...`, 900);
     setCurrentRoleState(role);
     const userObj = getRolePersona(role);
     setCurrentUser(userObj);
@@ -2927,6 +2959,10 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       principalMasterCode,
       updatePrincipalMasterCode,
       verifyMasterCode,
+      isGlobalLoading,
+      globalLoadingMessage,
+      startGlobalLoading,
+      stopGlobalLoading,
     }}>
       {children}
     </SchoolContext.Provider>
