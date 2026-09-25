@@ -57,6 +57,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     createPrincipalAccount,
     getUserByEmailOrId, 
     changeUserPassword,
+    completeFirstTimePasswordChangeAndLogin,
     sessionExpiredNotification,
     clearSessionExpiredNotification,
     verifyMasterCode,
@@ -520,7 +521,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
         password: principalPassword,
       });
       setTimeout(() => {
-        login('PRINCIPAL', principalEmail, principalPassword, principalName);
+        const loginRes = login('PRINCIPAL', principalEmail, principalPassword, principalName);
+        if (!loginRes.success) {
+          setIsSuccess(false);
+          setErrorMsg(loginRes.error || 'Failed to authenticate Principal account.');
+          triggerShake();
+        }
       }, 700);
       return;
     }
@@ -546,7 +552,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     }
 
     setTimeout(() => {
-      login(selectedRole, identifier, password, undefined, true);
+      const loginRes = login(selectedRole, identifier, password, undefined, true);
+      if (!loginRes.success) {
+        setIsSuccess(false);
+        setErrorMsg(loginRes.error || 'Failed to authenticate account.');
+        triggerShake();
+      }
     }, 700);
   };
 
@@ -576,16 +587,22 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
 
     try {
       if (firstLoginTargetUser) {
-        changeUserPassword(firstLoginTargetUser.email, newPermanentPassword);
-        setTimeout(() => {
-          login(
-            firstLoginTargetUser.role,
-            firstLoginTargetUser.email,
-            newPermanentPassword,
-            firstLoginTargetUser.name,
-            true // bypass check because permanent password is now set
-          );
-        }, 700);
+        const result = completeFirstTimePasswordChangeAndLogin(
+          firstLoginTargetUser.email,
+          newPermanentPassword,
+          firstLoginTargetUser.role
+        );
+        if (!result.success) {
+          setIsSavingPermanentPassword(false);
+          setErrorMsg(result.error || 'Failed to update permanent password.');
+          triggerShake();
+          return;
+        }
+        // Authentication completed synchronously. The authenticated portal will mount.
+      } else {
+        setIsSavingPermanentPassword(false);
+        setErrorMsg('User session context not found. Please try logging in again.');
+        triggerShake();
       }
     } catch (err: any) {
       setIsSavingPermanentPassword(false);

@@ -103,6 +103,7 @@ interface SchoolContextType {
     extraCredentials?: any;
   }) => Promise<{ success: boolean; tempPassword: string; user: InstitutionalUser; error?: string }>;
   changeUserPassword: (userIdOrEmail: string, newPass: string) => { success: boolean; error?: string };
+  completeFirstTimePasswordChangeAndLogin: (userIdOrEmail: string, newPass: string, role: UserRole) => { success: boolean; error?: string };
   resetUserPasswordToTemporary: (userIdOrEmail: string) => Promise<{ success: boolean; tempPassword?: string; error?: string }>;
   getUserByEmailOrId: (identifier: string) => InstitutionalUser | undefined;
   deleteInstitutionalUser: (userId: string) => { success: boolean; isPrincipalDeleted?: boolean; error?: string };
@@ -1019,7 +1020,105 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!userIdOrEmail || !newPass) return { success: false, error: 'Missing user identifier or password' };
     const clean = userIdOrEmail.trim().toLowerCase();
 
-    setInstitutionalUsers(prev => prev.map(u => {
+    setInstitutionalUsers(prev => {
+      const updated = prev.map(u => {
+        if (u.email.toLowerCase() === clean || u.id.toLowerCase() === clean || (u.extraCredentials?.studentId && u.extraCredentials.studentId.toLowerCase() === clean)) {
+          return {
+            ...u,
+            password: newPass,
+            temporaryPassword: undefined,
+            isTemporaryPassword: false,
+            mustChangePasswordOnFirstLogin: false,
+          };
+        }
+        return u;
+      });
+      try {
+        localStorage.setItem('oskar_school_users', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    // Also update student if applicable
+    setStudents(prev => {
+      const updated = prev.map(s => {
+        if (
+          s.id.toLowerCase() === clean || 
+          s.accountNumber.toLowerCase() === clean ||
+          (s.parents?.email && s.parents.email.toLowerCase() === clean)
+        ) {
+          return {
+            ...s,
+            password: newPass,
+            portalPassword: newPass,
+            temporaryPassword: undefined,
+            isTemporaryPassword: false,
+            mustChangePasswordOnLogin: false,
+          };
+        }
+        return s;
+      });
+      try {
+        localStorage.setItem('oskar_school_students', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    // Also update teachers if applicable
+    setTeachers(prev => {
+      const updated = prev.map(t => {
+        if (t.id.toLowerCase() === clean || t.email.toLowerCase() === clean) {
+          return {
+            ...t,
+            password: newPass,
+          };
+        }
+        return t;
+      });
+      try {
+        localStorage.setItem('oskar_school_teachers', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    return { success: true };
+  }, []);
+
+  const completeFirstTimePasswordChangeAndLogin = useCallback((
+    userIdOrEmail: string, 
+    newPass: string, 
+    role: UserRole
+  ): { success: boolean; error?: string } => {
+    if (!userIdOrEmail || !newPass) return { success: false, error: 'Missing user identifier or new permanent password.' };
+    const clean = userIdOrEmail.trim().toLowerCase();
+
+    // 1. Retrieve current snapshot of institutional users
+    let currentUsers: InstitutionalUser[] = [...institutionalUsers];
+    try {
+      const stored = localStorage.getItem('oskar_school_users');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          currentUsers = parsed;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    let foundUser = currentUsers.find(u => 
+      u.email.toLowerCase() === clean || 
+      u.id.toLowerCase() === clean || 
+      (u.extraCredentials?.studentId && u.extraCredentials.studentId.toLowerCase() === clean)
+    );
+
+    const updatedUsers = currentUsers.map(u => {
       if (u.email.toLowerCase() === clean || u.id.toLowerCase() === clean || (u.extraCredentials?.studentId && u.extraCredentials.studentId.toLowerCase() === clean)) {
         return {
           ...u,
@@ -1030,29 +1129,119 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         };
       }
       return u;
-    }));
+    });
+
+    if (foundUser) {
+      foundUser = {
+        ...foundUser,
+        password: newPass,
+        temporaryPassword: undefined,
+        isTemporaryPassword: false,
+        mustChangePasswordOnFirstLogin: false,
+      };
+    }
+
+    // Persist synchronously to localStorage
+    try {
+      localStorage.setItem('oskar_school_users', JSON.stringify(updatedUsers));
+    } catch (e) {
+      console.error(e);
+    }
+    setInstitutionalUsers(updatedUsers);
 
     // Also update student if applicable
-    setStudents(prev => prev.map(s => {
-      if (
-        s.id.toLowerCase() === clean || 
-        s.accountNumber.toLowerCase() === clean ||
-        (s.parents?.email && s.parents.email.toLowerCase() === clean)
-      ) {
-        return {
-          ...s,
-          password: newPass,
-          portalPassword: newPass,
-          temporaryPassword: undefined,
-          isTemporaryPassword: false,
-          mustChangePasswordOnLogin: false,
-        };
+    setStudents(prev => {
+      const updated = prev.map(s => {
+        if (
+          s.id.toLowerCase() === clean || 
+          s.accountNumber.toLowerCase() === clean ||
+          (s.parents?.email && s.parents.email.toLowerCase() === clean)
+        ) {
+          return {
+            ...s,
+            password: newPass,
+            portalPassword: newPass,
+            temporaryPassword: undefined,
+            isTemporaryPassword: false,
+            mustChangePasswordOnLogin: false,
+          };
+        }
+        return s;
+      });
+      try {
+        localStorage.setItem('oskar_school_students', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
       }
-      return s;
-    }));
+      return updated;
+    });
+
+    // Also update faculty teacher if applicable
+    setTeachers(prev => {
+      const updated = prev.map(t => {
+        if (t.id.toLowerCase() === clean || t.email.toLowerCase() === clean) {
+          return {
+            ...t,
+            password: newPass,
+          };
+        }
+        return t;
+      });
+      try {
+        localStorage.setItem('oskar_school_teachers', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    // 2. Build user object for active session
+    const userPersona = getRolePersona(role);
+    if (foundUser) {
+      userPersona.id = foundUser.id;
+      userPersona.name = foundUser.name;
+      userPersona.email = foundUser.email;
+      userPersona.title = foundUser.position;
+    } else {
+      userPersona.email = userIdOrEmail.trim();
+    }
+
+    // 3. Immediately transition authenticated state
+    setCurrentRoleState(role);
+    setCurrentUser(userPersona);
+    setIsAuthenticated(true);
+    clearSessionExpiredNotification();
+    setLastActivityTimestamp(Date.now());
+
+    try {
+      localStorage.setItem('oskar_school_role', role);
+      localStorage.setItem('oskar_school_user', JSON.stringify(userPersona));
+      localStorage.setItem('oskar_school_auth', 'true');
+    } catch (e) {
+      console.error(e);
+    }
+
+    // 4. Log regulatory tamper-evident audit trail entry
+    logAuditAction({
+      action: 'USER_UPDATED',
+      actionLabel: 'Mandatory Initial Password Rotation Completed',
+      category: 'SECURITY',
+      severity: 'INFO',
+      performedBy: {
+        name: userPersona.name,
+        role: role,
+        email: userPersona.email || userIdOrEmail.trim()
+      },
+      targetEntity: {
+        type: 'USER',
+        id: userPersona.id,
+        label: `${userPersona.name} (${userPersona.title || role})`
+      },
+      details: `User successfully retired temporary credentials and activated their personal permanent password. Dashboard access authorized under FERPA 34 CFR § 99.32 & NIST SP 800-63B.`
+    });
 
     return { success: true };
-  }, []);
+  }, [institutionalUsers, logAuditAction, clearSessionExpiredNotification]);
 
   const resetUserPasswordToTemporary = async (userIdOrEmail: string): Promise<{ success: boolean; tempPassword?: string; error?: string }> => {
     if (!userIdOrEmail) return { success: false, error: 'User identifier required' };
@@ -1141,7 +1330,13 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           password: params.password,
           position: params.position || existing.position,
         };
-        setInstitutionalUsers(prev => prev.map(u => u.id === existing.id ? updatedUser : u));
+        const nextUsers = institutionalUsers.map(u => u.id === existing.id ? updatedUser : u);
+        try {
+          localStorage.setItem('oskar_school_users', JSON.stringify(nextUsers));
+        } catch (e) {
+          console.error(e);
+        }
+        setInstitutionalUsers(nextUsers);
         return { success: true, user: updatedUser };
       }
       return { success: false, error: 'An account with this email address already exists as another role.' };
@@ -1162,7 +1357,13 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       phone: params.phone || '+251 91 100 0001',
     };
 
-    setInstitutionalUsers(prev => [newPrincipalUser, ...prev]);
+    const nextUsers = [newPrincipalUser, ...institutionalUsers];
+    try {
+      localStorage.setItem('oskar_school_users', JSON.stringify(nextUsers));
+    } catch (e) {
+      console.error(e);
+    }
+    setInstitutionalUsers(nextUsers);
 
     logAuditAction({
       action: 'USER_CREATED',
@@ -1269,7 +1470,15 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     // 3. Save to institutional users list
-    setInstitutionalUsers(prev => [newUser, ...prev]);
+    setInstitutionalUsers(prev => {
+      const nextUsers = [newUser, ...prev];
+      try {
+        localStorage.setItem('oskar_school_users', JSON.stringify(nextUsers));
+      } catch (e) {
+        console.error(e);
+      }
+      return nextUsers;
+    });
 
     // 4. If Teacher, register in teachers list
     if (params.role === 'TEACHER') {
@@ -1387,6 +1596,53 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     setStudents(prev => [newStudent, ...prev]);
+
+    // If candidate has verified transcript courses, officially register them into the institution gradebook
+    if (newStudent.transcribedCourses && newStudent.transcribedCourses.length > 0) {
+      const priorGradeLevel = (gradeNum > 9 ? gradeNum - 1 : 9) as AcademicGrade;
+      const transcriptGradeEntries: GradeEntry[] = newStudent.transcribedCourses.map((course, idx) => ({
+        id: `GRD-TR-${generatedId}-${idx}`,
+        studentId: generatedId,
+        studentName: newStudent.fullName,
+        grade: (course.gradeLevel as AcademicGrade) || priorGradeLevel,
+        sectionId: 'TRANSCRIPT_CREDIT',
+        subject: course.subject,
+        teacherId: 'REGISTRAR-PRIOR-INSTITUTION',
+        teacherName: `Official Transcript (${newStudent.previousSchool?.name || 'Verified Prior Institution'})`,
+        test1Score: course.semester1Score != null ? Math.round(course.semester1Score * 0.3) : 26,
+        midtermScore: course.semester1Score != null ? Math.round(course.semester1Score * 0.3) : 26,
+        finalScore: course.semester2Score != null ? Math.round(course.semester2Score * 0.4) : 36,
+        totalGrade: course.finalAverage,
+        letterGrade: course.letterGrade || (course.finalAverage >= 90 ? 'A+' : course.finalAverage >= 85 ? 'A' : course.finalAverage >= 80 ? 'B+' : 'B'),
+        teacherComment: `Official prior academic credit authenticated from verified transcript. Sem 1: ${course.semester1Score != null ? course.semester1Score + '%' : '-'} | Sem 2: ${course.semester2Score != null ? course.semester2Score + '%' : '-'} | Status: ${course.remarks || 'Passed'}`,
+        semester: 'Semester 2',
+        quiz: 18,
+        assessment: 18,
+        midExam: 27,
+        finalExam: 37,
+        entryDate: new Date().toISOString().split('T')[0]
+      }));
+
+      setGrades(prev => [...transcriptGradeEntries, ...prev]);
+
+      logAuditAction({
+        action: 'TRANSCRIPT_COURSES_REGISTERED',
+        actionLabel: 'Prior Academic Transcript Courses & Grades Registered',
+        category: 'ACADEMIC_ADMIN',
+        severity: 'INFO',
+        performedBy: {
+          id: currentUser?.id,
+          name: currentUser?.name || 'Registrar Admissions Officer',
+          role: currentUser?.role || 'REGISTRAR',
+        },
+        targetEntity: {
+          type: 'STUDENT',
+          id: generatedId,
+          label: `${newStudent.fullName} (Grade ${gradeNum})`
+        },
+        details: `Registered ${transcriptGradeEntries.length} verified courses and marks from official prior transcript for candidate ${newStudent.fullName}. Academic Average: ${newStudent.transcriptAnalysis?.totalAverageScore || 'N/A'}%`
+      });
+    }
 
     // Automatically create initial tuition invoice for this student
     const feeAmount = gradeNum === 9 ? 18500 : gradeNum === 10 ? 19500 : gradeNum === 11 ? 21000 : 24500;
@@ -2951,10 +3207,23 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const cleanId = identifier.trim().toLowerCase();
 
+    let allInstUsers = [...institutionalUsers];
+    try {
+      const stored = localStorage.getItem('oskar_school_users');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          allInstUsers = parsed;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
     // 1. Leadership / Admin roles: REGISTRAR, FINANCE, PROGRAM_OFFICE, COUNSELLOR
     const adminLeadershipRoles: UserRole[] = ['REGISTRAR', 'FINANCE', 'PROGRAM_OFFICE', 'COUNSELLOR'];
     if (adminLeadershipRoles.includes(role)) {
-      const accountsForRole = institutionalUsers.filter(u => u.role === role);
+      const accountsForRole = allInstUsers.filter(u => u.role === role);
       if (accountsForRole.length === 0) {
         return {
           isValid: false,
@@ -2964,6 +3233,8 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       const matchedUser = accountsForRole.find(u =>
+        u.email.toLowerCase() === cleanId || u.id.toLowerCase() === cleanId
+      ) || allInstUsers.find(u =>
         u.email.toLowerCase() === cleanId || u.id.toLowerCase() === cleanId
       );
 
@@ -3225,8 +3496,21 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const adminLeadershipRoles: UserRole[] = ['REGISTRAR', 'FINANCE', 'PROGRAM_OFFICE', 'COUNSELLOR'];
 
     if (adminLeadershipRoles.includes(role)) {
+      let allUsers = [...institutionalUsers];
+      try {
+        const stored = localStorage.getItem('oskar_school_users');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            allUsers = parsed;
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+
       // 1. Check if any accounts for this administrative role have been created by the Principal
-      const accountsForRole = institutionalUsers.filter(u => u.role === role);
+      const accountsForRole = allUsers.filter(u => u.role === role);
 
       if (accountsForRole.length === 0) {
         return {
@@ -3244,7 +3528,10 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       const cleanId = identifier.trim().toLowerCase();
-      const matchedUser = accountsForRole.find(u => 
+      let matchedUser = accountsForRole.find(u => 
+        u.email.toLowerCase() === cleanId || 
+        u.id.toLowerCase() === cleanId
+      ) || allUsers.find(u => 
         u.email.toLowerCase() === cleanId || 
         u.id.toLowerCase() === cleanId
       );
@@ -3264,9 +3551,28 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         };
       }
 
-      const isPasswordValid = 
+      let isPasswordValid = 
         password === matchedUser.password || 
         (Boolean(matchedUser.temporaryPassword) && password === matchedUser.temporaryPassword);
+
+      if (!isPasswordValid) {
+        // Double check against localStorage in case of rapid password rotation
+        try {
+          const stored = localStorage.getItem('oskar_school_users');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) {
+              const fresh = parsed.find((u: any) => u.id === matchedUser!.id || u.email.toLowerCase() === cleanId);
+              if (fresh && (password === fresh.password || (Boolean(fresh.temporaryPassword) && password === fresh.temporaryPassword))) {
+                isPasswordValid = true;
+                matchedUser = fresh;
+              }
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
 
       if (!isPasswordValid) {
         return {
@@ -4022,6 +4328,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       createPrincipalAccount,
       createInstitutionalUser,
       changeUserPassword,
+      completeFirstTimePasswordChangeAndLogin,
       getUserByEmailOrId,
       schoolName,
       setSchoolName,

@@ -55,6 +55,42 @@ export interface LostIdRequest {
   clearedDate?: string;
 }
 
+export interface TranscriptCourseRecord {
+  id: string;
+  subject: string;
+  gradeLevel: number;
+  academicYear?: string;
+  semester1Score?: number | null;
+  semester2Score?: number | null;
+  finalAverage: number;
+  letterGrade: string;
+  creditsOrPeriods?: number | null;
+  conduct?: string | null;
+  remarks?: string | null;
+}
+
+export interface TranscriptAnalysisResult {
+  analyzedAt: string;
+  fileName: string;
+  fileSize?: string;
+  fileType?: string;
+  studentNameFound?: string | null;
+  gender?: 'Male' | 'Female' | 'Other' | null;
+  schoolNameFound?: string | null;
+  gradeLevelAnalyzed?: number;
+  academicYear?: string | null;
+  totalAverageScore?: number;
+  overallLetterGrade?: string;
+  totalSubjectsCount: number;
+  passedCount: number;
+  rankInClass?: string | null;
+  conductRating?: string | null;
+  promotionStatus?: string | null;
+  courses: TranscriptCourseRecord[];
+  summaryNotes?: string;
+  rawJson?: string;
+}
+
 export interface Student {
   id: string; // e.g. "OSK-2026-0901"
   accountNumber: string; // e.g. "ACC-90412"
@@ -71,6 +107,9 @@ export interface Student {
   certificateDocUrl?: string;
   transcriptDocName?: string;
   transcriptDocUrl?: string;
+  transcriptAttached?: boolean;
+  transcribedCourses?: TranscriptCourseRecord[];
+  transcriptAnalysis?: TranscriptAnalysisResult | null;
   entranceExamScore?: number | null; // Entrance exam result (if applicable)
   ninthGradeResults?: { math: number; english: number; science: number; average: number } | null;
   tenthGradeResults?: { math: number; english: number; science: number; average: number } | null;

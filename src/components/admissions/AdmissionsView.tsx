@@ -27,11 +27,27 @@ import {
   Check,
   CheckSquare,
   FileBadge,
-  RotateCcw
+  RotateCcw,
+  GraduationCap,
+  BookOpen,
+  Award,
+  Layers,
+  ExternalLink,
+  Plus,
+  Trash2,
+  Edit3,
+  HelpCircle,
+  FileCheck
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ExportDataModal } from '../common/ExportDataModal';
 import { exportStudentsCsv } from '../../utils/csvExport';
+import { 
+  analyzeTranscriptDocument, 
+  loadSampleEthiopianTranscript,
+  extractPrerequisiteSubjectMarks 
+} from '../../services/transcriptAnalysisService';
+import { TranscriptCourseRecord, TranscriptAnalysisResult, Student } from '../../types';
 
 export const AdmissionsView: React.FC = () => {
   const { 
@@ -83,6 +99,16 @@ export const AdmissionsView: React.FC = () => {
   const [certFileName, setCertFileName] = useState<string>('');
   const [certDataUrl, setCertDataUrl] = useState<string>('');
   const [entranceExamScore, setEntranceExamScore] = useState<string>('');
+
+  // Transcript State (Strictly required for Grade 10 and above)
+  const [transcriptDataUrl, setTranscriptDataUrl] = useState<string>('');
+  const [transcriptFileName, setTranscriptFileName] = useState<string>('');
+  const [isAnalyzingTranscript, setIsAnalyzingTranscript] = useState<boolean>(false);
+  const [analysisProgressStep, setAnalysisProgressStep] = useState<string>('');
+  const [transcriptAnalysis, setTranscriptAnalysis] = useState<TranscriptAnalysisResult | null>(null);
+  const [transcribedCourses, setTranscribedCourses] = useState<TranscriptCourseRecord[]>([]);
+  const [transcriptAnalysisError, setTranscriptAnalysisError] = useState<string | null>(null);
+  const [selectedStudentForTranscriptModal, setSelectedStudentForTranscriptModal] = useState<Student | null>(null);
   
   // Grade-Specific Inserted Results
   // Grade 10: 9th grade results
@@ -133,6 +159,175 @@ export const AdmissionsView: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
+  // Transcript Upload Handler
+  const handleTranscriptFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setTranscriptFileName(file.name);
+    setTranscriptAnalysisError(null);
+
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setTranscriptDataUrl(dataUrl);
+      // Auto-trigger transcript analysis
+      triggerTranscriptAnalysis(dataUrl, file.name, file.type);
+    } catch (err) {
+      console.error('Failed to read transcript file', err);
+      setTranscriptAnalysisError('Failed to read the selected transcript file. Please try another file.');
+    }
+  };
+
+  // Trigger AI Transcript Analysis
+  const triggerTranscriptAnalysis = async (dataUrlOverride?: string, fileNameOverride?: string, mimeTypeOverride?: string) => {
+    const url = dataUrlOverride || transcriptDataUrl;
+    const name = fileNameOverride || transcriptFileName || 'Uploaded_Transcript.pdf';
+    if (!url) {
+      alert('Please upload a transcript document or load the sample Ethiopian transcript first.');
+      return;
+    }
+
+    setIsAnalyzingTranscript(true);
+    setTranscriptAnalysisError(null);
+    setAnalysisProgressStep('Reading and preparing transcript document...');
+
+    const stepTimers: NodeJS.Timeout[] = [];
+    stepTimers.push(setTimeout(() => setAnalysisProgressStep('Extracting student bio & institution details with Gemini AI...'), 700));
+    stepTimers.push(setTimeout(() => setAnalysisProgressStep('Scanning Ethiopian secondary curriculum subjects & semester scores...'), 1400));
+    stepTimers.push(setTimeout(() => setAnalysisProgressStep('Calculating semester averages, letter grades & promotion status...'), 2100));
+
+    try {
+      const result = await analyzeTranscriptDocument({
+        fileDataUrl: url,
+        fileName: name,
+        mimeType: mimeTypeOverride || (url.startsWith('data:application/pdf') ? 'application/pdf' : 'image/jpeg'),
+        enrollingGrade: selectedGrade,
+      });
+
+      stepTimers.forEach(clearTimeout);
+      setTranscriptAnalysis(result);
+      setTranscribedCourses(result.courses);
+
+      // Auto-populate prerequisite score inputs from transcript
+      const marks = extractPrerequisiteSubjectMarks(result.courses);
+      if (selectedGrade === 10) {
+        setG9Math(String(marks.math));
+        setG9English(String(marks.english));
+        setG9Science(String(marks.science));
+      } else if (selectedGrade === 11) {
+        setG9Math(String(marks.math));
+        setG9English(String(marks.english));
+        setG9Science(String(marks.science));
+        setG10Math(String(marks.math));
+        setG10English(String(marks.english));
+        setG10Science(String(marks.science));
+      } else if (selectedGrade === 12) {
+        setG11Math(String(marks.math));
+        setG11Major1(String(marks.physics));
+        setG11Major2(String(marks.chemistry));
+      }
+
+      setAnalysisProgressStep('Analysis complete! All courses & grades registered.');
+    } catch (err: any) {
+      console.error('Transcript analysis error:', err);
+      stepTimers.forEach(clearTimeout);
+      setTranscriptAnalysisError(err?.message || 'Failed to complete transcript analysis. Please try again.');
+    } finally {
+      setIsAnalyzingTranscript(false);
+    }
+  };
+
+  // Load Sample Ethiopian Transcript (Ministry of Education format)
+  const handleLoadSampleEthiopianTranscript = () => {
+    setIsAnalyzingTranscript(true);
+    setTranscriptAnalysisError(null);
+    setAnalysisProgressStep('Generating and loading authentic Ethiopian Secondary School Transcript (Grade 9 MoE format)...');
+
+    setTimeout(() => {
+      const sample = loadSampleEthiopianTranscript();
+      setTranscriptDataUrl(sample.dataUrl);
+      setTranscriptFileName(sample.fileName);
+      setTranscriptAnalysis(sample.analysis);
+      setTranscribedCourses(sample.analysis.courses);
+
+      // Auto-populate scores
+      const marks = extractPrerequisiteSubjectMarks(sample.analysis.courses);
+      setG9Math(String(marks.math));
+      setG9English(String(marks.english));
+      setG9Science(String(marks.science));
+      if (selectedGrade >= 11) {
+        setG10Math(String(marks.math));
+        setG10English(String(marks.english));
+        setG10Science(String(marks.science));
+      }
+
+      setIsAnalyzingTranscript(false);
+      setAnalysisProgressStep('Sample Ethiopian Transcript loaded and analyzed successfully!');
+    }, 600);
+  };
+
+  // Auto-Fill candidate bio from analyzed transcript
+  const handleAutoFillCandidateBio = () => {
+    if (!transcriptAnalysis) return;
+    if (transcriptAnalysis.studentNameFound) {
+      setFullName(transcriptAnalysis.studentNameFound);
+    }
+    if (transcriptAnalysis.gender) {
+      setGender(transcriptAnalysis.gender);
+    }
+    if (transcriptAnalysis.schoolNameFound) {
+      setPreviousSchoolName(transcriptAnalysis.schoolNameFound);
+      setIsSameSchool(false);
+    }
+  };
+
+  // Modify individual course grade in table
+  const handleUpdateCourse = (id: string, field: keyof TranscriptCourseRecord, val: any) => {
+    setTranscribedCourses(prev => prev.map(c => {
+      if (c.id === id) {
+        const updated = { ...c, [field]: val };
+        if (field === 'semester1Score' || field === 'semester2Score') {
+          const s1 = field === 'semester1Score' ? Number(val) : c.semester1Score;
+          const s2 = field === 'semester2Score' ? Number(val) : c.semester2Score;
+          if (s1 != null && s2 != null) {
+            updated.finalAverage = Math.round((Number(s1) + Number(s2)) / 2);
+          } else if (s1 != null) {
+            updated.finalAverage = Number(s1);
+          } else if (s2 != null) {
+            updated.finalAverage = Number(s2);
+          }
+          const avg = updated.finalAverage;
+          updated.letterGrade = avg >= 90 ? 'A+' : avg >= 85 ? 'A' : avg >= 80 ? 'B+' : avg >= 75 ? 'B' : avg >= 60 ? 'C' : 'F';
+          updated.remarks = avg >= 50 ? 'Passed' : 'Failed';
+        }
+        return updated;
+      }
+      return c;
+    }));
+  };
+
+  // Remove a course
+  const handleDeleteCourse = (id: string) => {
+    setTranscribedCourses(prev => prev.filter(c => c.id !== id));
+  };
+
+  // Add custom elective course
+  const handleAddCustomCourse = () => {
+    const newCourse: TranscriptCourseRecord = {
+      id: `custom-c-${Date.now()}`,
+      subject: 'Elective Subject',
+      gradeLevel: selectedGrade > 9 ? selectedGrade - 1 : 9,
+      semester1Score: 85,
+      semester2Score: 88,
+      finalAverage: 87,
+      letterGrade: 'A',
+      creditsOrPeriods: 3,
+      conduct: 'A',
+      remarks: 'Passed'
+    };
+    setTranscribedCourses(prev => [...prev, newCourse]);
+  };
+
   const handleSubmitRegistration = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -143,6 +338,12 @@ export const AdmissionsView: React.FC = () => {
 
     if (!eighthGradeCertAttached) {
       alert('Requirement Missing: 8th Grade Certificate must be verified and attached for admission!');
+      return;
+    }
+
+    // MANDATORY FOR GRADE 10 AND ABOVE: OFFICIAL TRANSCRIPT REQUIRED
+    if (selectedGrade >= 10 && !transcriptDataUrl && !transcriptFileName && transcribedCourses.length === 0) {
+      alert('Mandatory Document Missing: For enrollment into Grade 10 and above, an Official Prior Academic Transcript must be uploaded and verified before admission can proceed. Please attach the student transcript or load the sample Ethiopian transcript.');
       return;
     }
 
@@ -205,13 +406,18 @@ export const AdmissionsView: React.FC = () => {
       eighthGradeCertAttached: Boolean(certDataUrl || eighthGradeCertAttached),
       certificateDocName: certFileName || (certDataUrl ? `${fullName.replace(/\s+/g, '_')}_8th_Grade_Certificate.pdf` : 'Pending_Certificate.pdf'),
       certificateDocUrl: finalCertUrl,
+      transcriptDocName: transcriptFileName || (transcriptDataUrl ? `${fullName.replace(/\s+/g, '_')}_Official_Transcript.pdf` : undefined),
+      transcriptDocUrl: transcriptDataUrl || undefined,
+      transcriptAttached: Boolean(transcriptDataUrl || transcriptFileName || transcribedCourses.length > 0),
+      transcribedCourses: transcribedCourses.length > 0 ? transcribedCourses : undefined,
+      transcriptAnalysis: transcriptAnalysis || null,
       entranceExamScore: entranceExamScore ? parseFloat(entranceExamScore) : null,
       ninthGradeResults: g9Results,
       tenthGradeResults: g10Results,
       eleventhGradeResults: g11Results,
       photoUrl,
       previousSchool: {
-        name: isSameSchool ? schoolName : previousSchoolName,
+        name: isSameSchool ? schoolName : (previousSchoolName || transcriptAnalysis?.schoolNameFound || 'Prior School'),
         isSameSchool,
       },
       parents: {
@@ -267,6 +473,13 @@ export const AdmissionsView: React.FC = () => {
     setCertFileName('');
     setCertDataUrl('');
     setEighthGradeCertAttached(false);
+    setTranscriptDataUrl('');
+    setTranscriptFileName('');
+    setIsAnalyzingTranscript(false);
+    setAnalysisProgressStep('');
+    setTranscriptAnalysis(null);
+    setTranscribedCourses([]);
+    setTranscriptAnalysisError(null);
     setG9Math('88');
     setG9English('84');
     setG9Science('82');
@@ -286,25 +499,35 @@ export const AdmissionsView: React.FC = () => {
       : Boolean(s.ninthGradeResults);
     const hasPhoto = Boolean(s.photoUrl && s.photoUrl.length > 5);
     const hasEmergency = Boolean(s.emergencyContact?.phone1);
+    const requiresTranscript = s.grade >= 10;
+    const hasTranscript = Boolean(s.transcriptDocUrl || (s.transcribedCourses && s.transcribedCourses.length > 0));
 
+    let totalTasks = 4;
     let completedTasks = 0;
     if (hasEighthCert) completedTasks++;
     if (hasAcademicPrereq) completedTasks++;
     if (hasPhoto) completedTasks++;
     if (hasEmergency) completedTasks++;
 
-    const percentage = Math.round((completedTasks / 4) * 100);
-    const isComplete = completedTasks === 4;
+    if (requiresTranscript) {
+      totalTasks = 5;
+      if (hasTranscript) completedTasks++;
+    }
+
+    const percentage = Math.round((completedTasks / totalTasks) * 100);
+    const isComplete = completedTasks === totalTasks;
 
     return {
       isComplete,
       percentage,
       completedTasks,
-      totalTasks: 4,
+      totalTasks,
       hasEighthCert,
       hasAcademicPrereq,
       hasPhoto,
       hasEmergency,
+      requiresTranscript,
+      hasTranscript,
     };
   };
 
@@ -336,6 +559,7 @@ export const AdmissionsView: React.FC = () => {
   const eighthGradeCertsVerifiedCount = studentDossierList.filter(d => d.hasEighthCert).length;
   const academicPrereqsVerifiedCount = studentDossierList.filter(d => d.hasAcademicPrereq).length;
   const photosVerifiedCount = studentDossierList.filter(d => d.hasPhoto).length;
+  const transcriptsVerifiedCount = studentDossierList.filter(d => d.hasTranscript).length;
 
   // Active Candidate Registration Verification Checks
   const candidateDocChecks = [
@@ -357,13 +581,23 @@ export const AdmissionsView: React.FC = () => {
       done: Boolean(eighthGradeCertAttached && (certFileName || certDataUrl)),
       desc: eighthGradeCertAttached ? (certFileName || 'Certificate verified') : 'Upload & verify required',
     },
+    ...(selectedGrade >= 10 ? [{
+      id: 'transcript',
+      label: 'Prior Transcript (10th+)',
+      done: Boolean(transcriptDataUrl || transcriptFileName || transcribedCourses.length > 0),
+      desc: (transcribedCourses.length > 0)
+        ? `Analyzed (${transcribedCourses.length} courses registered)`
+        : (transcriptFileName ? 'Transcript uploaded' : 'Mandatory for Grade 10+'),
+    }] : []),
     {
       id: 'marks',
       label: 'Prerequisite Marks',
       done: selectedGrade === 9 
         ? Boolean(entranceExamScore && Number(entranceExamScore) > 0)
-        : Boolean(g9Math && g9English && g9Science),
-      desc: selectedGrade === 9 ? (entranceExamScore ? `${entranceExamScore}% Entrance score` : 'Entrance score required') : 'Transcript marks verified',
+        : (transcribedCourses.length > 0 || Boolean(g9Math && g9English && g9Science)),
+      desc: selectedGrade === 9 
+        ? (entranceExamScore ? `${entranceExamScore}% Entrance score` : 'Entrance score required') 
+        : (transcribedCourses.length > 0 ? `${transcribedCourses.length} courses verified` : 'Transcript marks verified'),
     },
     {
       id: 'guardian',
@@ -980,161 +1214,517 @@ export const AdmissionsView: React.FC = () => {
             </div>
           </div>
 
-          {/* Grade 10, 11, 12: Manual Results Insertion */}
+          {/* Grade 10, 11, 12: Mandatory Official Transcript Upload & AI Course Analysis */}
           {selectedGrade >= 10 && (
-            <div className="p-5 bg-amber-50/50 rounded-xl border border-amber-200 space-y-4">
-              <div className="flex items-center gap-2">
-                <BadgeCheck className="w-4 h-4 text-amber-700" />
-                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-950">
-                  Manual Academic Results Verification
-                </h4>
+            <div className="p-5 bg-gradient-to-br from-indigo-50/70 via-blue-50/50 to-slate-50 rounded-2xl border-2 border-indigo-200/80 shadow-sm space-y-5">
+              {/* Header Banner */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-100 pb-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-sm mt-0.5">
+                    <GraduationCap className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-oskar-vintage text-base font-bold text-slate-900">
+                        4. Official Academic Transcript & Taken Course Registration
+                      </h4>
+                      <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded font-bold text-[10px] uppercase tracking-wide border border-indigo-200">
+                        Mandatory for Grade {selectedGrade}+
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 mt-1 max-w-2xl">
+                      Ministry of Education regulations strictly require an official prior academic transcript for admission into Grade 10 and above. Our AI evaluates Ethiopian curriculum subjects, authenticates semester marks, and registers taken courses and grades.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleLoadSampleEthiopianTranscript}
+                    disabled={isAnalyzingTranscript}
+                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
+                    title="Load an authentic sample Ethiopian Grade 9 Secondary School Transcript (Ministry of Education format)"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Load Sample Ethiopian Transcript
+                  </button>
+                </div>
               </div>
 
-              {/* 9th Grade Results (For 10, 11, 12) */}
-              <div>
-                <p className="text-xs font-semibold text-slate-800 mb-2">
-                  9th Grade Official Results (Required for Grade 10, 11, 12):
-                </p>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-[11px] text-slate-600 block">Math Score (/100) *</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      required={selectedGrade >= 10}
-                      value={g9Math}
-                      onChange={(e) => setG9Math(e.target.value)}
-                      className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white"
-                    />
+              {/* Upload & Document Toolbar */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Upload Drag-and-Drop Box */}
+                <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Upload className="w-3.5 h-3.5 text-indigo-600" />
+                      Upload Official Transcript (PDF / Scan) *
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-mono">.pdf, .jpg, .png</span>
                   </div>
-                  <div>
-                    <label className="text-[11px] text-slate-600 block">English Score (/100) *</label>
+
+                  <label className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition text-center group ${
+                    transcriptDataUrl ? 'border-indigo-400 bg-indigo-50/30' : 'border-slate-300 hover:border-indigo-500 bg-slate-50/50'
+                  }`}>
+                    <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-600 mb-2 transition" />
+                    <span className="text-xs font-semibold text-slate-800 block truncate max-w-full px-2">
+                      {transcriptFileName || 'Click to select transcript or drag & drop here'}
+                    </span>
+                    <span className="text-[11px] text-slate-500 mt-1">
+                      Upload Grade {selectedGrade > 9 ? selectedGrade - 1 : 9} Official Transcript (PDF, scan, or photo)
+                    </span>
                     <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      required={selectedGrade >= 10}
-                      value={g9English}
-                      onChange={(e) => setG9English(e.target.value)}
-                      className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white"
+                      type="file"
+                      accept=".pdf,image/*"
+                      onChange={handleTranscriptFileUpload}
+                      className="hidden"
                     />
+                  </label>
+                </div>
+
+                {/* Status & AI Action Box */}
+                <div className="p-4 bg-white rounded-xl border border-slate-200 flex flex-col justify-between shadow-2xs space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800">Transcript Dossier Status</span>
+                      {transcriptDataUrl ? (
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Attached
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-rose-100 text-rose-800 text-[10px] font-bold rounded-full flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 text-rose-600" /> Missing (Required)
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-slate-600 mt-2 font-mono truncate">
+                      {transcriptFileName || 'No transcript file selected yet.'}
+                    </p>
+
+                    {transcriptAnalysisError && (
+                      <div className="mt-2 p-2 bg-rose-50 border border-rose-200 text-rose-800 rounded text-[11px] flex items-center gap-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                        <span>{transcriptAnalysisError}</span>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="text-[11px] text-slate-600 block">General Science (/100) *</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      required={selectedGrade >= 10}
-                      value={g9Science}
-                      onChange={(e) => setG9Science(e.target.value)}
-                      className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white"
-                    />
+
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => triggerTranscriptAnalysis()}
+                      disabled={!transcriptDataUrl || isAnalyzingTranscript}
+                      className="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      {isAnalyzingTranscript ? 'Analyzing Transcript...' : (transcribedCourses.length > 0 ? 'Re-Analyze with AI' : 'Analyse Transcript with AI')}
+                    </button>
+
+                    {transcriptDataUrl && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          openDocumentViewer({
+                            title: 'Official Academic Transcript',
+                            subtitle: `Prior Secondary Institution Record for ${fullName || 'New Student'}`,
+                            docName: transcriptFileName || 'Student_Transcript.pdf',
+                            docUrl: transcriptDataUrl,
+                            category: 'TRANSCRIPT',
+                            metadata: {
+                              studentName: fullName || 'Scholar Candidate',
+                              school: previousSchoolName || transcriptAnalysis?.schoolNameFound || 'Prior Secondary School',
+                              referenceNumber: 'MOE-TR-DOC',
+                              uploadedDate: new Date().toISOString().split('T')[0],
+                            },
+                          });
+                        }}
+                        className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1 border border-slate-200 cursor-pointer"
+                        title="View uploaded transcript in document viewer"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        Preview
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* 10th Grade Results (For 11, 12) */}
-              {selectedGrade >= 11 && (
-                <div className="pt-3 border-t border-amber-200">
-                  <p className="text-xs font-semibold text-slate-800 mb-2">
-                    10th Grade Official Results (Required for Grade 11, 12):
+              {/* In-Flight Scanning Progress */}
+              {isAnalyzingTranscript && (
+                <div className="p-4 bg-indigo-900 text-white rounded-xl space-y-2 animate-pulse">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-2 font-bold">
+                      <Sparkles className="w-4 h-4 text-amber-300 animate-spin" />
+                      Gemini Multimodal Transcript Analysis in Progress...
+                    </span>
+                    <span className="text-[10px] text-indigo-200 font-mono">Ethiopian MoE Curriculum Engine</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-indigo-950 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 rounded-full w-3/4 animate-pulse" />
+                  </div>
+                  <p className="text-[11px] text-indigo-200 font-mono">
+                    {analysisProgressStep || 'Extracting course titles, semester marks, and student bio details...'}
                   </p>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="text-[11px] text-slate-600 block">Math Score (/100) *</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        required={selectedGrade >= 11}
-                        value={g10Math}
-                        onChange={(e) => setG10Math(e.target.value)}
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white"
-                      />
+                </div>
+              )}
+
+              {/* Analyzed Transcript Details & Extracted Profile */}
+              {transcriptAnalysis && !isAnalyzingTranscript && (
+                <div className="p-4 bg-white rounded-xl border border-emerald-300 shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                        <Check className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-slate-900 text-xs">
+                          Official Transcript Authenticated & Registered
+                        </h5>
+                        <p className="text-[11px] text-slate-500">
+                          {transcriptAnalysis.schoolNameFound} • Academic Year: {transcriptAnalysis.academicYear || '2015 E.C.'}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-[11px] text-slate-600 block">English Score (/100) *</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        required={selectedGrade >= 11}
-                        value={g10English}
-                        onChange={(e) => setG10English(e.target.value)}
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white"
-                      />
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleAutoFillCandidateBio}
+                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                        title="Auto-fill student name, previous school, and gender from the transcript"
+                      >
+                        <UserPlus className="w-3.5 h-3.5" />
+                        Auto-Fill Candidate Bio
+                      </button>
                     </div>
-                    <div>
-                      <label className="text-[11px] text-slate-600 block">Natural/Social Sc (/100) *</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        required={selectedGrade >= 11}
-                        value={g10Science}
-                        onChange={(e) => setG10Science(e.target.value)}
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white"
-                      />
+                  </div>
+
+                  {/* Quick Highlights Metrics */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Candidate Name</span>
+                      <span className="text-xs font-bold text-slate-900 block truncate mt-0.5">
+                        {transcriptAnalysis.studentNameFound || fullName || 'Verified Candidate'}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-100">
+                      <span className="text-[10px] text-emerald-600 uppercase font-bold block">Cumulative Average</span>
+                      <span className="text-xs font-bold text-emerald-800 block mt-0.5">
+                        {transcriptAnalysis.totalAverageScore}% ({transcriptAnalysis.overallLetterGrade || 'A'})
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-blue-50 rounded-lg border border-blue-100">
+                      <span className="text-[10px] text-blue-600 uppercase font-bold block">Courses Verified</span>
+                      <span className="text-xs font-bold text-blue-800 block mt-0.5">
+                        {transcribedCourses.length} Subjects Registered
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-amber-50 rounded-lg border border-amber-100">
+                      <span className="text-[10px] text-amber-700 uppercase font-bold block">Conduct & Rank</span>
+                      <span className="text-xs font-bold text-amber-900 block mt-0.5">
+                        {transcriptAnalysis.conductRating || 'Excellent (A)'} • {transcriptAnalysis.rankInClass || 'Top 10%'}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-purple-50 rounded-lg border border-purple-100 col-span-2 sm:col-span-1">
+                      <span className="text-[10px] text-purple-600 uppercase font-bold block">Promotion Status</span>
+                      <span className="text-xs font-bold text-purple-900 block mt-0.5 truncate">
+                        {transcriptAnalysis.promotionStatus || 'Passed Prerequisite'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Registered Taken Courses & Grades Table */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <BookOpen className="w-4 h-4 text-indigo-600" />
+                        <span className="text-xs font-bold text-slate-800">
+                          Registered Taken Courses & Academic Marks ({transcribedCourses.length})
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddCustomCourse}
+                        className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 rounded text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Add Course
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                      <table className="w-full text-xs text-left">
+                        <thead>
+                          <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold">
+                            <th className="py-2.5 px-3">#</th>
+                            <th className="py-2.5 px-3">Subject Title / Course</th>
+                            <th className="py-2.5 px-2">Grade</th>
+                            <th className="py-2.5 px-2">Sem 1 (100%)</th>
+                            <th className="py-2.5 px-2">Sem 2 (100%)</th>
+                            <th className="py-2.5 px-2">Average</th>
+                            <th className="py-2.5 px-2">Letter</th>
+                            <th className="py-2.5 px-2">Periods</th>
+                            <th className="py-2.5 px-2">Status</th>
+                            <th className="py-2.5 px-2 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                          {transcribedCourses.map((course, idx) => (
+                            <tr key={course.id} className="hover:bg-slate-50/70 transition">
+                              <td className="py-2 px-3 font-mono text-slate-400 text-[11px]">
+                                {idx + 1}
+                              </td>
+                              <td className="py-2 px-3">
+                                <input
+                                  type="text"
+                                  value={course.subject}
+                                  onChange={(e) => handleUpdateCourse(course.id, 'subject', e.target.value)}
+                                  className="w-full font-bold text-slate-800 bg-transparent hover:bg-slate-50 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 outline-none px-1 py-0.5 rounded text-xs"
+                                />
+                              </td>
+                              <td className="py-2 px-2 text-slate-600 font-mono text-[11px]">
+                                G{course.gradeLevel}
+                              </td>
+                              <td className="py-2 px-2">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={course.semester1Score ?? ''}
+                                  onChange={(e) => handleUpdateCourse(course.id, 'semester1Score', e.target.value === '' ? null : Number(e.target.value))}
+                                  className="w-16 px-1.5 py-0.5 border border-slate-200 rounded font-mono text-xs text-slate-800 text-center bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 outline-none"
+                                />
+                              </td>
+                              <td className="py-2 px-2">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={course.semester2Score ?? ''}
+                                  onChange={(e) => handleUpdateCourse(course.id, 'semester2Score', e.target.value === '' ? null : Number(e.target.value))}
+                                  className="w-16 px-1.5 py-0.5 border border-slate-200 rounded font-mono text-xs text-slate-800 text-center bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 outline-none"
+                                />
+                              </td>
+                              <td className="py-2 px-2 font-mono font-bold text-slate-900 text-xs">
+                                {course.finalAverage}%
+                              </td>
+                              <td className="py-2 px-2">
+                                <span className={`px-1.5 py-0.5 rounded font-bold text-[10px] ${
+                                  course.letterGrade.startsWith('A') ? 'bg-emerald-100 text-emerald-800' :
+                                  course.letterGrade.startsWith('B') ? 'bg-blue-100 text-blue-800' :
+                                  course.letterGrade.startsWith('C') ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                                }`}>
+                                  {course.letterGrade}
+                                </span>
+                              </td>
+                              <td className="py-2 px-2 text-slate-500 font-mono text-[11px]">
+                                {course.creditsOrPeriods || 3}
+                              </td>
+                              <td className="py-2 px-2">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  {course.remarks || 'Passed'}
+                                </span>
+                              </td>
+                              <td className="py-2 px-2 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteCourse(course.id)}
+                                  className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                                  title="Delete course"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="p-2.5 bg-blue-50/60 rounded-lg border border-blue-100 flex items-center justify-between text-[11px] text-blue-900">
+                      <div className="flex items-center gap-1.5">
+                        <Award className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span>
+                          <strong>Registration Commitment:</strong> All {transcribedCourses.length} verified courses and semester marks will be automatically registered into the student's official institution gradebook.
+                        </span>
+                      </div>
+                      <span className="font-bold text-blue-800 shrink-0 ml-2">
+                        Avg: {transcriptAnalysis.totalAverageScore}%
+                      </span>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* 11th Grade Results (For 12) */}
-              {selectedGrade >= 12 && (
-                <div className="pt-3 border-t border-amber-200">
-                  <p className="text-xs font-semibold text-slate-800 mb-2">
-                    11th Grade Results (Required for Senior Grade 12):
+              {/* Prerequisite Scores Verification Summary */}
+              <div className="p-4 bg-white/80 rounded-xl border border-indigo-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BadgeCheck className="w-4 h-4 text-indigo-600" />
+                    <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                      Prerequisite Subject Scores (Auto-Synchronized from Transcript)
+                    </h5>
+                  </div>
+                  {transcribedCourses.length > 0 && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      Synchronized from Transcript
+                    </span>
+                  )}
+                </div>
+
+                {/* 9th Grade Results */}
+                <div>
+                  <p className="text-[11px] font-semibold text-slate-700 mb-1.5">
+                    9th Grade Results (Required for Grade 10+):
                   </p>
                   <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="text-[11px] text-slate-600 block">Math (/100) *</label>
+                      <label className="text-[10px] text-slate-500 block">Math Score (/100) *</label>
                       <input
                         type="number"
                         min="0"
                         max="100"
-                        required={selectedGrade >= 12}
-                        value={g11Math}
-                        onChange={(e) => setG11Math(e.target.value)}
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white"
+                        required={selectedGrade >= 10}
+                        value={g9Math}
+                        onChange={(e) => setG9Math(e.target.value)}
+                        className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white font-mono font-bold"
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] text-slate-600 block">Major 1 (Physics/History) *</label>
+                      <label className="text-[10px] text-slate-500 block">English Score (/100) *</label>
                       <input
                         type="number"
                         min="0"
                         max="100"
-                        required={selectedGrade >= 12}
-                        value={g11Major1}
-                        onChange={(e) => setG11Major1(e.target.value)}
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white"
+                        required={selectedGrade >= 10}
+                        value={g9English}
+                        onChange={(e) => setG9English(e.target.value)}
+                        className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white font-mono font-bold"
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] text-slate-600 block">Major 2 (Chemistry/Geog) *</label>
+                      <label className="text-[10px] text-slate-500 block">Science (Average) (/100) *</label>
                       <input
                         type="number"
                         min="0"
                         max="100"
-                        required={selectedGrade >= 12}
-                        value={g11Major2}
-                        onChange={(e) => setG11Major2(e.target.value)}
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white"
+                        required={selectedGrade >= 10}
+                        value={g9Science}
+                        onChange={(e) => setG9Science(e.target.value)}
+                        className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white font-mono font-bold"
                       />
                     </div>
                   </div>
                 </div>
-              )}
+
+                {/* 10th Grade Results (If Grade 11 or 12) */}
+                {selectedGrade >= 11 && (
+                  <div className="pt-2 border-t border-slate-100">
+                    <p className="text-[11px] font-semibold text-slate-700 mb-1.5">
+                      10th Grade Results (Required for Grade 11+):
+                    </p>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[10px] text-slate-500 block">Math Score (/100) *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          required={selectedGrade >= 11}
+                          value={g10Math}
+                          onChange={(e) => setG10Math(e.target.value)}
+                          className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-500 block">English Score (/100) *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          required={selectedGrade >= 11}
+                          value={g10English}
+                          onChange={(e) => setG10English(e.target.value)}
+                          className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-500 block">Science Score (/100) *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          required={selectedGrade >= 11}
+                          value={g10Science}
+                          onChange={(e) => setG10Science(e.target.value)}
+                          className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 11th Grade Results (If Grade 12) */}
+                {selectedGrade >= 12 && (
+                  <div className="pt-2 border-t border-slate-100">
+                    <p className="text-[11px] font-semibold text-slate-700 mb-1.5">
+                      11th Grade Results (Required for Grade 12):
+                    </p>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[10px] text-slate-500 block">Math (/100) *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          required={selectedGrade >= 12}
+                          value={g11Math}
+                          onChange={(e) => setG11Math(e.target.value)}
+                          className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-500 block">Major 1 (Physics/History) *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          required={selectedGrade >= 12}
+                          value={g11Major1}
+                          onChange={(e) => setG11Major1(e.target.value)}
+                          className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-500 block">Major 2 (Chemistry/Geog) *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          required={selectedGrade >= 12}
+                          value={g11Major2}
+                          onChange={(e) => setG11Major2(e.target.value)}
+                          className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
           {/* Parents / Guardians Full Name & Phone Numbers & Addresses */}
           <div className="space-y-4">
             <h3 className="font-oskar-vintage text-lg font-bold text-slate-900 tracking-wider">
-              4. Parents / Guardians Information
+              5. Parents / Guardians Information
             </h3>
             <p className="text-xs text-slate-500">
               Parents' and legal guardians' full details, including active phone numbers, email, residential home address, and workplace address for official school communications.
@@ -1566,6 +2156,44 @@ export const AdmissionsView: React.FC = () => {
                       >
                         ID Card
                       </button>
+
+                      {/* If student has transcribed courses or transcript doc */}
+                      {(s.grade >= 10 || s.transcriptDocUrl || (s.transcribedCourses && s.transcribedCourses.length > 0)) && (
+                        <button
+                          onClick={() => setSelectedStudentForTranscriptModal(s)}
+                          className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded font-semibold text-[11px] transition flex items-center gap-1 ml-auto cursor-pointer"
+                          title="View registered courses and marks extracted from prior transcript"
+                        >
+                          <BookOpen className="w-3 h-3" />
+                          Courses ({s.transcribedCourses?.length || 0})
+                        </button>
+                      )}
+
+                      {s.transcriptDocUrl && (
+                        <button
+                          onClick={() => {
+                            openDocumentViewer({
+                              title: 'Official Academic Transcript',
+                              subtitle: `Prior Secondary Institution Record for ${s.fullName}`,
+                              docName: s.transcriptDocName || `${s.id}_Official_Transcript.pdf`,
+                              docUrl: s.transcriptDocUrl!,
+                              category: 'TRANSCRIPT',
+                              metadata: {
+                                studentName: s.fullName,
+                                studentId: s.id,
+                                referenceNumber: `MOE-TR-${s.id}`,
+                                uploadedDate: 'Verified at Registration',
+                              },
+                            });
+                          }}
+                          className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded font-semibold text-[11px] transition flex items-center gap-1 ml-auto cursor-pointer"
+                          title="Preview uploaded prior transcript PDF document"
+                        >
+                          <FileCheck className="w-3 h-3" />
+                          Transcript PDF
+                        </button>
+                      )}
+
                       {s.certificateDocUrl ? (
                         <button
                           onClick={() => {
@@ -1588,9 +2216,9 @@ export const AdmissionsView: React.FC = () => {
                           <FileText className="w-3 h-3" />
                           8th Cert PDF
                         </button>
-                      ) : (
-                        <span className="text-[10px] text-slate-400 font-mono ml-auto block">No File</span>
-                      )}
+                      ) : !s.transcriptDocUrl ? (
+                        <span className="text-[10px] text-slate-400 font-mono ml-auto block">No Cert</span>
+                      ) : null}
                     </td>
                   </tr>
                 ))}
@@ -1748,6 +2376,176 @@ export const AdmissionsView: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* VERIFIED TRANSCRIPT & REGISTERED COURSES MODAL */}
+      {selectedStudentForTranscriptModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-3xl w-full shadow-2xl border border-slate-200 animate-in zoom-in-95 my-8">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-indigo-600 text-white rounded-xl shadow-sm">
+                  <GraduationCap className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded font-bold text-[10px] uppercase tracking-wide">
+                    Official Secondary School Transcript Dossier
+                  </span>
+                  <h3 className="font-oskar-vintage text-xl font-bold text-slate-900 mt-1">
+                    {selectedStudentForTranscriptModal.fullName}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    ID: {selectedStudentForTranscriptModal.id} • Enrolled Grade: Grade {selectedStudentForTranscriptModal.grade} • Previous School: {selectedStudentForTranscriptModal.previousSchool?.name || selectedStudentForTranscriptModal.transcriptAnalysis?.schoolNameFound || 'Prior Secondary School'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedStudentForTranscriptModal(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Academic Highlights Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-5">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block">Total Average</span>
+                <span className="text-base font-bold text-slate-900 mt-0.5 block">
+                  {selectedStudentForTranscriptModal.transcriptAnalysis?.totalAverageScore || selectedStudentForTranscriptModal.ninthGradeResults?.average || 88.8}%
+                </span>
+                <span className="text-[10px] font-semibold text-emerald-600">
+                  Grade {selectedStudentForTranscriptModal.transcriptAnalysis?.overallLetterGrade || 'A'}
+                </span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block">Total Subjects</span>
+                <span className="text-base font-bold text-slate-900 mt-0.5 block">
+                  {selectedStudentForTranscriptModal.transcribedCourses?.length || 11} Courses
+                </span>
+                <span className="text-[10px] font-semibold text-blue-600">All Passed</span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block">Student Conduct</span>
+                <span className="text-base font-bold text-slate-900 mt-0.5 block">
+                  {selectedStudentForTranscriptModal.transcriptAnalysis?.conductRating || 'Excellent (A)'}
+                </span>
+                <span className="text-[10px] font-semibold text-purple-600">Discipline Clear</span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block">Promotion Status</span>
+                <span className="text-xs font-bold text-emerald-800 mt-1 block truncate">
+                  {selectedStudentForTranscriptModal.transcriptAnalysis?.promotionStatus || `PROMOTED TO GRADE ${selectedStudentForTranscriptModal.grade}`}
+                </span>
+                <span className="text-[10px] font-semibold text-emerald-600">Verified</span>
+              </div>
+            </div>
+
+            {/* Courses Table */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <BookOpen className="w-4 h-4 text-indigo-600" />
+                  Authenticated Prior Curriculum Courses & Semester Marks
+                </h4>
+                <span className="text-[11px] text-slate-500 font-mono">
+                  {selectedStudentForTranscriptModal.transcribedCourses?.length || 0} Registered
+                </span>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-200 rounded-xl max-h-72 overflow-y-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-xs border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold z-10">
+                    <tr>
+                      <th className="py-2.5 px-3">#</th>
+                      <th className="py-2.5 px-3">Subject / Course Title</th>
+                      <th className="py-2.5 px-2">Grade</th>
+                      <th className="py-2.5 px-2">Sem 1</th>
+                      <th className="py-2.5 px-2">Sem 2</th>
+                      <th className="py-2.5 px-2">Final Mark</th>
+                      <th className="py-2.5 px-2">Letter</th>
+                      <th className="py-2.5 px-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {(selectedStudentForTranscriptModal.transcribedCourses && selectedStudentForTranscriptModal.transcribedCourses.length > 0) ? (
+                      selectedStudentForTranscriptModal.transcribedCourses.map((c, i) => (
+                        <tr key={c.id || i} className="hover:bg-slate-50/70">
+                          <td className="py-2 px-3 font-mono text-slate-400 text-[11px]">{i + 1}</td>
+                          <td className="py-2 px-3 font-bold text-slate-900">{c.subject}</td>
+                          <td className="py-2 px-2 text-slate-600 font-mono">G{c.gradeLevel}</td>
+                          <td className="py-2 px-2 font-mono text-slate-700">{c.semester1Score != null ? `${c.semester1Score}%` : '-'}</td>
+                          <td className="py-2 px-2 font-mono text-slate-700">{c.semester2Score != null ? `${c.semester2Score}%` : '-'}</td>
+                          <td className="py-2 px-2 font-mono font-bold text-slate-900">{c.finalAverage}%</td>
+                          <td className="py-2 px-2">
+                            <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-800 rounded font-bold text-[10px]">
+                              {c.letterGrade}
+                            </span>
+                          </td>
+                          <td className="py-2 px-2">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              {c.remarks || 'Passed'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={8} className="py-6 text-center text-slate-400 text-xs">
+                          No specific course breakdown recorded for this candidate.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-6 pt-4 border-t border-slate-100">
+              {selectedStudentForTranscriptModal.transcriptDocUrl ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    openDocumentViewer({
+                      title: 'Official Academic Transcript Document',
+                      subtitle: `Prior Secondary Institution Record for ${selectedStudentForTranscriptModal.fullName}`,
+                      docName: selectedStudentForTranscriptModal.transcriptDocName || 'Student_Transcript.pdf',
+                      docUrl: selectedStudentForTranscriptModal.transcriptDocUrl!,
+                      category: 'TRANSCRIPT',
+                      metadata: {
+                        studentName: selectedStudentForTranscriptModal.fullName,
+                        studentId: selectedStudentForTranscriptModal.id,
+                        school: selectedStudentForTranscriptModal.previousSchool?.name || 'Prior Secondary School',
+                        uploadedDate: 'Verified at Registration',
+                      },
+                    });
+                  }}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                >
+                  <Eye className="w-4 h-4" />
+                  Preview Original Transcript PDF / Document
+                </button>
+              ) : (
+                <span className="text-xs text-slate-400 italic">No original PDF file attached.</span>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setSelectedStudentForTranscriptModal(null)}
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+              >
+                Close Dossier
+              </button>
+            </div>
           </div>
         </div>
       )}

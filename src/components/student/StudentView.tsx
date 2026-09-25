@@ -464,6 +464,92 @@ export const StudentView: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Prior Institution Transferred Transcript Courses */}
+          {student.transcribedCourses && student.transcribedCourses.length > 0 && (
+            <div className="mt-6 pt-5 border-t border-slate-200 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-indigo-100 text-indigo-700 rounded-lg">
+                    <FileCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-oskar-vintage text-sm font-bold text-slate-900">
+                      Verified Prior Institution Transcript Credits ({student.transcribedCourses.length} Courses)
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Authenticated from official secondary school transcript ({student.previousSchool?.name || student.transcriptAnalysis?.schoolNameFound || 'Prior Institution'})
+                    </p>
+                  </div>
+                </div>
+
+                {student.transcriptDocUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openDocumentViewer({
+                        title: 'Official Academic Transcript Document',
+                        subtitle: `Prior Secondary Institution Record for ${student.fullName}`,
+                        docName: student.transcriptDocName || `${student.id}_Official_Transcript.pdf`,
+                        docUrl: student.transcriptDocUrl!,
+                        category: 'TRANSCRIPT',
+                        metadata: {
+                          studentName: student.fullName,
+                          studentId: student.id,
+                          school: student.previousSchool?.name || 'Prior Secondary School',
+                          uploadedDate: 'Verified at Registration',
+                        },
+                      });
+                    }}
+                    className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition self-start sm:self-auto cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    Preview Original Transcript PDF
+                  </button>
+                )}
+              </div>
+
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold border-b border-slate-200">
+                      <th className="py-2.5 px-3">Subject / Course</th>
+                      <th className="py-2.5 px-2">Grade Level</th>
+                      <th className="py-2.5 px-2">Sem 1</th>
+                      <th className="py-2.5 px-2">Sem 2</th>
+                      <th className="py-2.5 px-2">Final Mark</th>
+                      <th className="py-2.5 px-2">Letter</th>
+                      <th className="py-2.5 px-2">Credits</th>
+                      <th className="py-2.5 px-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {student.transcribedCourses.map((c, i) => (
+                      <tr key={c.id || i} className="hover:bg-slate-50/70">
+                        <td className="py-2.5 px-3 font-bold text-slate-900">{c.subject}</td>
+                        <td className="py-2.5 px-2 text-slate-500 font-mono">Grade {c.gradeLevel}</td>
+                        <td className="py-2.5 px-2 font-mono text-slate-700">{c.semester1Score != null ? `${c.semester1Score}%` : '-'}</td>
+                        <td className="py-2.5 px-2 font-mono text-slate-700">{c.semester2Score != null ? `${c.semester2Score}%` : '-'}</td>
+                        <td className="py-2.5 px-2 font-mono font-bold text-slate-900">{c.finalAverage}%</td>
+                        <td className="py-2.5 px-2">
+                          <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-800 rounded font-bold text-[10px]">
+                            {c.letterGrade}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-2 text-slate-500 font-mono">{c.creditsOrPeriods || 3}</td>
+                        <td className="py-2.5 px-2">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            {c.remarks || 'Passed'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
