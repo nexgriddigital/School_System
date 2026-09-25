@@ -25,9 +25,12 @@ import {
   Terminal, 
   RotateCcw,
   Sparkles,
-  Info
+  Info,
+  Award,
+  FileCheck
 } from 'lucide-react';
 import { AuditLogEntry, AuditActionCategory, AuditSeverity } from '../../types';
+import { RegulatoryAuditSignModal } from './RegulatoryAuditSignModal';
 
 export const AuditTrailTab: React.FC = () => {
   const { 
@@ -44,6 +47,7 @@ export const AuditTrailTab: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<string>('ALL');
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [copiedHashId, setCopiedHashId] = useState<string | null>(null);
+  const [isRegulatoryModalOpen, setIsRegulatoryModalOpen] = useState(false);
 
   // Quick stats calculation
   const stats = useMemo(() => {
@@ -218,6 +222,15 @@ export const AuditTrailTab: React.FC = () => {
           {/* Export & Action Buttons */}
           <div className="flex flex-wrap items-center gap-2.5">
             <button
+              onClick={() => setIsRegulatoryModalOpen(true)}
+              className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-md shadow-emerald-900/40 border border-emerald-400/40 cursor-pointer active:scale-95"
+              title="Export the tamper-evident audit trail as a cryptographically signed CSV file for external regulatory compliance"
+            >
+              <Award className="w-4 h-4 text-emerald-200" />
+              <span>Export Signed Regulatory CSV</span>
+            </button>
+
+            <button
               onClick={exportAuditLogsJson}
               className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-slate-200 hover:text-white rounded-xl text-xs font-semibold flex items-center gap-2 transition shadow-sm"
               title="Download entire audit ledger as standard JSON"
@@ -299,6 +312,39 @@ export const AuditTrailTab: React.FC = () => {
               <span className="text-[10px] text-slate-500">snapshots & reports</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Regulatory Compliance & External Attestation Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-900/60 rounded-2xl p-4 sm:p-5 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0 mt-0.5 shadow-inner">
+            <Award className="w-5 h-5" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-bold text-sm text-white flex items-center gap-2 font-oskar">
+                External Regulatory Compliance & Statutory Attestation
+              </h3>
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                RFC 4180 • SHA-256 HMAC Sealed
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+              Export the entire chronological audit ledger as an official, cryptographically signed CSV file with sequential hash chaining, Merkle attestation seal, and formal Principal compliance certificate for external regulatory bodies, ISO/IEC 27001, FERPA 34 CFR § 99.32, or Ministry of Education inspections.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setIsRegulatoryModalOpen(true)}
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-md shadow-emerald-600/30 cursor-pointer active:scale-95"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+            <span>Sign & Export Regulatory CSV</span>
+          </button>
         </div>
       </div>
 
@@ -576,6 +622,12 @@ export const AuditTrailTab: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Official Regulatory Signed Audit CSV Export Modal */}
+      <RegulatoryAuditSignModal
+        isOpen={isRegulatoryModalOpen}
+        onClose={() => setIsRegulatoryModalOpen(false)}
+      />
     </div>
   );
 };

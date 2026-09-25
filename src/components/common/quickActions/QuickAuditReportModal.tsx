@@ -10,8 +10,10 @@ import {
   FileCode, 
   ExternalLink,
   Filter,
-  CheckCircle2
+  CheckCircle2,
+  Award
 } from 'lucide-react';
+import { RegulatoryAuditSignModal } from '../../principal/RegulatoryAuditSignModal';
 
 interface QuickAuditReportModalProps {
   isOpen: boolean;
@@ -29,6 +31,7 @@ export const QuickAuditReportModal: React.FC<QuickAuditReportModalProps> = ({ is
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSeverity, setSelectedSeverity] = useState<string>('ALL');
+  const [isRegulatorySignOpen, setIsRegulatorySignOpen] = useState(false);
 
   const filteredLogs = useMemo(() => {
     return (auditLogs || []).filter(log => {
@@ -97,12 +100,22 @@ export const QuickAuditReportModal: React.FC<QuickAuditReportModalProps> = ({ is
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
+              onClick={() => setIsRegulatorySignOpen(true)}
+              className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-98"
+              title="Export the tamper-evident audit trail as a signed CSV file for external regulatory compliance"
+            >
+              <Award className="w-3.5 h-3.5 text-emerald-200" />
+              <span>Signed Regulatory CSV</span>
+            </button>
+
+            <button
+              type="button"
               onClick={exportAuditLogsCsv}
-              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-98"
+              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-98"
               title="Download official CSV with audit checksums"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Export CSV Report</span>
+              <span>Export CSV</span>
             </button>
 
             <button
@@ -112,7 +125,7 @@ export const QuickAuditReportModal: React.FC<QuickAuditReportModalProps> = ({ is
               title="Download raw JSON ledger for external regulatory audit"
             >
               <FileCode className="w-3.5 h-3.5" />
-              <span>Export JSON Ledger</span>
+              <span>Export JSON</span>
             </button>
           </div>
         </div>
@@ -223,6 +236,12 @@ export const QuickAuditReportModal: React.FC<QuickAuditReportModalProps> = ({ is
           </button>
         </div>
       </div>
+
+      {/* Regulatory Audit Sign Modal */}
+      <RegulatoryAuditSignModal
+        isOpen={isRegulatorySignOpen}
+        onClose={() => setIsRegulatorySignOpen(false)}
+      />
     </div>
   );
 };

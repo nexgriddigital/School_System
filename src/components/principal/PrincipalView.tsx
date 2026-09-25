@@ -30,7 +30,8 @@ import {
   XCircle,
   PlusCircle,
   Search,
-  BookOpen
+  BookOpen,
+  Award
 } from 'lucide-react';
 import { UserProvisioningTab } from './UserProvisioningTab';
 import { MasterResetModal } from './MasterResetModal';
@@ -39,6 +40,7 @@ import { DataGovernanceTab } from './DataGovernanceTab';
 import { PrincipalHealthDashboard } from './PrincipalHealthDashboard';
 import { PrincipalPrintReportModal } from './PrincipalPrintReportModal';
 import { AuditTrailTab } from './AuditTrailTab';
+import { RegulatoryAuditSignModal } from './RegulatoryAuditSignModal';
 import { TranscriptAuthorizationsTab } from './TranscriptAuthorizationsTab';
 import { InternalDocumentsTab } from './InternalDocumentsTab';
 import { Activity } from 'lucide-react';
@@ -77,6 +79,7 @@ export const PrincipalView: React.FC = () => {
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isChangeMasterCodeModalOpen, setIsChangeMasterCodeModalOpen] = useState(false);
   const [isPrintReportModalOpen, setIsPrintReportModalOpen] = useState(false);
+  const [isRegulatorySignModalOpen, setIsRegulatorySignModalOpen] = useState(false);
   const [resetSuccessBanner, setResetSuccessBanner] = useState(false);
 
   // Authorizations Tab Sub-section State
@@ -256,6 +259,16 @@ export const PrincipalView: React.FC = () => {
             >
               <Settings className="w-3.5 h-3.5" />
               School Name & Branding
+            </button>
+
+            {/* Regulatory Compliance Signed CSV Export */}
+            <button
+              onClick={() => setIsRegulatorySignModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white transition shadow-sm cursor-pointer active:scale-95"
+              title="Export the tamper-evident audit trail as a signed CSV file for external regulatory compliance"
+            >
+              <Award className="w-3.5 h-3.5 text-emerald-200" />
+              <span>Regulatory Signed CSV</span>
             </button>
 
             {/* Print Official Institutional Report */}
@@ -1027,6 +1040,12 @@ export const PrincipalView: React.FC = () => {
       <PrincipalPrintReportModal
         isOpen={isPrintReportModalOpen}
         onClose={() => setIsPrintReportModalOpen(false)}
+      />
+
+      {/* Official Regulatory Signed Audit CSV Export Modal */}
+      <RegulatoryAuditSignModal
+        isOpen={isRegulatorySignModalOpen}
+        onClose={() => setIsRegulatorySignModalOpen(false)}
       />
     </div>
   );

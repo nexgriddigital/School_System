@@ -42,6 +42,10 @@ import {
   INITIAL_USERS
 } from '../mockData';
 import { INITIAL_AUDIT_LOGS, generateAuditHash } from '../data/initialAuditLogs';
+import { 
+  generateSignedRegulatoryAuditCsv, 
+  downloadSignedAuditCsv 
+} from '../utils/regulatoryAuditSigner';
 import { sendTemporaryPasswordEmailViaGmail, isGmailAuthorized } from '../services/gmailAuthService';
 import { sendFreeTemporaryPasswordEmail } from '../services/freeEmailService';
 import { 
@@ -117,6 +121,14 @@ interface SchoolContextType {
   logAuditAction: (entry: Omit<AuditLogEntry, 'id' | 'timestamp' | 'checksum'>) => void;
   exportAuditLogsJson: () => void;
   exportAuditLogsCsv: () => void;
+  exportSignedRegulatoryAuditCsv: (options?: {
+    standard?: string;
+    docketNumber?: string;
+    destinationAgency?: string;
+    signatoryName?: string;
+    signatoryTitle?: string;
+    customRemarks?: string;
+  }) => void;
 
   // Authentication & Session State
   isAuthenticated: boolean;
@@ -849,6 +861,57 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   }, [auditLogs, schoolName]);
+
+  const exportSignedRegulatoryAuditCsv = useCallback((options?: {
+    standard?: string;
+    docketNumber?: string;
+    destinationAgency?: string;
+    signatoryName?: string;
+    signatoryTitle?: string;
+    customRemarks?: string;
+  }) => {
+    const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    const docket = options?.docketNumber || `REG-AUD-${today}-${rand}`;
+    const sigName = options?.signatoryName || currentUser?.name || 'Dr. O. Woldeyesus';
+    const sigTitle = options?.signatoryTitle || currentUser?.title || 'Executive Principal & Compliance Officer';
+    const agency = options?.destinationAgency || 'National Accreditation Board & Regulatory Inspectorate';
+    const standard = options?.standard || 'ISO/IEC 27001:2022 (§ A.12.4)';
+
+    const result = generateSignedRegulatoryAuditCsv({
+      logs: auditLogs,
+      schoolName,
+      signatoryName: sigName,
+      signatoryTitle: sigTitle,
+      signatoryRole: 'PRINCIPAL',
+      signatoryEmail: currentUser?.email || 'principal@oskaracademy.edu',
+      regulatoryStandard: standard,
+      docketNumber: docket,
+      destinationAgency: agency,
+      customRemarks: options?.customRemarks || 'Official Certified Copy for External Statutory Regulatory Compliance Inspection',
+    });
+
+    downloadSignedAuditCsv(result);
+
+    logAuditAction({
+      action: 'REGULATORY_AUDIT_EXPORTED',
+      actionLabel: 'Signed Regulatory Audit Trail Exported',
+      category: 'DATA_GOVERNANCE',
+      severity: 'WARNING',
+      performedBy: {
+        name: sigName,
+        role: 'PRINCIPAL',
+        email: currentUser?.email,
+      },
+      targetEntity: {
+        type: 'SECURITY',
+        id: docket,
+        label: standard,
+      },
+      details: `Cryptographically signed audit transcript exported under Docket ${docket} for ${agency}. Verification Token: ${result.verificationToken}. Total records: ${auditLogs.length}.`,
+      status: 'SUCCESS',
+    });
+  }, [auditLogs, schoolName, currentUser, logAuditAction]);
 
   // Active Personas with resilient fallbacks (nullable when no records exist)
   const currentStudent: Student | null = students.find(s => s.id === activeStudentId) || students[0] || null;
@@ -4036,6 +4099,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       logAuditAction,
       exportAuditLogsJson,
       exportAuditLogsCsv,
+      exportSignedRegulatoryAuditCsv,
       isGlobalLoading,
       globalLoadingMessage,
       startGlobalLoading,
