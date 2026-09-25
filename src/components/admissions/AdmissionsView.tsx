@@ -1334,10 +1334,21 @@ export const AdmissionsView: React.FC = () => {
                 <span className="text-slate-500">Fee Account Number:</span>
                 <span className="font-mono font-bold text-slate-800">{successModalData.accountNumber}</span>
               </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Initial Temporary Password:</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono font-bold bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded">{successModalData.tempPass}</span>
+                  <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1 py-0.5 rounded uppercase">Must Be Changed</span>
+                </div>
+              </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Scholar Profile:</span>
                 <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">Active & Enrolled</span>
               </div>
+            </div>
+
+            <div className="mb-4 p-2.5 bg-amber-50 rounded-lg border border-amber-200 text-[11px] text-amber-900">
+              <strong>Mandatory Security Action:</strong> When logging in with this temporary password, the system will strictly require the student or parent to request and set a new personal permanent password (Must be changed).
             </div>
 
             <div className="space-y-2">

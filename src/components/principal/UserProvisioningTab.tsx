@@ -1067,12 +1067,12 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
             <KeyRound className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div className="text-xs space-y-1">
               <span className="font-bold text-amber-950">
-                Automatic Temporary Password & Mandatory Change Enforcement
+                Automatic Temporary Password & Mandatory Change Enforcement (Must be changed)
               </span>
               <p className="text-amber-800 leading-relaxed">
                 When you click provision, the system generates an automatic cryptographic temporary password (e.g. <code className="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold">Osk#XXXX!XXXX</code>), 
                 emails it to the user's address via the official Google Workspace Gmail integration, and flags their profile with <span className="font-bold">mustChangePasswordOnFirstLogin: true</span>. 
-                They will be required to choose their permanent personal password upon their first login.
+                When sending the email with this login password, it is explicitly delivered as a temporary credential, and the user is strictly required to request and set a new password at login (Must be changed).
               </p>
             </div>
           </div>
@@ -1141,10 +1141,10 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
               <div className="flex items-start gap-2 max-w-xl">
                 <Lock className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
                 <div className="text-[11px] text-emerald-950 space-y-0.5">
-                  <p className="font-bold">Confidential Password Delivery</p>
+                  <p className="font-bold">Confidential Temporary Password Delivery (Must Be Changed at Login)</p>
                   <p className="text-emerald-800 leading-normal">
-                    The cryptographic temporary password has been dispatched directly to <strong>{provisionSuccessResult.user.email}</strong>. 
-                    In adherence with strict security and privacy standards, temporary passwords are not shown to administrators.
+                    The cryptographic temporary login password has been dispatched directly to <strong>{provisionSuccessResult.user.email}</strong>. 
+                    Upon login, the system will strictly require the recipient to choose a new confidential personal password (Must be changed). In adherence with security standards, temporary passwords are not revealed to administrators.
                   </p>
                 </div>
               </div>

@@ -11,8 +11,11 @@ import {
   ExternalLink,
   ShieldCheck,
   RotateCcw,
-  Sparkles
+  Sparkles,
+  ShieldAlert,
+  Mail
 } from 'lucide-react';
+import { generateCredentialsMailtoUrl } from '../../../services/gmailAuthService';
 
 interface QuickRegisterModalProps {
   isOpen: boolean;
@@ -24,7 +27,8 @@ export const QuickRegisterModal: React.FC<QuickRegisterModalProps> = ({ isOpen, 
     registerStudent, 
     setSelectedStudentForIdCard, 
     setCurrentRole,
-    students 
+    students,
+    schoolName 
   } = useSchool();
 
   const [selectedGrade, setSelectedGrade] = useState<AcademicGrade>(9);
@@ -215,14 +219,45 @@ export const QuickRegisterModal: React.FC<QuickRegisterModalProps> = ({ isOpen, 
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 dark:text-slate-400">Initial Temporary Password:</span>
-                  <span className="font-mono bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 px-2 py-0.5 rounded font-bold">
-                    {registeredStudent.temporaryPassword || 'Temp#123456'}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 px-2 py-0.5 rounded font-bold">
+                      {registeredStudent.temporaryPassword || 'Temp#123456'}
+                    </span>
+                    <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200">
+                      Must Be Changed
+                    </span>
+                  </div>
                 </div>
+              </div>
+
+              {/* Mandatory Password Change Security Notice */}
+              <div className="p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+                <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <p>
+                  <strong>Mandatory Security Notice:</strong> This is a temporary login password. The student/parent is strictly required to request and create a new personal permanent password upon first login (Must be changed).
+                </p>
               </div>
 
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                {registeredStudent.parents?.email && (
+                  <a
+                    href={generateCredentialsMailtoUrl({
+                      recipientEmail: registeredStudent.parents.email,
+                      recipientName: registeredStudent.parents.fatherName || registeredStudent.parents.motherName || registeredStudent.fullName,
+                      roleName: 'STUDENT',
+                      positionTitle: `Grade ${registeredStudent.grade} Scholar`,
+                      tempPassword: registeredStudent.temporaryPassword || 'Temp#123456',
+                      schoolName,
+                    })}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+                    title="Send temporary login credentials email to parent"
+                  >
+                    <Mail className="w-4 h-4" />
+                    <span>Email Temporary Credentials</span>
+                  </a>
+                )}
+
                 <button
                   type="button"
                   onClick={() => {

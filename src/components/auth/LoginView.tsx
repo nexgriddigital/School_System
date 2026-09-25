@@ -50,6 +50,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
   const { 
     schoolName, 
     login, 
+    checkCredentialsAndTemporaryStatus,
     students, 
     teachers, 
     institutionalUsers, 
@@ -350,74 +351,44 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
       return;
     }
 
-    // Pre-validate credentials for administrative leadership before dispatching live Gmail OTP
-    if (isSelectedRoleAdmin && provisionedAdminUser) {
-      const cleanId = identifier.trim().toLowerCase();
-      if (provisionedAdminUser.email.toLowerCase() !== cleanId && provisionedAdminUser.id.toLowerCase() !== cleanId) {
-        setErrorMsg(`No authorized account found for this department matching "${identifier.trim()}". Only accounts created by the Principal can log in.`);
-        triggerShake();
-        return;
-      }
-      const isPasswordValid = password === provisionedAdminUser.password || (Boolean(provisionedAdminUser.temporaryPassword) && password === provisionedAdminUser.temporaryPassword);
-      if (!isPasswordValid) {
-        setErrorMsg('Incorrect password. Please enter the password or temporary credential issued by the Principal.');
-        triggerShake();
-        return;
-      }
+    // Pre-validate credentials and temporary password status across all roles
+    const credentialStatus = checkCredentialsAndTemporaryStatus(selectedRole, identifier.trim(), password);
+    if (!credentialStatus.isValid) {
+      setErrorMsg(credentialStatus.error || 'Invalid credentials. Please verify your identifier and password.');
+      triggerShake();
+      return;
     }
 
-    if (selectedRole === 'PRINCIPAL' && existingPrincipal) {
-      const cleanId = identifier.trim().toLowerCase();
-      if (existingPrincipal.email.toLowerCase() !== cleanId && existingPrincipal.id.toLowerCase() !== cleanId) {
-        setErrorMsg('Invalid Principal email or account ID.');
-        triggerShake();
-        return;
-      }
-      if (password !== existingPrincipal.password) {
-        setErrorMsg('Incorrect Principal password. Please verify your credentials.');
-        triggerShake();
-        return;
-      }
-    }
-
-    // If Gmail sender is connected, dispatch real OTP code via Gmail
+    // If Gmail sender is connected, dispatch real OTP code via Gmail first
     if (isGoogleConnected && googleUser) {
       generateOtp();
       setShowGmailConfirmModal(true);
       return;
     }
 
-    // Direct password authentication
+    // If account was provisioned with a temporary password or mandatory first-time update is flagged:
+    // Prompt the user immediately for a new password without logging into dashboard
+    if (credentialStatus.mustChangePassword && credentialStatus.user) {
+      setFirstLoginTargetUser({
+        id: credentialStatus.user.id,
+        name: credentialStatus.user.name,
+        email: credentialStatus.user.email,
+        role: credentialStatus.user.role,
+        position: credentialStatus.user.position,
+        tempPasswordProvided: password,
+      });
+      setIsFirstLoginPasswordStep(true);
+      setIsLoading(false);
+      return;
+    }
+
+    // Direct password authentication for permanent passwords
     setIsLoading(true);
     try {
       const loginResult = login(selectedRole, identifier.trim(), password);
       if (!loginResult.success) {
         setErrorMsg(loginResult.error || 'Invalid identifier or password. Please verify your credentials.');
         triggerShake();
-        setIsLoading(false);
-        return;
-      }
-
-      // Check mandatory first-time password update
-      const matchInst = getUserByEmailOrId(identifier);
-      const matchStudent = students.find(s => 
-        s.id.toLowerCase() === identifier.trim().toLowerCase() || 
-        s.accountNumber.toLowerCase() === identifier.trim().toLowerCase() ||
-        (s.parents?.email && s.parents.email.toLowerCase() === identifier.trim().toLowerCase())
-      );
-
-      const mustChange = Boolean(matchInst?.mustChangePasswordOnFirstLogin) || Boolean(matchStudent?.mustChangePasswordOnLogin);
-
-      if (mustChange) {
-        setFirstLoginTargetUser({
-          id: matchInst?.id || matchStudent?.id || identifier,
-          name: matchInst?.name || matchStudent?.fullName || 'Institutional User',
-          email: matchInst?.email || (matchStudent?.parents?.email || identifier),
-          role: matchInst?.role || selectedRole,
-          position: matchInst?.position || currentRoleMeta.label,
-          tempPasswordProvided: password,
-        });
-        setIsFirstLoginPasswordStep(true);
         setIsLoading(false);
         return;
       }
@@ -555,25 +526,18 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     }
 
     // Check if institutional user or student requires mandatory password change on first login
-    const matchInst = getUserByEmailOrId(identifier);
-    const matchStudent = students.find(s => 
-      s.id.toLowerCase() === identifier.trim().toLowerCase() || 
-      s.accountNumber.toLowerCase() === identifier.trim().toLowerCase() ||
-      (s.parents?.email && s.parents.email.toLowerCase() === identifier.trim().toLowerCase())
-    );
+    const credentialStatus = checkCredentialsAndTemporaryStatus(selectedRole, identifier.trim(), password);
 
-    const mustChange = Boolean(matchInst?.mustChangePasswordOnFirstLogin) || Boolean(matchStudent?.mustChangePasswordOnLogin);
-
-    if (mustChange) {
+    if (credentialStatus.mustChangePassword && credentialStatus.user) {
       setTimeout(() => {
         setIsSuccess(false);
         setIsOtpStep(false);
         setFirstLoginTargetUser({
-          id: matchInst?.id || matchStudent?.id || identifier,
-          name: matchInst?.name || matchStudent?.fullName || 'Institutional User',
-          email: matchInst?.email || (matchStudent?.parents?.email || identifier),
-          role: matchInst?.role || selectedRole,
-          position: matchInst?.position || currentRoleMeta.label,
+          id: credentialStatus.user!.id,
+          name: credentialStatus.user!.name,
+          email: credentialStatus.user!.email,
+          role: credentialStatus.user!.role,
+          position: credentialStatus.user!.position,
           tempPasswordProvided: password,
         });
         setIsFirstLoginPasswordStep(true);
@@ -582,7 +546,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
     }
 
     setTimeout(() => {
-      login(selectedRole, identifier, password);
+      login(selectedRole, identifier, password, undefined, true);
     }, 700);
   };
 
@@ -618,7 +582,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
             firstLoginTargetUser.role,
             firstLoginTargetUser.email,
             newPermanentPassword,
-            firstLoginTargetUser.name
+            firstLoginTargetUser.name,
+            true // bypass check because permanent password is now set
           );
         }, 700);
       }
@@ -827,19 +792,22 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                   transition={{ duration: 0.3 }}
                   className="space-y-4"
                 >
-                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-3">
+                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex items-start gap-3 shadow-xs">
                     <KeyRound className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                    <div className="space-y-1 text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-amber-950 text-sm">Mandatory Password Setup</span>
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-amber-950 text-sm">Request New Password at Login</span>
+                        <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200 font-mono text-[10px] font-extrabold uppercase">
+                          Must Be Changed
+                        </span>
                         <span className="px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-950 font-mono text-[10px] font-bold">
-                          First Login
+                          Temporary Credential Used
                         </span>
                       </div>
-                      <p className="text-amber-800 leading-relaxed">
+                      <p className="text-amber-900 leading-relaxed">
                         Welcome, <strong>{firstLoginTargetUser.name}</strong> ({firstLoginTargetUser.position}). 
-                        Your account was provisioned with an automatic temporary password by the Office of the Principal. 
-                        Please set your permanent password to complete authentication and access your dashboard.
+                        Your account was signed into with an initial <strong>temporary login password</strong>. 
+                        In adherence with institutional security compliance, <strong>you must change this temporary password now</strong> before access to your portal workspace is unlocked.
                       </p>
                     </div>
                   </div>
@@ -873,7 +841,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                           value={newPermanentPassword}
                           onChange={(e) => setNewPermanentPassword(e.target.value)}
                           placeholder="Enter your personal permanent password (min 6 chars)"
-                          className="w-full pl-9 pr-10 py-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full pl-9 pr-10 py-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                         />
                         <button
                           type="button"
@@ -898,32 +866,65 @@ export const LoginView: React.FC<LoginViewProps> = ({ onOpenTerms, onOpenManual 
                           value={confirmPermanentPassword}
                           onChange={(e) => setConfirmPermanentPassword(e.target.value)}
                           placeholder="Re-type your personal permanent password"
-                          className="w-full pl-9 pr-10 py-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full pl-9 pr-10 py-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                         />
                       </div>
                     </div>
 
-                    <button
-                      type="submit"
-                      disabled={isSavingPermanentPassword}
-                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-                    >
-                      {isSavingPermanentPassword ? (
-                        <>
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
-                            className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full"
-                          />
-                          <span>Committing Permanent Password & Entering Portal...</span>
-                        </>
-                      ) : (
-                        <>
-                          <ShieldCheck className="w-4 h-4" />
-                          <span>Save Permanent Password & Enter Portal</span>
-                        </>
-                      )}
-                    </button>
+                    {/* Password Policy Criteria Checklist */}
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-600 space-y-1">
+                      <p className="font-semibold text-slate-800">Permanent Password Policy Requirements:</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pt-0.5">
+                        <span className={`flex items-center gap-1.5 ${newPermanentPassword.length >= 6 ? 'text-emerald-700 font-bold' : 'text-slate-500'}`}>
+                          <Check className="w-3.5 h-3.5" /> Minimum 6 characters
+                        </span>
+                        <span className={`flex items-center gap-1.5 ${newPermanentPassword && firstLoginTargetUser.tempPasswordProvided && newPermanentPassword !== firstLoginTargetUser.tempPasswordProvided ? 'text-emerald-700 font-bold' : 'text-slate-500'}`}>
+                          <Check className="w-3.5 h-3.5" /> Unique from temporary password
+                        </span>
+                        <span className={`flex items-center gap-1.5 ${confirmPermanentPassword && newPermanentPassword === confirmPermanentPassword ? 'text-emerald-700 font-bold' : 'text-slate-500'}`}>
+                          <Check className="w-3.5 h-3.5" /> Both password entries match
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsFirstLoginPasswordStep(false);
+                          setFirstLoginTargetUser(null);
+                          setNewPermanentPassword('');
+                          setConfirmPermanentPassword('');
+                          setPassword('');
+                          setErrorMsg(null);
+                        }}
+                        className="sm:w-1/3 py-2.5 px-3 border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer text-center"
+                      >
+                        Cancel & Return
+                      </button>
+
+                      <button
+                        type="submit"
+                        disabled={isSavingPermanentPassword}
+                        className="sm:w-2/3 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                      >
+                        {isSavingPermanentPassword ? (
+                          <>
+                            <motion.div
+                              animate={{ rotate: 360 }}
+                              transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                              className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full"
+                            />
+                            <span>Committing Permanent Password...</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="w-4 h-4" />
+                            <span>Save Permanent Password & Enter Portal</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </form>
                 </motion.div>
               ) : isOtpStep ? (

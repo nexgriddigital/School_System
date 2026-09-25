@@ -99,6 +99,7 @@ interface SchoolContextType {
     extraCredentials?: any;
   }) => Promise<{ success: boolean; tempPassword: string; user: InstitutionalUser; error?: string }>;
   changeUserPassword: (userIdOrEmail: string, newPass: string) => { success: boolean; error?: string };
+  resetUserPasswordToTemporary: (userIdOrEmail: string) => Promise<{ success: boolean; tempPassword?: string; error?: string }>;
   getUserByEmailOrId: (identifier: string) => InstitutionalUser | undefined;
   deleteInstitutionalUser: (userId: string) => { success: boolean; isPrincipalDeleted?: boolean; error?: string };
   deleteUsersByCategory: (category: 'LEADERSHIP' | 'FACULTY' | 'STUDENTS' | 'PARENTS') => { success: boolean; count: number; error?: string };
@@ -120,7 +121,21 @@ interface SchoolContextType {
   // Authentication & Session State
   isAuthenticated: boolean;
   currentUser: { id: string; name: string; role: UserRole; email?: string; title?: string } | null;
-  login: (role: UserRole, identifier?: string, password?: string, customName?: string) => { success: boolean; error?: string };
+  login: (role: UserRole, identifier?: string, password?: string, customName?: string, bypassMustChangeCheck?: boolean) => { success: boolean; mustChangePassword?: boolean; error?: string };
+  checkCredentialsAndTemporaryStatus: (role: UserRole, identifier: string, password: string) => {
+    isValid: boolean;
+    mustChangePassword: boolean;
+    user?: {
+      id: string;
+      name: string;
+      email: string;
+      role: UserRole;
+      position: string;
+      isTemporaryPassword?: boolean;
+      temporaryPassword?: string;
+    };
+    error?: string;
+  };
   logout: () => void;
 
   // Session Security & Inactivity Timeout
@@ -956,11 +971,17 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Also update student if applicable
     setStudents(prev => prev.map(s => {
-      if (s.id.toLowerCase() === clean || s.accountNumber.toLowerCase() === clean) {
+      if (
+        s.id.toLowerCase() === clean || 
+        s.accountNumber.toLowerCase() === clean ||
+        (s.parents?.email && s.parents.email.toLowerCase() === clean)
+      ) {
         return {
           ...s,
           password: newPass,
+          portalPassword: newPass,
           temporaryPassword: undefined,
+          isTemporaryPassword: false,
           mustChangePasswordOnLogin: false,
         };
       }
@@ -969,6 +990,76 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     return { success: true };
   }, []);
+
+  const resetUserPasswordToTemporary = async (userIdOrEmail: string): Promise<{ success: boolean; tempPassword?: string; error?: string }> => {
+    if (!userIdOrEmail) return { success: false, error: 'User identifier required' };
+    const clean = userIdOrEmail.trim().toLowerCase();
+    const user = institutionalUsers.find(u => u.email.toLowerCase() === clean || u.id.toLowerCase() === clean);
+    if (!user) return { success: false, error: 'Institutional user account not found' };
+
+    const numPart = Math.floor(1000 + Math.random() * 9000);
+    const charPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const newTemp = `Osk#${numPart}!${charPart}`;
+
+    setInstitutionalUsers(prev => prev.map(u => {
+      if (u.id === user.id) {
+        return {
+          ...u,
+          password: newTemp,
+          temporaryPassword: newTemp,
+          isTemporaryPassword: true,
+          mustChangePasswordOnFirstLogin: true,
+        };
+      }
+      return u;
+    }));
+
+    try {
+      await sendFreeTemporaryPasswordEmail({
+        recipientEmail: user.email.trim(),
+        recipientName: user.name.trim(),
+        roleName: user.role,
+        positionTitle: user.position.trim(),
+        tempPassword: newTemp,
+        schoolName,
+        senderName: currentUser?.name || 'Office of the Principal',
+      });
+
+      if (isGmailAuthorized()) {
+        await sendTemporaryPasswordEmailViaGmail({
+          recipientEmail: user.email.trim(),
+          recipientName: user.name.trim(),
+          roleName: user.role,
+          positionTitle: user.position.trim(),
+          tempPassword: newTemp,
+          schoolName,
+          senderName: currentUser?.name || 'Office of the Principal',
+        });
+      }
+    } catch (err) {
+      console.warn('Temporary password reset email dispatch notice:', err);
+    }
+
+    logAuditAction({
+      action: 'USER_UPDATED',
+      actionLabel: 'Password Reset to Temporary Credential',
+      category: 'USER_MANAGEMENT',
+      severity: 'WARNING',
+      performedBy: {
+        name: currentUser?.name || 'Executive Principal',
+        role: currentUser?.role || 'PRINCIPAL',
+        email: currentUser?.email
+      },
+      targetEntity: {
+        type: 'USER',
+        id: user.id,
+        label: `${user.name} (${user.role})`
+      },
+      details: `Temporary password issued to ${user.name} (${user.email}). Mandatory password change on first login flagged.`,
+    });
+
+    return { success: true, tempPassword: newTemp };
+  };
 
   const createPrincipalAccount = (params: {
     name: string;
@@ -2765,7 +2856,308 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const login = (role: UserRole, identifier?: string, password?: string, customName?: string): { success: boolean; error?: string } => {
+  /**
+   * Pre-validates user login credentials and checks whether a mandatory temporary password change is required.
+   * If a user was provisioned with a temporary password or has mustChangePasswordOnFirstLogin/mustChangePasswordOnLogin,
+   * mustChangePassword will be true and the user MUST be prompted to set a new permanent password at login.
+   */
+  const checkCredentialsAndTemporaryStatus = useCallback((
+    role: UserRole,
+    identifier: string,
+    password: string
+  ): {
+    isValid: boolean;
+    mustChangePassword: boolean;
+    user?: {
+      id: string;
+      name: string;
+      email: string;
+      role: UserRole;
+      position: string;
+      isTemporaryPassword?: boolean;
+      temporaryPassword?: string;
+    };
+    error?: string;
+  } => {
+    if (!identifier || !identifier.trim()) {
+      return { isValid: false, mustChangePassword: false, error: 'Please enter your account identifier or institutional email.' };
+    }
+    if (!password || !password.trim()) {
+      return { isValid: false, mustChangePassword: false, error: 'Please enter your account password or temporary login credential.' };
+    }
+
+    const cleanId = identifier.trim().toLowerCase();
+
+    // 1. Leadership / Admin roles: REGISTRAR, FINANCE, PROGRAM_OFFICE, COUNSELLOR
+    const adminLeadershipRoles: UserRole[] = ['REGISTRAR', 'FINANCE', 'PROGRAM_OFFICE', 'COUNSELLOR'];
+    if (adminLeadershipRoles.includes(role)) {
+      const accountsForRole = institutionalUsers.filter(u => u.role === role);
+      if (accountsForRole.length === 0) {
+        return {
+          isValid: false,
+          mustChangePassword: false,
+          error: 'Access Denied: This account has not been created by the Principal yet. Administrative leadership accounts must be officially created and authorized by the Principal before login is allowed.'
+        };
+      }
+
+      const matchedUser = accountsForRole.find(u =>
+        u.email.toLowerCase() === cleanId || u.id.toLowerCase() === cleanId
+      );
+
+      if (!matchedUser) {
+        return {
+          isValid: false,
+          mustChangePassword: false,
+          error: `No authorized account found for this department matching "${identifier.trim()}". Only accounts created by the Principal can log in.`
+        };
+      }
+
+      const isPasswordValid = 
+        password === matchedUser.password || 
+        (Boolean(matchedUser.temporaryPassword) && password === matchedUser.temporaryPassword);
+
+      if (!isPasswordValid) {
+        return {
+          isValid: false,
+          mustChangePassword: false,
+          error: 'Incorrect password. Please enter the password or temporary credential issued by the Principal.'
+        };
+      }
+
+      const mustChange = Boolean(matchedUser.mustChangePasswordOnFirstLogin) ||
+        Boolean(matchedUser.isTemporaryPassword) ||
+        (Boolean(matchedUser.temporaryPassword) && password === matchedUser.temporaryPassword);
+
+      return {
+        isValid: true,
+        mustChangePassword: mustChange,
+        user: {
+          id: matchedUser.id,
+          name: matchedUser.name,
+          email: matchedUser.email,
+          role: matchedUser.role,
+          position: matchedUser.position,
+          isTemporaryPassword: matchedUser.isTemporaryPassword,
+          temporaryPassword: matchedUser.temporaryPassword,
+        },
+      };
+    }
+
+    // 2. Principal
+    if (role === 'PRINCIPAL') {
+      const principalUser = cleanId
+        ? (institutionalUsers.find(u => u.role === 'PRINCIPAL' && (u.email.toLowerCase() === cleanId || u.id.toLowerCase() === cleanId)) || institutionalUsers.find(u => u.role === 'PRINCIPAL'))
+        : institutionalUsers.find(u => u.role === 'PRINCIPAL');
+
+      if (!principalUser) {
+        return {
+          isValid: false,
+          mustChangePassword: false,
+          error: 'No Principal account found. Please initialize the Executive Principal account first using Principal Sign Up.'
+        };
+      }
+
+      if (cleanId && principalUser.email.toLowerCase() !== cleanId && principalUser.id.toLowerCase() !== cleanId) {
+        return {
+          isValid: false,
+          mustChangePassword: false,
+          error: 'Invalid Principal email or account ID.'
+        };
+      }
+
+      const isPasswordValid = password === principalUser.password || (Boolean(principalUser.temporaryPassword) && password === principalUser.temporaryPassword);
+      if (!isPasswordValid) {
+        return {
+          isValid: false,
+          mustChangePassword: false,
+          error: 'Incorrect Principal password. Please verify your credentials.'
+        };
+      }
+
+      const mustChange = Boolean(principalUser.mustChangePasswordOnFirstLogin) ||
+        Boolean(principalUser.isTemporaryPassword) ||
+        (Boolean(principalUser.temporaryPassword) && password === principalUser.temporaryPassword);
+
+      return {
+        isValid: true,
+        mustChangePassword: mustChange,
+        user: {
+          id: principalUser.id,
+          name: principalUser.name,
+          email: principalUser.email,
+          role: 'PRINCIPAL',
+          position: principalUser.position || 'Executive Principal',
+          isTemporaryPassword: principalUser.isTemporaryPassword,
+          temporaryPassword: principalUser.temporaryPassword,
+        },
+      };
+    }
+
+    // 3. Faculty / TEACHER
+    if (role === 'TEACHER') {
+      const matchInst = institutionalUsers.find(u => u.role === 'TEACHER' && (u.email.toLowerCase() === cleanId || u.id.toLowerCase() === cleanId));
+      const matchTeacher = teachers.find(t => t.id.toLowerCase() === cleanId || t.email.toLowerCase() === cleanId);
+
+      if (!matchInst && !matchTeacher) {
+        return {
+          isValid: false,
+          mustChangePassword: false,
+          error: `No teacher account found matching "${identifier.trim()}". Faculty accounts must be provisioned by the Principal first.`
+        };
+      }
+
+      const expectedPass = matchInst ? (matchInst.password || matchInst.temporaryPassword) : (matchTeacher?.password || 'Teacher@2026');
+      const isPasswordValid = password === expectedPass || (matchInst && Boolean(matchInst.temporaryPassword) && password === matchInst.temporaryPassword);
+
+      if (!isPasswordValid) {
+        return {
+          isValid: false,
+          mustChangePassword: false,
+          error: 'Incorrect teacher password. Please verify your credentials.'
+        };
+      }
+
+      const mustChange = Boolean(matchInst?.mustChangePasswordOnFirstLogin) ||
+        Boolean(matchInst?.isTemporaryPassword) ||
+        (Boolean(matchInst?.temporaryPassword) && password === matchInst.temporaryPassword);
+
+      return {
+        isValid: true,
+        mustChangePassword: mustChange,
+        user: {
+          id: matchInst?.id || matchTeacher?.id || 'TCH-001',
+          name: matchInst?.name || matchTeacher?.name || 'Faculty Member',
+          email: matchInst?.email || matchTeacher?.email || identifier,
+          role: 'TEACHER',
+          position: matchInst?.position || 'Faculty Member',
+          isTemporaryPassword: matchInst?.isTemporaryPassword,
+          temporaryPassword: matchInst?.temporaryPassword,
+        },
+      };
+    }
+
+    // 4. Student / STUDENT
+    if (role === 'STUDENT') {
+      const matchInst = institutionalUsers.find(u => u.role === 'STUDENT' && (u.email.toLowerCase() === cleanId || u.id.toLowerCase() === cleanId));
+      const matchStudent = students.find(s => 
+        s.id.toLowerCase() === cleanId || 
+        s.accountNumber?.toLowerCase() === cleanId || 
+        (s.parents?.email && s.parents.email.toLowerCase() === cleanId)
+      );
+
+      if (!matchInst && !matchStudent) {
+        return {
+          isValid: false,
+          mustChangePassword: false,
+          error: `No student record found matching "${identifier.trim()}". Students must be registered by Admissions first.`
+        };
+      }
+
+      const expectedPass = matchInst ? (matchInst.password || matchInst.temporaryPassword) : (matchStudent?.portalPassword || matchStudent?.password || 'Password@123');
+      const isPasswordValid = password === expectedPass || 
+        (matchInst && Boolean(matchInst.temporaryPassword) && password === matchInst.temporaryPassword) ||
+        (matchStudent && Boolean(matchStudent.temporaryPassword) && password === matchStudent.temporaryPassword);
+
+      if (!isPasswordValid) {
+        return {
+          isValid: false,
+          mustChangePassword: false,
+          error: 'Incorrect student password. Please verify your credentials.'
+        };
+      }
+
+      const mustChange = Boolean(matchInst?.mustChangePasswordOnFirstLogin) ||
+        Boolean(matchStudent?.mustChangePasswordOnLogin) ||
+        Boolean(matchInst?.isTemporaryPassword) ||
+        Boolean(matchStudent?.isTemporaryPassword) ||
+        (Boolean(matchInst?.temporaryPassword) && password === matchInst.temporaryPassword) ||
+        (Boolean(matchStudent?.temporaryPassword) && password === matchStudent.temporaryPassword);
+
+      return {
+        isValid: true,
+        mustChangePassword: mustChange,
+        user: {
+          id: matchInst?.id || matchStudent?.id || 'STU-001',
+          name: matchInst?.name || matchStudent?.fullName || 'Student Scholar',
+          email: matchInst?.email || matchStudent?.parents?.email || identifier,
+          role: 'STUDENT',
+          position: matchStudent ? `Grade ${matchStudent.grade} Scholar` : 'Student Scholar',
+          isTemporaryPassword: matchInst?.isTemporaryPassword || matchStudent?.isTemporaryPassword,
+          temporaryPassword: matchInst?.temporaryPassword || matchStudent?.temporaryPassword,
+        },
+      };
+    }
+
+    // 5. Parent / PARENT
+    if (role === 'PARENT') {
+      const matchInst = institutionalUsers.find(u => u.role === 'PARENT' && (u.email.toLowerCase() === cleanId || u.id.toLowerCase() === cleanId));
+      const matchStudent = students.find(s => 
+        (s.parents?.fatherPhone && s.parents.fatherPhone.replace(/\s+/g, '').toLowerCase() === cleanId.replace(/\s+/g, '')) ||
+        (s.parents?.motherPhone && s.parents.motherPhone.replace(/\s+/g, '').toLowerCase() === cleanId.replace(/\s+/g, '')) ||
+        (s.parents?.email && s.parents.email.toLowerCase() === cleanId) ||
+        s.id.toLowerCase() === cleanId
+      );
+
+      if (!matchInst && !matchStudent) {
+        return {
+          isValid: false,
+          mustChangePassword: false,
+          error: `No parent record found linked to "${identifier.trim()}".`
+        };
+      }
+
+      const expectedPass = matchInst ? (matchInst.password || matchInst.temporaryPassword) : (matchStudent?.portalPassword || 'Parent@2026');
+      const isPasswordValid = password === expectedPass || 
+        (matchInst && Boolean(matchInst.temporaryPassword) && password === matchInst.temporaryPassword) ||
+        (matchStudent && Boolean(matchStudent.temporaryPassword) && password === matchStudent.temporaryPassword);
+
+      if (!isPasswordValid) {
+        return {
+          isValid: false,
+          mustChangePassword: false,
+          error: 'Incorrect parent portal password. Please verify your credentials.'
+        };
+      }
+
+      const mustChange = Boolean(matchInst?.mustChangePasswordOnFirstLogin) ||
+        Boolean(matchStudent?.mustChangePasswordOnLogin) ||
+        Boolean(matchInst?.isTemporaryPassword) ||
+        (Boolean(matchInst?.temporaryPassword) && password === matchInst.temporaryPassword) ||
+        (Boolean(matchStudent?.temporaryPassword) && password === matchStudent.temporaryPassword);
+
+      return {
+        isValid: true,
+        mustChangePassword: mustChange,
+        user: {
+          id: matchInst?.id || `PAR-${matchStudent?.id || '001'}`,
+          name: matchInst?.name || matchStudent?.parents?.fatherName || matchStudent?.parents?.motherName || 'Parent / Guardian',
+          email: matchInst?.email || matchStudent?.parents?.email || identifier,
+          role: 'PARENT',
+          position: matchStudent ? `Parent of ${matchStudent.fullName}` : 'Parent / Guardian',
+          isTemporaryPassword: matchInst?.isTemporaryPassword,
+          temporaryPassword: matchInst?.temporaryPassword,
+        },
+      };
+    }
+
+    return { isValid: true, mustChangePassword: false };
+  }, [institutionalUsers, teachers, students]);
+
+  const login = (role: UserRole, identifier?: string, password?: string, customName?: string, bypassMustChangeCheck?: boolean): { success: boolean; mustChangePassword?: boolean; error?: string } => {
+    // If identifier & password provided, enforce temporary password change verification unless explicitly bypassed
+    if (identifier && password && !bypassMustChangeCheck) {
+      const status = checkCredentialsAndTemporaryStatus(role, identifier, password);
+      if (!status.isValid) {
+        return { success: false, error: status.error };
+      }
+      if (status.mustChangePassword) {
+        return {
+          success: false,
+          mustChangePassword: true,
+          error: 'Temporary login password detected. You must change your temporary password to a new permanent password before logging in.'
+        };
+      }
+    }
     // List of administrative leadership roles that MUST be created by the Principal
     const adminLeadershipRoles: UserRole[] = ['REGISTRAR', 'FINANCE', 'PROGRAM_OFFICE', 'COUNSELLOR'];
 
@@ -3528,6 +3920,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       isAuthenticated,
       currentUser,
       login,
+      checkCredentialsAndTemporaryStatus,
       logout,
       sessionTimeoutMinutes,
       setSessionTimeoutMinutes,

@@ -9,8 +9,11 @@ import {
   Copy, 
   Check, 
   ShieldAlert,
-  Sparkles
+  Sparkles,
+  Mail,
+  ExternalLink
 } from 'lucide-react';
+import { generateCredentialsMailtoUrl } from '../../../services/gmailAuthService';
 
 interface QuickPasswordResetModalProps {
   isOpen: boolean;
@@ -21,7 +24,8 @@ export const QuickPasswordResetModal: React.FC<QuickPasswordResetModalProps> = (
   const { 
     students, 
     resetUserPassword, 
-    currentRole 
+    currentRole,
+    schoolName
   } = useSchool();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -29,6 +33,7 @@ export const QuickPasswordResetModal: React.FC<QuickPasswordResetModalProps> = (
     studentName: string;
     studentId: string;
     tempPassword: string;
+    email?: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +50,7 @@ export const QuickPasswordResetModal: React.FC<QuickPasswordResetModalProps> = (
     );
   }).slice(0, 5);
 
-  const handleReset = (studentId: string, studentName: string) => {
+  const handleReset = (studentId: string, studentName: string, email?: string) => {
     try {
       setError(null);
       const role = (currentRole === 'FINANCE' || currentRole === 'REGISTRAR' || currentRole === 'PRINCIPAL')
@@ -56,6 +61,7 @@ export const QuickPasswordResetModal: React.FC<QuickPasswordResetModalProps> = (
         studentName,
         studentId,
         tempPassword: tempPass,
+        email,
       });
       setCopied(false);
     } catch (err: any) {
@@ -118,26 +124,55 @@ export const QuickPasswordResetModal: React.FC<QuickPasswordResetModalProps> = (
               </div>
 
               <div>
-                <h4 className="font-bold text-slate-900 dark:text-white text-sm">
-                  Temporary Password Issued
-                </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Issued for <strong>{resetResult.studentName}</strong> ({resetResult.studentId}). User will be required to create a new password on login.
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                    Temporary Password Issued
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200">
+                    Must Be Changed
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Issued for <strong>{resetResult.studentName}</strong> ({resetResult.studentId}). 
+                  When signing in with this temporary password, the system will immediately require the user to choose a new permanent password (Must be changed).
                 </p>
               </div>
 
               <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
-                <span className="font-mono font-bold text-base text-blue-600 dark:text-blue-400 select-all">
-                  {resetResult.tempPassword}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copied ? 'Copied!' : 'Copy Credential'}</span>
-                </button>
+                <div className="text-left">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Temporary Password:</span>
+                  <span className="font-mono font-bold text-base text-blue-600 dark:text-blue-400 select-all">
+                    {resetResult.tempPassword}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copied ? 'Copied!' : 'Copy'}</span>
+                  </button>
+
+                  {resetResult.email && (
+                    <a
+                      href={generateCredentialsMailtoUrl({
+                        recipientEmail: resetResult.email,
+                        recipientName: resetResult.studentName,
+                        roleName: 'STUDENT',
+                        positionTitle: 'Student Scholar',
+                        tempPassword: resetResult.tempPassword,
+                        schoolName,
+                      })}
+                      className="px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-xs"
+                      title="Email temporary password with mandatory change instructions"
+                    >
+                      <Mail className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>Email Credentials</span>
+                    </a>
+                  )}
+                </div>
               </div>
 
               <button
@@ -185,7 +220,7 @@ export const QuickPasswordResetModal: React.FC<QuickPasswordResetModalProps> = (
                         </div>
                         <button
                           type="button"
-                          onClick={() => handleReset(s.id, s.fullName)}
+                          onClick={() => handleReset(s.id, s.fullName, s.parents?.email)}
                           className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
                         >
                           <KeyRound className="w-3.5 h-3.5" />

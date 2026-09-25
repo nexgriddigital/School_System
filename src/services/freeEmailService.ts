@@ -33,7 +33,7 @@ export async function sendFreeTemporaryPasswordEmail(
     senderName = 'Office of the Principal',
   } = payload;
 
-  const subject = `${schoolName} - Confidential Account Credentials & Temporary Password`;
+  const subject = `${schoolName} - Temporary Login Password (Must Be Changed at Login)`;
   const cleanEmail = recipientEmail.trim();
 
   // Try dispatching via free public JSON email delivery endpoint
@@ -53,9 +53,9 @@ export async function sendFreeTemporaryPasswordEmail(
         Recipient_Name: recipientName,
         Portal_Role: roleName,
         Position_Title: positionTitle,
-        Assigned_Temporary_Password: tempPassword,
+        Assigned_Temporary_Password: `${tempPassword} (TEMPORARY - Must be changed at login)`,
         Dispatched_By: senderName,
-        Notice: 'Please sign in to your institutional portal using this temporary password. You will be prompted to change it upon first authentication.',
+        Notice: 'MANDATORY SECURITY NOTICE: This is a TEMPORARY login password. You are strictly required to create a new personal permanent password upon your first login before dashboard access is permitted (Must be changed).',
       }),
     });
 
@@ -83,27 +83,31 @@ export async function sendFreeTemporaryPasswordEmail(
  * Generates an RFC compliant mailto URL with the temporary password
  */
 export function buildFreeCredentialsMailtoUrl(payload: TemporaryPasswordEmailPayload): string {
-  const subject = encodeURIComponent(`${payload.schoolName} - Your Portal Account Temporary Password`);
+  const subject = encodeURIComponent(`${payload.schoolName} - Temporary Login Password (Must Be Changed at Login)`);
   const body = encodeURIComponent(
 `Dear ${payload.recipientName},
 
 Welcome to ${payload.schoolName}! An institutional user account has been provisioned for you.
 
-Account Details:
+Account Credentials (TEMPORARY ONLY):
 ------------------------------------------
-• Role: ${payload.roleName}
-• Position: ${payload.positionTitle || 'Institutional Member'}
+• Assigned Role: ${payload.roleName}
+• Position Title: ${payload.positionTitle || 'Institutional Member'}
 • Username / Email: ${payload.recipientEmail}
-• Temporary Password: ${payload.tempPassword}
+• Temporary Login Password: ${payload.tempPassword}
 ------------------------------------------
 
-Important Security Instructions:
-1. Please sign in to the portal immediately using this temporary password.
-2. You will be required to establish a confidential personal password on your first login.
-3. Do not share this temporary password with anyone.
+MANDATORY ACTION REQUIRED AT LOGIN (MUST BE CHANGED):
+1. This is a TEMPORARY access credential for your initial sign-in only.
+2. When you log in with this temporary password, the system will immediately require you to create your own confidential permanent personal password (Must be changed).
+3. Access to your portal dashboard will remain locked until this password change is completed.
+4. Your new permanent password cannot be identical to this temporary credential.
+5. Do not share this temporary password with anyone.
+
+Portal Login Address: ${typeof window !== 'undefined' ? window.location.origin : 'School Unified Portal'}
 
 Best regards,
-${payload.senderName || 'Office of the Principal'}
+${payload.senderName || 'Executive Office of the Principal'}
 ${payload.schoolName}`
   );
 

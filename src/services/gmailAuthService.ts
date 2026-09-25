@@ -409,7 +409,7 @@ export async function sendTemporaryPasswordEmailViaGmail({
     throw new Error('Gmail authorization required. Please connect your Gmail sender account first.');
   }
 
-  const subject = `${schoolName} - Account Credentials: Temporary Password for ${positionTitle}`;
+  const subject = `${schoolName} - Temporary Login Password (Must Be Changed at Login)`;
 
   const htmlBody = `
 <!DOCTYPE html>
@@ -436,7 +436,7 @@ export async function sendTemporaryPasswordEmailViaGmail({
             <td style="padding: 32px 36px;">
               <p style="font-size: 16px; margin: 0 0 16px 0; color: #1e293b; font-weight: 600;">Dear ${recipientName},</p>
               <p style="font-size: 14px; margin: 0 0 20px 0; color: #475569; line-height: 1.6;">
-                The Office of the Principal has provisioned an authorized institutional account for you at <strong>${schoolName}</strong>. Your position and initial access credentials are provided below.
+                An institutional account has been provisioned for you at <strong>${schoolName}</strong>. A <strong>temporary login password</strong> has been generated for your initial access.
               </p>
               
               <!-- Credentials Summary Box -->
@@ -458,41 +458,43 @@ export async function sendTemporaryPasswordEmailViaGmail({
               </div>
 
               <!-- Automatic Temporary Password Display -->
-              <div style="background-color: #eff6ff; border: 2px dashed #60a5fa; border-radius: 12px; padding: 22px; text-align: center; margin: 24px 0;">
-                <span style="display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #2563eb; font-weight: 700; margin-bottom: 8px;">
-                  Automatic Temporary Password
+              <div style="background-color: #eff6ff; border: 2px dashed #2563eb; border-radius: 12px; padding: 22px; text-align: center; margin: 24px 0;">
+                <span style="display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #1d4ed8; font-weight: 800; margin-bottom: 8px;">
+                  ⚠️ TEMPORARY LOGIN PASSWORD (ONE-TIME INITIAL ACCESS)
                 </span>
-                <span style="display: inline-block; font-family: 'Courier New', Courier, monospace; font-size: 28px; font-weight: 800; color: #1e3a8a; letter-spacing: 3px; padding: 6px 14px; background: #ffffff; border-radius: 8px; border: 1px solid #bfdbfe;">
+                <span style="display: inline-block; font-family: 'Courier New', Courier, monospace; font-size: 28px; font-weight: 800; color: #1e3a8a; letter-spacing: 3px; padding: 8px 16px; background: #ffffff; border-radius: 8px; border: 2px solid #93c5fd; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
                   ${tempPassword}
                 </span>
-                <p style="margin: 12px 0 0 0; font-size: 12px; color: #1e40af; font-weight: 500;">
-                  Copy or memorize this temporary password for your initial sign-in.
+                <p style="margin: 12px 0 0 0; font-size: 12px; color: #dc2626; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">
+                  ⛔ MUST BE CHANGED AT LOGIN — ACCESS WILL BE RESTRICTED UNTIL NEW PASSWORD IS SET
                 </p>
               </div>
 
-              <!-- First Login Policy Notice -->
-              <div style="background-color: #fefce8; border-left: 4px solid #eab308; padding: 14px 18px; border-radius: 6px; margin: 24px 0;">
-                <p style="margin: 0 0 6px 0; font-size: 13px; color: #713f12; font-weight: 700;">
-                  ⚠️ Mandatory First-Login Password Change Protocol
+              <!-- Mandatory First Login Policy Notice -->
+              <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 18px 20px; border-radius: 6px; margin: 24px 0;">
+                <p style="margin: 0 0 6px 0; font-size: 13px; color: #92400e; font-weight: 800;">
+                  🔒 MANDATORY ACTION REQUIRED: Request New Password at Login (Must be changed)
                 </p>
-                <p style="margin: 0; font-size: 12px; color: #854d0e; line-height: 1.5;">
-                  For institutional information security, <strong>you must change this temporary password immediately upon your first login</strong>. You will be prompted to choose a permanent, secure personal password after passing Gmail OTP verification.
+                <p style="margin: 0; font-size: 12px; color: #78350f; line-height: 1.6;">
+                  In accordance with institutional information security policy, <strong>this temporary password cannot be used for ongoing portal access</strong>. When you log in with this temporary credential, the system will immediately require you to choose and verify your own confidential permanent personal password. Workspace dashboard access will remain locked until this new password is created.
                 </p>
               </div>
 
               <!-- Instructions -->
               <div style="margin: 20px 0;">
-                <p style="font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 8px;">First-Time Sign-In Steps:</p>
-                <ol style="font-size: 12px; color: #475569; padding-left: 20px; line-height: 1.7; margin: 0;">
-                  <li>Visit the <strong>${schoolName}</strong> Unified Portal.</li>
-                  <li>Enter your assigned email (<strong>${recipientEmail}</strong>) and your temporary password.</li>
-                  <li>Check your Gmail inbox for the live 6-digit OTP verification code.</li>
-                  <li>When prompted on screen, enter your new personal password to unlock your workspace.</li>
+                <p style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 8px;">Required Sign-In & Mandatory Password Change Steps:</p>
+                <ol style="font-size: 12px; color: #475569; padding-left: 20px; line-height: 1.8; margin: 0;">
+                  <li>Navigate to the <strong>${schoolName}</strong> Portal login page.</li>
+                  <li>Select your role (<strong>${roleName}</strong>) and enter your email: <strong>${recipientEmail}</strong>.</li>
+                  <li>Enter the temporary password shown above (<strong>${tempPassword}</strong>).</li>
+                  <li>The system will detect the temporary credential and present the <strong>Mandatory Password Setup (Must be changed)</strong> prompt.</li>
+                  <li>Enter your new personal permanent password (minimum 6 characters, cannot be the temporary password).</li>
+                  <li>Confirm your new password and click <strong>Save Permanent Password & Enter Portal</strong>.</li>
                 </ol>
               </div>
 
               <p style="font-size: 12px; color: #94a3b8; margin: 28px 0 0 0; line-height: 1.5;">
-                If you have any questions regarding your role or department assignment, please contact the Office of the Principal directly.
+                If you did not request or expect this account, please contact the Executive Office of the Principal directly.
               </p>
             </td>
           </tr>
@@ -501,7 +503,7 @@ export async function sendTemporaryPasswordEmailViaGmail({
           <tr>
             <td style="background-color: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0;">
               <p style="margin: 0; font-size: 11px; color: #94a3b8;">
-                Dispatched via Google Workspace Gmail API integration &bull; ${schoolName} &bull; NexGrid Digital Systems
+                Dispatched via Google Workspace Gmail API integration &bull; ${schoolName} &bull; Security Compliance Verified
               </p>
             </td>
           </tr>
@@ -567,26 +569,29 @@ export function generateCredentialsMailtoUrl({
   tempPassword: string;
   schoolName: string;
 }): string {
-  const subject = `${schoolName} - Account Credentials: Temporary Password for ${positionTitle}`;
+  const subject = `${schoolName} - Temporary Login Password (Must Be Changed at Login)`;
   const body = `Dear ${recipientName},
 
 The Office of the Principal has provisioned an authorized institutional account for you at ${schoolName}.
 
---- YOUR ACCESS CREDENTIALS ---
+--- YOUR ACCESS CREDENTIALS (TEMPORARY ONLY) ---
 Assigned Role: ${roleName}
 Official Position: ${positionTitle}
 Login Identifier / Email: ${recipientEmail}
-Temporary Password: ${tempPassword}
+Temporary Login Password: ${tempPassword}
 
---- MANDATORY FIRST-LOGIN PROTOCOL ---
-For institutional information security, you must log in with this temporary password and you will be prompted to choose your permanent, secure personal password immediately upon your first sign-in.
+--- MANDATORY SECURITY ACTION REQUIRED AT LOGIN (MUST BE CHANGED) ---
+1. This credential is a TEMPORARY login password intended solely for initial account activation.
+2. When you log in with this temporary password, the system will immediately require you to choose and verify a new confidential permanent personal password.
+3. Access to your portal dashboard will remain locked until this new password is created.
+4. Your new permanent password cannot be identical to this temporary password.
 
-Portal Address: ${typeof window !== 'undefined' ? window.location.origin : 'School Unified Portal'}
+Portal Login Address: ${typeof window !== 'undefined' ? window.location.origin : 'School Unified Portal'}
 
-If you have any questions, please contact the Office of the Principal.
+If you did not request this account or have questions, please contact the Executive Office of the Principal.
 
 Sincerely,
-Office of the Principal & Board of Trustees
+Executive Office of the Principal
 ${schoolName}`;
 
   return `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
