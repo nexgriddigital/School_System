@@ -22,6 +22,15 @@ import {
   ShieldAlert,
   Database,
   Printer,
+  PenTool,
+  Stamp,
+  Download,
+  Filter,
+  CheckCheck,
+  XCircle,
+  PlusCircle,
+  Search,
+  BookOpen
 } from 'lucide-react';
 import { UserProvisioningTab } from './UserProvisioningTab';
 import { MasterResetModal } from './MasterResetModal';
@@ -30,6 +39,8 @@ import { DataGovernanceTab } from './DataGovernanceTab';
 import { PrincipalHealthDashboard } from './PrincipalHealthDashboard';
 import { PrincipalPrintReportModal } from './PrincipalPrintReportModal';
 import { AuditTrailTab } from './AuditTrailTab';
+import { TranscriptAuthorizationsTab } from './TranscriptAuthorizationsTab';
+import { InternalDocumentsTab } from './InternalDocumentsTab';
 import { Activity } from 'lucide-react';
 
 export const PrincipalView: React.FC = () => {
@@ -51,7 +62,13 @@ export const PrincipalView: React.FC = () => {
     setSelectedStudentForIdCard,
     openDocumentViewer,
     auditLogs,
-    currentUser
+    currentUser,
+    transcriptRequests,
+    approveTranscriptRequest,
+    rejectTranscriptRequest,
+    internalDocuments,
+    signInternalDocument,
+    grades
   } = useSchool();
 
   const [activeTab, setActiveTab] = useState<'INSTITUTIONAL_HEALTH' | 'AUDIT_TRAIL' | 'AUTHORIZATIONS' | 'USER_PROVISIONING' | 'DATA_GOVERNANCE' | 'BROADCAST' | 'TEACHER_MANAGEMENT' | 'DISCIPLINARY_REVERSAL' | 'INSTITUTION_SETTINGS'>('INSTITUTIONAL_HEALTH');
@@ -61,6 +78,9 @@ export const PrincipalView: React.FC = () => {
   const [isChangeMasterCodeModalOpen, setIsChangeMasterCodeModalOpen] = useState(false);
   const [isPrintReportModalOpen, setIsPrintReportModalOpen] = useState(false);
   const [resetSuccessBanner, setResetSuccessBanner] = useState(false);
+
+  // Authorizations Tab Sub-section State
+  const [authSubSection, setAuthSubSection] = useState<'TRANSCRIPTS' | 'INTERNAL_DOCS' | 'LEAVE' | 'LOST_ID'>('TRANSCRIPTS');
 
   useEffect(() => {
     setCustomNameInput(schoolName);
@@ -191,9 +211,9 @@ export const PrincipalView: React.FC = () => {
             >
               <FileCheck className="w-3.5 h-3.5" />
               Executive Authorizations
-              {pendingTeacherRequests.length > 0 && (
+              {((pendingTeacherRequests.length || 0) + (transcriptRequests?.filter(r => r.status === 'PENDING').length || 0) + (internalDocuments?.filter(d => !d.signatures?.some(s => s.signatoryRole === 'PRINCIPAL')).length || 0) + (lostIdCases.length || 0)) > 0 && (
                 <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center font-bold">
-                  {pendingTeacherRequests.length}
+                  {(pendingTeacherRequests.length || 0) + (transcriptRequests?.filter(r => r.status === 'PENDING').length || 0) + (internalDocuments?.filter(d => !d.signatures?.some(s => s.signatoryRole === 'PRINCIPAL')).length || 0) + (lostIdCases.length || 0)}
                 </span>
               )}
             </button>
@@ -289,173 +309,264 @@ export const PrincipalView: React.FC = () => {
       {/* TAB 1: EXECUTIVE AUTHORIZATIONS */}
       {activeTab === 'AUTHORIZATIONS' && (
         <div className="space-y-6">
-          {/* 1. Teacher Leave Approvals */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-            <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
-              <div>
+          {/* Sub-navigation Pills */}
+          <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAuthSubSection('TRANSCRIPTS')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
+                  authSubSection === 'TRANSCRIPTS'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Transcript Clearances & Cutoff NG</span>
+                {transcriptRequests.filter(r => r.status === 'PENDING').length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 font-bold text-[10px]">
+                    {transcriptRequests.filter(r => r.status === 'PENDING').length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAuthSubSection('INTERNAL_DOCS')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
+                  authSubSection === 'INTERNAL_DOCS'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <PenTool className="w-3.5 h-3.5" />
+                <span>Executive Directives & Signed Memos</span>
+                {internalDocuments.filter(d => !d.signatures?.some(s => s.signatoryRole === 'PRINCIPAL')).length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 font-bold text-[10px]">
+                    {internalDocuments.filter(d => !d.signatures?.some(s => s.signatoryRole === 'PRINCIPAL')).length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAuthSubSection('LEAVE')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
+                  authSubSection === 'LEAVE'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <CalendarClock className="w-3.5 h-3.5" />
+                <span>Faculty Leave Requests</span>
+                {pendingTeacherRequests.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 font-bold text-[10px]">
+                    {pendingTeacherRequests.length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAuthSubSection('LOST_ID')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
+                  authSubSection === 'LOST_ID'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <ShieldAlert className="w-3.5 h-3.5" />
+                <span>Lost ID Clearances & Override</span>
+                {lostIdCases.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 font-bold text-[10px]">
+                    {lostIdCases.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Sub-tab 1: Transcript Requests & Cutoff Grade Inspector */}
+          {authSubSection === 'TRANSCRIPTS' && (
+            <TranscriptAuthorizationsTab />
+          )}
+
+          {/* Sub-tab 2: Executive Directives & Online Signature */}
+          {authSubSection === 'INTERNAL_DOCS' && (
+            <InternalDocumentsTab />
+          )}
+
+          {/* Sub-tab 3: Faculty Personal Day-Off Requests */}
+          {authSubSection === 'LEAVE' && (
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="font-oskar-vintage text-base font-bold text-slate-900">
+                    Faculty Personal Day-Off Requests
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    &quot;if a teacher is taking a personal Day off for whatever reason they must submit a request with the reason written down and if there are any Supporting Documents they should be attached. Once approved The students affected by the teacher&apos;s absense should get a notice Automatically that the teacher won&apos;t be there.&quot;
+                  </p>
+                </div>
+                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-bold text-xs">
+                  {pendingTeacherRequests.length} Requiring Action
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {dayOffRequests.map((req) => (
+                  <div 
+                    key={req.id} 
+                    className={`p-4 rounded-xl border text-xs space-y-2 transition ${
+                      req.status === 'PENDING' ? 'border-amber-300 bg-amber-50/40 shadow-sm' : 'border-slate-200 bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-bold text-slate-900 text-sm">{req.teacherName}</span>
+                        <span className="text-slate-500 ml-2">Requested Date: <strong>{req.date}</strong></span>
+                      </div>
+
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        req.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : req.status === 'REJECTED' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {req.status}
+                      </span>
+                    </div>
+
+                    <p className="text-slate-700 bg-white p-2.5 rounded border border-slate-200">
+                      <strong>Reason:</strong> {req.reason}
+                    </p>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 text-[11px] text-slate-500">
+                      <div className="flex items-center gap-2">
+                        <span>Supporting Doc:</span>
+                        {req.supportingDocName ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const docUrl = req.supportingDocUrl || generateMedicalLeavePdf({
+                                teacherName: req.teacherName,
+                                teacherId: req.teacherId,
+                                date: req.date,
+                                reason: req.reason,
+                                clinicName: 'Black Lion Specialized Hospital / Authorized Medical Facility',
+                              });
+                              openDocumentViewer({
+                                title: 'Teacher Leave Supporting Document',
+                                subtitle: `Absence Certification for ${req.teacherName} on ${req.date}`,
+                                docName: req.supportingDocName,
+                                docUrl: docUrl,
+                                category: 'MEDICAL_LEAVE',
+                                metadata: {
+                                  teacherName: req.teacherName,
+                                  leaveDate: req.date,
+                                  reason: req.reason,
+                                  reviewStatus: req.status,
+                                },
+                              });
+                            }}
+                            className="font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-0.5 rounded flex items-center gap-1 transition cursor-pointer"
+                          >
+                            <Eye className="w-3 h-3 text-blue-600" />
+                            <span>{req.supportingDocName} (View PDF)</span>
+                          </button>
+                        ) : (
+                          <span className="italic text-slate-400">None attached</span>
+                        )}
+                      </div>
+                      <span>Affected Sections: <strong>{(Array.isArray(req.affectedSections) && req.affectedSections.length > 0 ? req.affectedSections.join(', ') : 'All Classes')}</strong></span>
+                    </div>
+
+                    {req.status === 'PENDING' && (
+                      <div className="flex justify-end gap-2 pt-2 border-t border-amber-200">
+                        <button
+                          onClick={() => reviewTeacherDayOff(req.id, false)}
+                          className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-xs font-semibold transition"
+                        >
+                          Reject Leave
+                        </button>
+                        <button
+                          onClick={() => reviewTeacherDayOff(req.id, true)}
+                          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-sm"
+                        >
+                          Approve Leave & Broadcast Student Notice
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Sub-tab 4: Lost Student ID Clearance Desk */}
+          {authSubSection === 'LOST_ID' && (
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+              <div className="border-b border-slate-100 pb-3">
                 <h3 className="font-oskar-vintage text-base font-bold text-slate-900">
-                  Faculty Personal Day-Off Requests
+                  Lost Student ID Clearance & Principal Override Desk
                 </h3>
                 <p className="text-xs text-slate-500">
-                  "if a teacher is taking a personal Day off for whatever reason they must submit a request with the reason written down and if there are any Supporting Documents they should be attached. Once approved The students affected by the teacher's absense should get a notice Automatically that the teacher won't be there."
+                  &quot;if the student loses his/her ID, finance must give them Clearance in the finance portal after which The ID becomes Downloadable (The principal has the authority to override this and Download the ID at any time.)&quot;
                 </p>
               </div>
-              <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-bold text-xs">
-                {pendingTeacherRequests.length} Requiring Action
-              </span>
-            </div>
 
-            <div className="space-y-3">
-              {dayOffRequests.map((req) => (
-                <div 
-                  key={req.id} 
-                  className={`p-4 rounded-xl border text-xs space-y-2 transition ${
-                    req.status === 'PENDING' ? 'border-amber-300 bg-amber-50/40 shadow-sm' : 'border-slate-200 bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="font-bold text-slate-900 text-sm">{req.teacherName}</span>
-                      <span className="text-slate-500 ml-2">Requested Date: <strong>{req.date}</strong></span>
-                    </div>
+              <div className="space-y-3">
+                {lostIdCases.map((s) => {
+                  const req = s.lostIdRequest!;
+                  return (
+                    <div key={s.id} className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900 text-sm">{s.fullName}</span>
+                          <span className="font-mono text-blue-600 font-semibold">({s.id})</span>
+                          <span className="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-semibold">
+                            Grade {s.grade}
+                          </span>
+                        </div>
+                        <p className="text-slate-600 mt-1">Loss Reason: {req.reason}</p>
+                        <div className="flex gap-2 mt-1 text-[10px]">
+                          <span className={`px-1.5 py-0.5 rounded ${req.financeCleared ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                            Finance: {req.financeCleared ? 'Cleared' : 'Pending'}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded ${req.libraryCleared ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                            Library: {req.libraryCleared ? 'Cleared' : 'Pending'}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded ${req.homeroomTeacherCleared ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                            Homeroom: {req.homeroomTeacherCleared ? 'Cleared' : 'Pending'}
+                          </span>
+                        </div>
+                      </div>
 
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      req.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : req.status === 'REJECTED' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      {req.status}
-                    </span>
-                  </div>
-
-                  <p className="text-slate-700 bg-white p-2.5 rounded border border-slate-200">
-                    <strong>Reason:</strong> {req.reason}
-                  </p>
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 text-[11px] text-slate-500">
-                    <div className="flex items-center gap-2">
-                      <span>Supporting Doc:</span>
-                      {req.supportingDocName ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const docUrl = req.supportingDocUrl || generateMedicalLeavePdf({
-                              teacherName: req.teacherName,
-                              teacherId: req.teacherId,
-                              date: req.date,
-                              reason: req.reason,
-                              clinicName: 'Black Lion Specialized Hospital / Authorized Medical Facility',
-                            });
-                            openDocumentViewer({
-                              title: 'Teacher Leave Supporting Document',
-                              subtitle: `Absence Certification for ${req.teacherName} on ${req.date}`,
-                              docName: req.supportingDocName,
-                              docUrl: docUrl,
-                              category: 'MEDICAL_LEAVE',
-                              metadata: {
-                                teacherName: req.teacherName,
-                                leaveDate: req.date,
-                                reason: req.reason,
-                                reviewStatus: req.status,
-                              },
-                            });
-                          }}
-                          className="font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-0.5 rounded flex items-center gap-1 transition cursor-pointer"
-                        >
-                          <Eye className="w-3 h-3 text-blue-600" />
-                          <span>{req.supportingDocName} (View PDF)</span>
-                        </button>
-                      ) : (
-                        <span className="italic text-slate-400">None attached</span>
-                      )}
-                    </div>
-                    <span>Affected Sections: <strong>{(Array.isArray(req.affectedSections) && req.affectedSections.length > 0 ? req.affectedSections.join(', ') : 'All Classes')}</strong></span>
-                  </div>
-
-                  {req.status === 'PENDING' && (
-                    <div className="flex justify-end gap-2 pt-2 border-t border-amber-200">
-                      <button
-                        onClick={() => reviewTeacherDayOff(req.id, false)}
-                        className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-xs font-semibold transition"
-                      >
-                        Reject Leave
-                      </button>
-                      <button
-                        onClick={() => reviewTeacherDayOff(req.id, true)}
-                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-sm"
-                      >
-                        Approve Leave & Broadcast Student Notice
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 2. Lost ID Principal Override Download */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-            <div className="border-b border-slate-100 pb-3">
-              <h3 className="font-oskar-vintage text-base font-bold text-slate-900">
-                Lost Student ID Clearance & Principal Override Desk
-              </h3>
-              <p className="text-xs text-slate-500">
-                "if the student loses his/her ID, finance must give them Clearance in the finance portal after which The ID becomes Downloadable (The principal has the authority to override this and Download the ID at any time.)"
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              {lostIdCases.map((s) => {
-                const req = s.lostIdRequest!;
-                return (
-                  <div key={s.id} className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 text-sm">{s.fullName}</span>
-                        <span className="font-mono text-blue-600 font-semibold">({s.id})</span>
-                        <span className="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-semibold">
-                          Grade {s.grade}
-                        </span>
-                      </div>
-                      <p className="text-slate-600 mt-1">Loss Reason: {req.reason}</p>
-                      <div className="flex gap-2 mt-1 text-[10px]">
-                        <span className={`px-1.5 py-0.5 rounded ${req.financeCleared ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                          Finance: {req.financeCleared ? 'Cleared' : 'Pending'}
-                        </span>
-                        <span className={`px-1.5 py-0.5 rounded ${req.libraryCleared ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                          Library: {req.libraryCleared ? 'Cleared' : 'Pending'}
-                        </span>
-                        <span className={`px-1.5 py-0.5 rounded ${req.homeroomTeacherCleared ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                          Homeroom: {req.homeroomTeacherCleared ? 'Cleared' : 'Pending'}
-                        </span>
+                        <button
+                          onClick={() => setSelectedStudentForIdCard(s)}
+                          className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold"
+                        >
+                          Inspect ID
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            principalOverrideLostIdDownload(s.id);
+                            alert(`Principal Override granted for ${s.fullName}. ID badge is now immediately downloadable.`);
+                          }}
+                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-sm"
+                        >
+                          Principal Override & Enable Download
+                        </button>
                       </div>
                     </div>
+                  );
+                })}
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setSelectedStudentForIdCard(s)}
-                        className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold"
-                      >
-                        Inspect ID
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          principalOverrideLostIdDownload(s.id);
-                          alert(`Principal Override granted for ${s.fullName}. ID badge is now immediately downloadable.`);
-                        }}
-                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-sm"
-                      >
-                        Principal Override & Enable Download
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {lostIdCases.length === 0 && (
-                <p className="text-xs text-slate-400 text-center py-4">No pending lost ID replacement clearances.</p>
-              )}
+                {lostIdCases.length === 0 && (
+                  <p className="text-xs text-slate-400 text-center py-4">No pending lost ID replacement clearances.</p>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 

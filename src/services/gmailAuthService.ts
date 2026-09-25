@@ -17,8 +17,9 @@ const provider = new GoogleAuthProvider();
 // Required Gmail Scope for sending authentication emails
 provider.addScope('https://www.googleapis.com/auth/gmail.send');
 
-// In-memory token storage (MANDATORY: never store access token in localStorage)
-let cachedAccessToken: string | null = null;
+// In-memory token storage with session continuity
+const GMAIL_SESSION_TOKEN_KEY = 'gmail_oauth_session_token';
+let cachedAccessToken: string | null = typeof window !== 'undefined' ? sessionStorage.getItem(GMAIL_SESSION_TOKEN_KEY) : null;
 let isSigningIn = false;
 
 export const initGoogleAuth = (
@@ -27,6 +28,9 @@ export const initGoogleAuth = (
 ) => {
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
+      if (!cachedAccessToken && typeof window !== 'undefined') {
+        cachedAccessToken = sessionStorage.getItem(GMAIL_SESSION_TOKEN_KEY);
+      }
       if (cachedAccessToken) {
         if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
       } else if (!isSigningIn) {
@@ -35,6 +39,9 @@ export const initGoogleAuth = (
       }
     } else {
       cachedAccessToken = null;
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(GMAIL_SESSION_TOKEN_KEY);
+      }
       if (onAuthFailure) onAuthFailure();
     }
   });
@@ -49,6 +56,11 @@ export const signInWithGoogle = async (): Promise<{ user: User; accessToken: str
       throw new Error('Could not retrieve access token from Google sign in');
     }
     cachedAccessToken = credential.accessToken;
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem(GMAIL_SESSION_TOKEN_KEY, cachedAccessToken);
+      } catch (_) {}
+    }
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     // Gracefully handle user closing or dismissing the popup
@@ -69,6 +81,9 @@ export const signInWithGoogle = async (): Promise<{ user: User; accessToken: str
 };
 
 export const getGoogleAccessToken = async (): Promise<string | null> => {
+  if (!cachedAccessToken && typeof window !== 'undefined') {
+    cachedAccessToken = sessionStorage.getItem(GMAIL_SESSION_TOKEN_KEY);
+  }
   return cachedAccessToken;
 };
 
@@ -79,10 +94,23 @@ export const getCurrentGoogleUser = (): User | null => {
 export const signOutGoogle = async () => {
   await signOut(auth);
   cachedAccessToken = null;
+  if (typeof window !== 'undefined') {
+    try {
+      sessionStorage.removeItem(GMAIL_SESSION_TOKEN_KEY);
+    } catch (_) {}
+  }
 };
 
 export const isGmailAuthorized = (): boolean => {
-  return !!cachedAccessToken;
+  if (cachedAccessToken) return true;
+  if (typeof window !== 'undefined') {
+    const stored = sessionStorage.getItem(GMAIL_SESSION_TOKEN_KEY);
+    if (stored) {
+      cachedAccessToken = stored;
+      return true;
+    }
+  }
+  return false;
 };
 
 /**
@@ -441,3 +469,48 @@ export async function sendTemporaryPasswordEmailViaGmail({
   const data = await response.json();
   return { success: true, messageId: data.id };
 }
+
+/**
+ * Generates an RFC compliant universal mailto URL for instant 1-click fallback dispatch
+ * without requiring any third-party credentials or paid service
+ */
+export function generateCredentialsMailtoUrl({
+  recipientEmail,
+  recipientName,
+  roleName,
+  positionTitle,
+  tempPassword,
+  schoolName,
+}: {
+  recipientEmail: string;
+  recipientName: string;
+  roleName: string;
+  positionTitle: string;
+  tempPassword: string;
+  schoolName: string;
+}): string {
+  const subject = `${schoolName} - Account Credentials: Temporary Password for ${positionTitle}`;
+  const body = `Dear ${recipientName},
+
+The Office of the Principal has provisioned an authorized institutional account for you at ${schoolName}.
+
+--- YOUR ACCESS CREDENTIALS ---
+Assigned Role: ${roleName}
+Official Position: ${positionTitle}
+Login Identifier / Email: ${recipientEmail}
+Temporary Password: ${tempPassword}
+
+--- MANDATORY FIRST-LOGIN PROTOCOL ---
+For institutional information security, you must log in with this temporary password and you will be prompted to choose your permanent, secure personal password immediately upon your first sign-in.
+
+Portal Address: ${typeof window !== 'undefined' ? window.location.origin : 'School Unified Portal'}
+
+If you have any questions, please contact the Office of the Principal.
+
+Sincerely,
+Office of the Principal & Board of Trustees
+${schoolName}`;
+
+  return `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+

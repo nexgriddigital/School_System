@@ -23,9 +23,13 @@ import {
   ShieldCheck,
   Send,
   Eye,
-  Sparkles
+  Sparkles,
+  FileCheck,
+  Stamp,
+  HelpCircle
 } from 'lucide-react';
-import { AcademicStream } from '../../types';
+import { AcademicStream, TranscriptRequest } from '../../types';
+import { generateTranscriptPdf } from '../../utils/transcriptPdfGenerator';
 
 export const StudentView: React.FC = () => {
   const { 
@@ -45,12 +49,22 @@ export const StudentView: React.FC = () => {
     setSelectedInvoiceForReceipt,
     teachers,
     schoolName,
-    openDocumentViewer
+    openDocumentViewer,
+    transcriptRequests,
+    requestTranscript
   } = useSchool();
 
   const student = currentStudent || students?.find(s => s.id === activeStudentId) || students?.[0];
 
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'GRADES' | 'FEES' | 'RECOMMENDATION' | 'STREAM_CHANGE' | 'ID_CARD'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'GRADES' | 'TRANSCRIPT' | 'FEES' | 'RECOMMENDATION' | 'STREAM_CHANGE' | 'ID_CARD'>('OVERVIEW');
+
+  // Transcript Request State
+  const [transcriptScope, setTranscriptScope] = useState<'FULL' | 'PARTIAL'>('FULL');
+  const [transcriptCutoffDate, setTranscriptCutoffDate] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  );
+  const [transcriptReason, setTranscriptReason] = useState('Official College & University Admissions Application');
+  const [transcriptRequestSuccess, setTranscriptRequestSuccess] = useState(false);
 
   // Stream Change Request Form
   const [requestedStream, setRequestedStream] = useState<AcademicStream>('Social Sciences');
@@ -173,6 +187,16 @@ export const StudentView: React.FC = () => {
             >
               <Award className="w-3.5 h-3.5 inline mr-1" />
               Report Card & Grades
+            </button>
+
+            <button
+              onClick={() => setActiveTab('TRANSCRIPT')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 ${
+                activeTab === 'TRANSCRIPT' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <FileCheck className="w-3.5 h-3.5 text-indigo-400" />
+              Official Transcript
             </button>
 
             <button
@@ -439,6 +463,393 @@ export const StudentView: React.FC = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: OFFICIAL TRANSCRIPT REQUEST & VERIFIED DOWNLOAD */}
+      {activeTab === 'TRANSCRIPT' && (
+        <div className="space-y-6">
+          {/* Header Policy Ribbon */}
+          <div className="bg-indigo-900 text-white rounded-2xl p-6 shadow-sm space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-indigo-800/80 border border-indigo-700 flex items-center justify-center shrink-0">
+                  <FileCheck className="w-6 h-6 text-indigo-300" />
+                </div>
+                <div>
+                  <h3 className="font-oskar-vintage text-lg font-bold tracking-wide">
+                    Official Student Transcript Portal
+                  </h3>
+                  <p className="text-xs text-indigo-200 mt-0.5">
+                    Dynamic cutoff grade calculation with diagonal &quot;Temporary Transcript&quot; security watermark.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 bg-indigo-800/90 text-indigo-200 rounded-lg text-xs font-mono border border-indigo-700">
+                  Executive Approval Required
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-indigo-950/60 rounded-xl border border-indigo-800/70 text-xs text-indigo-100 flex items-start gap-2.5">
+              <Stamp className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <strong>Official Protocol:</strong> Transcripts calculate grades strictly up to your requested cutoff date. Any unfinalized courses beyond that date are rendered as <strong>&quot;NG&quot; (No Grade)</strong>. Under institutional regulation, students and parents must submit a request. Once authorized and digitally approved by the Principal, you can view and download the verified document with the diagonal <em>&quot;Temporary Transcript&quot;</em> watermark.
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Submit Request Form */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <h4 className="font-oskar-vintage text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-indigo-600" />
+                  Request Official Transcript
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Specify scope and grade cutoff date for Principal review.
+                </p>
+              </div>
+
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!student) return;
+                  requestTranscript({
+                    studentId: student.id,
+                    studentName: student.fullName,
+                    grade: student.grade,
+                    stream: student.stream,
+                    requestedByRole: 'STUDENT',
+                    requesterName: student.fullName,
+                    requesterId: student.id,
+                    scope: transcriptScope,
+                    requestedDate: transcriptCutoffDate,
+                    reason: transcriptReason,
+                  });
+                  setTranscriptRequestSuccess(true);
+                  setTimeout(() => setTranscriptRequestSuccess(false), 4500);
+                }} 
+                className="space-y-4 text-xs"
+              >
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Transcript Scope
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTranscriptScope('FULL')}
+                      className={`p-2.5 rounded-xl border text-center transition font-semibold ${
+                        transcriptScope === 'FULL'
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-900 shadow-xs'
+                          : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      Full Transcript
+                      <span className="block text-[10px] font-normal text-slate-500 mt-0.5">
+                        Cumulative Records
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setTranscriptScope('PARTIAL')}
+                      className={`p-2.5 rounded-xl border text-center transition font-semibold ${
+                        transcriptScope === 'PARTIAL'
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-900 shadow-xs'
+                          : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      Partial Transcript
+                      <span className="block text-[10px] font-normal text-slate-500 mt-0.5">
+                        Grade {student.grade} Year-to-Date
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Requested Grade Cutoff Date
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={transcriptCutoffDate}
+                    onChange={(e) => setTranscriptCutoffDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Grades entered up to this date will appear. Any unentered assessments show as &quot;NG&quot;.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Purpose / Justification
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={transcriptReason}
+                    onChange={(e) => setTranscriptReason(e.target.value)}
+                    placeholder="e.g., University Admissions, Scholarship, Visa"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition shadow-sm flex items-center justify-center gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Submit Request to Principal
+                </button>
+
+                {transcriptRequestSuccess && (
+                  <div className="p-3 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-medium border border-emerald-200 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    Transcript request successfully lodged! Once the Principal reviews and approves, your watermarked transcript will be available below.
+                  </div>
+                )}
+              </form>
+            </div>
+
+            {/* My Requests & Approved Transcripts */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h4 className="font-oskar-vintage text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-indigo-600" />
+                      Transcript Requests & Approvals
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Check authorization status and view approved documents.
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-0.5 bg-slate-100 text-slate-700 font-bold rounded-full text-xs">
+                    {transcriptRequests.filter(r => r.studentId === student.id).length} Total
+                  </span>
+                </div>
+
+                {transcriptRequests.filter(r => r.studentId === student.id).length === 0 ? (
+                  <div className="text-center py-8 text-slate-400 space-y-2">
+                    <FileCheck className="w-10 h-10 mx-auto text-slate-300" />
+                    <p className="text-xs">No transcript requests filed yet.</p>
+                    <p className="text-[11px] text-slate-400">Use the form on the left to request your Full or Partial transcript.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {transcriptRequests
+                      .filter(r => r.studentId === student.id)
+                      .map((req) => (
+                        <div
+                          key={req.id}
+                          className={`p-4 rounded-xl border text-xs space-y-3 transition ${
+                            req.status === 'APPROVED'
+                              ? 'border-emerald-200 bg-emerald-50/40 shadow-xs'
+                              : req.status === 'REJECTED'
+                              ? 'border-rose-200 bg-rose-50/40'
+                              : 'border-amber-200 bg-amber-50/40'
+                          }`}
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-900 text-sm">
+                                  {req.scope === 'FULL' ? 'Full Cumulative Transcript' : 'Partial Academic Transcript'}
+                                </span>
+                                <span className="font-mono text-[10px] text-slate-500">
+                                  Cutoff: <strong>{req.requestedDate}</strong>
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-600 mt-0.5">
+                                Reason: <em>{req.reason}</em>
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {req.status === 'PENDING_APPROVAL' && (
+                                <span className="px-2.5 py-1 bg-amber-100 text-amber-900 rounded-full font-bold text-[10px] flex items-center gap-1 border border-amber-300">
+                                  <Clock className="w-3 h-3 text-amber-700 animate-spin" />
+                                  Awaiting Principal Approval
+                                </span>
+                              )}
+                              {req.status === 'APPROVED' && (
+                                <span className="px-2.5 py-1 bg-emerald-100 text-emerald-900 rounded-full font-bold text-[10px] flex items-center gap-1 border border-emerald-300">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-700" />
+                                  Approved & Ready
+                                </span>
+                              )}
+                              {req.status === 'REJECTED' && (
+                                <span className="px-2.5 py-1 bg-rose-100 text-rose-900 rounded-full font-bold text-[10px] border border-rose-300">
+                                  Rejected: {req.rejectionReason || 'Contact Office'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {req.status === 'APPROVED' ? (
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                              <div className="text-[11px] text-emerald-900 space-y-0.5">
+                                <div className="flex items-center gap-1.5 font-semibold">
+                                  <Stamp className="w-3.5 h-3.5 text-emerald-700" />
+                                  Watermarked: &quot;Temporary Transcript&quot;
+                                </div>
+                                <p className="text-slate-500">
+                                  Authorized by <strong>{req.approvedBy || 'School Principal'}</strong> on {req.approvedAt ? new Date(req.approvedAt).toLocaleDateString() : 'Today'}
+                                </p>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const pdfUrl = generateTranscriptPdf({
+                                      student,
+                                      schoolName,
+                                      grades,
+                                      cutoffDate: req.requestedDate,
+                                      scope: req.scope,
+                                      watermarkText: 'Temporary Transcript',
+                                      authorizedBy: req.approvedBy,
+                                      authorizedSignature: req.authorizedSignature,
+                                    });
+
+                                    openDocumentViewer({
+                                      title: `Official Academic Transcript (${req.scope === 'FULL' ? 'Cumulative' : 'Partial'})`,
+                                      subtitle: `${student.fullName} (${student.id}) • Cutoff: ${req.requestedDate}`,
+                                      docName: `${student.id}_Temporary_Transcript_${req.requestedDate}.pdf`,
+                                      docUrl: pdfUrl,
+                                      category: 'TRANSCRIPT',
+                                      watermark: 'Temporary Transcript',
+                                      metadata: {
+                                        studentName: student.fullName,
+                                        studentId: student.id,
+                                        cutoffDate: req.requestedDate,
+                                        scope: req.scope,
+                                        watermark: 'Temporary Transcript',
+                                        signatures: req.authorizedSignature ? [req.authorizedSignature] : undefined,
+                                      }
+                                    });
+                                  }}
+                                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition shadow-xs"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  View Transcript
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const pdfUrl = generateTranscriptPdf({
+                                      student,
+                                      schoolName,
+                                      grades,
+                                      cutoffDate: req.requestedDate,
+                                      scope: req.scope,
+                                      watermarkText: 'Temporary Transcript',
+                                      authorizedBy: req.approvedBy,
+                                      authorizedSignature: req.authorizedSignature,
+                                    });
+                                    const a = document.createElement('a');
+                                    a.href = pdfUrl;
+                                    a.download = `${student.id}_Temporary_Transcript_${req.requestedDate}.pdf`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                  }}
+                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition shadow-xs"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  Download PDF
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1">
+                              <span>Filed on {new Date(req.createdAt).toLocaleDateString()}</span>
+                              <span className="italic text-amber-700 font-medium">
+                                Principal executive clearance in progress
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Real-time Cutoff Grade Simulation Table */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h4 className="font-oskar-vintage text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Grade Status for Cutoff: {transcriptCutoffDate}
+                  </h4>
+                  <span className="text-[11px] text-slate-500 font-mono">
+                    System Logic: Entered &le; Cutoff or &quot;NG&quot;
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                        <th className="py-2 px-3">Subject Course</th>
+                        <th className="py-2 px-3">Instructor</th>
+                        <th className="py-2 px-3 text-center">Entry Date</th>
+                        <th className="py-2 px-3 text-center">Score</th>
+                        <th className="py-2 px-3 text-center">Transcript Mark</th>
+                        <th className="py-2 px-3 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {studentGrades.map((g, idx) => {
+                        const isEnteredByCutoff = !g.entryDate || g.entryDate <= transcriptCutoffDate;
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50/50">
+                            <td className="py-2 px-3 font-semibold text-slate-900">{g.subject}</td>
+                            <td className="py-2 px-3 text-slate-600 text-[11px]">{g.teacherName}</td>
+                            <td className="py-2 px-3 text-center text-slate-500 text-[11px] font-mono">
+                              {g.entryDate || 'Prior Term'}
+                            </td>
+                            <td className="py-2 px-3 text-center font-mono">
+                              {isEnteredByCutoff ? `${g.total}%` : '—'}
+                            </td>
+                            <td className="py-2 px-3 text-center font-bold font-mono">
+                              {isEnteredByCutoff ? (
+                                <span className="text-blue-700">{g.letterGrade}</span>
+                              ) : (
+                                <span className="text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded text-[11px]">
+                                  NG
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              {isEnteredByCutoff ? (
+                                <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium">
+                                  Finalized
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full font-medium">
+                                  No Grade (NG)
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
           </div>
         </div>
       )}

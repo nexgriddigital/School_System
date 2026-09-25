@@ -22,12 +22,12 @@ import {
 import { DisciplinaryAction, StudentEvaluation } from '../../types';
 import { DisciplinaryHearingModal } from './DisciplinaryHearingModal';
 import { ParentEmailLogsModal } from '../common/ParentEmailLogsModal';
+import { StudentDisciplineModule } from './StudentDisciplineModule';
 
 export const CounsellorView: React.FC = () => {
   const { 
     students, 
     disciplinaryActions, 
-    recordDisciplinaryAction, 
     recommendations, 
     fulfillRecommendationLetter,
     evaluations, 
@@ -39,19 +39,6 @@ export const CounsellorView: React.FC = () => {
   } = useSchool();
 
   const [activeTab, setActiveTab] = useState<'DISCIPLINARY' | 'EVALUATIONS' | 'RECOMMENDATIONS' | 'PARENT_MAIL'>('DISCIPLINARY');
-
-  // Disciplinary Form State
-  const [selectedStudentId, setSelectedStudentId] = useState<string>(students[0]?.id || '');
-  const [incidentType, setIncidentType] = useState('Unexcused Absence & Truancy');
-  const [description, setDescription] = useState('');
-  const [actionTaken, setActionTaken] = useState('Parent Conference & 1-Week Counseling Check-in');
-  const [disciplinarySuccess, setDisciplinarySuccess] = useState(false);
-  const [scheduleHearingInForm, setScheduleHearingInForm] = useState(false);
-  const [formHearingDate, setFormHearingDate] = useState(
-    new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0]
-  );
-  const [formHearingTime, setFormHearingTime] = useState('10:30 AM');
-  const [formHearingLocation, setFormHearingLocation] = useState('Academic Disciplinary Board Room (Hall B, Rm 204)');
   const [selectedActionForHearing, setSelectedActionForHearing] = useState<DisciplinaryAction | null>(null);
   const [showLogsModal, setShowLogsModal] = useState(false);
 
@@ -66,36 +53,6 @@ export const CounsellorView: React.FC = () => {
   const [mailSubject, setMailSubject] = useState('Academic Guidance & Counseling Progress Update');
   const [mailMessage, setMailMessage] = useState('');
   const [mailSentSuccess, setMailSentSuccess] = useState(false);
-
-  const handleSubmitDisciplinary = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const st = students.find(s => s.id === selectedStudentId);
-    if (!st) return;
-
-    await recordDisciplinaryAction({
-      studentId: st.id,
-      studentName: st.fullName,
-      grade: st.grade,
-      sectionId: st.sectionId || undefined,
-      incidentDate: new Date().toISOString().split('T')[0],
-      incidentType,
-      description,
-      actionTaken,
-      counsellorName: currentUser?.name || 'Head Guidance Counsellor',
-      autoNotifyParent: scheduleHearingInForm,
-      hearingScheduled: scheduleHearingInForm,
-      hearingDate: scheduleHearingInForm ? formHearingDate : undefined,
-      hearingTime: scheduleHearingInForm ? formHearingTime : undefined,
-      hearingLocation: scheduleHearingInForm ? formHearingLocation : undefined,
-      hearingCommittee: scheduleHearingInForm ? ['Office of the Principal', currentUser?.name || 'Head Guidance Counsellor'] : undefined,
-      hearingStatus: scheduleHearingInForm ? 'SCHEDULED' : undefined,
-    });
-
-    setDisciplinarySuccess(true);
-    setDescription('');
-    setScheduleHearingInForm(false);
-    setTimeout(() => setDisciplinarySuccess(false), 5000);
-  };
 
   const handleSubmitEvaluation = (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,7 +111,7 @@ export const CounsellorView: React.FC = () => {
               }`}
             >
               <ShieldAlert className="w-3.5 h-3.5" />
-              Disciplinary Records ({disciplinaryActions.length})
+              Student Discipline ({disciplinaryActions.length})
             </button>
 
             <button
@@ -221,249 +178,11 @@ export const CounsellorView: React.FC = () => {
         </div>
       </div>
 
-      {/* TAB 1: DISCIPLINARY ACTIONS (WITH AUTO HOMEROOM NOTIFICATION) */}
+      {/* TAB 1: STUDENT DISCIPLINE LOGGING & MANAGEMENT MODULE */}
       {activeTab === 'DISCIPLINARY' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Record Incident Form */}
-          <form onSubmit={handleSubmitDisciplinary} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-            <h3 className="font-oskar-vintage text-base font-bold text-slate-900">
-              Record Disciplinary Incident
-            </h3>
-            <p className="text-xs text-slate-500">
-              System requirement: Recording a disciplinary action will automatically dispatch an immediate notification to the student's Homeroom Teacher. (Reversible strictly by Principal).
-            </p>
-
-            {disciplinarySuccess && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Disciplinary record logged. Homeroom teacher automatically alerted.</span>
-              </div>
-            )}
-
-            <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1">Select Student *</label>
-              <select
-                value={selectedStudentId}
-                onChange={(e) => setSelectedStudentId(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white"
-              >
-                {students.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.fullName} ({s.id} - Grade {s.grade}{s.sectionId ? ` Sec ${s.sectionId}` : ''})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1">Incident Classification</label>
-              <input
-                type="text"
-                required
-                value={incidentType}
-                onChange={(e) => setIncidentType(e.target.value)}
-                placeholder="e.g. Repeated Tardiness / Lab Safety Violation"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1">Incident Description *</label>
-              <textarea
-                rows={3}
-                required
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Provide factual details of the behavior or infraction..."
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1">Corrective Action Taken *</label>
-              <input
-                type="text"
-                required
-                value={actionTaken}
-                onChange={(e) => setActionTaken(e.target.value)}
-                placeholder="e.g. 1-Day After-school Detention & Parent Notification"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
-              />
-            </div>
-
-            {/* Hearing Scheduling Checkbox */}
-            <div className="pt-2 border-t border-slate-200">
-              <label className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50/70 border border-amber-200/80 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={scheduleHearingInForm}
-                  onChange={(e) => setScheduleHearingInForm(e.target.checked)}
-                  className="mt-0.5 rounded text-amber-600 focus:ring-amber-500"
-                />
-                <div>
-                  <span className="text-xs font-bold text-amber-900 block">
-                    Schedule Formal Hearing & Auto-Summons Parent via Gmail
-                  </span>
-                  <span className="text-[11px] text-amber-800 leading-tight block mt-0.5">
-                    Transmits an official summons notice with date, committee, and protocol directly to the parent's email.
-                  </span>
-                </div>
-              </label>
-
-              {scheduleHearingInForm && (
-                <div className="mt-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3 animate-fade-in">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[11px] font-semibold text-slate-700 block mb-1">Hearing Date</label>
-                      <input
-                        type="date"
-                        required={scheduleHearingInForm}
-                        value={formHearingDate}
-                        onChange={(e) => setFormHearingDate(e.target.value)}
-                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-semibold text-slate-700 block mb-1">Hearing Time</label>
-                      <input
-                        type="text"
-                        required={scheduleHearingInForm}
-                        value={formHearingTime}
-                        onChange={(e) => setFormHearingTime(e.target.value)}
-                        placeholder="e.g. 10:30 AM"
-                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-700 block mb-1">Hearing Location</label>
-                    <input
-                      type="text"
-                      required={scheduleHearingInForm}
-                      value={formHearingLocation}
-                      onChange={(e) => setFormHearingLocation(e.target.value)}
-                      placeholder="e.g. Academic Board Room (Hall B, Rm 204)"
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
-            >
-              Record Action & Alert Homeroom Teacher
-            </button>
-          </form>
-
-          {/* Incident Log Table */}
-          <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-            <h3 className="font-oskar-vintage text-base font-bold text-slate-900">
-              Active Disciplinary Incident Log ({disciplinaryActions.length})
-            </h3>
-
-            <div className="space-y-3">
-              {disciplinaryActions.map((action) => (
-                <div 
-                  key={action.id} 
-                  className={`p-4 rounded-xl border text-xs space-y-2.5 transition ${
-                    action.reversedByPrincipal 
-                      ? 'bg-emerald-50/50 border-emerald-200' 
-                      : 'bg-rose-50/40 border-rose-200'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="font-bold text-slate-900 text-sm">{action.studentName}</span>
-                      <span className="font-mono text-slate-500 text-[11px] ml-2">({action.studentId})</span>
-                      <span className="ml-2 text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-semibold">
-                        Grade {action.grade}
-                      </span>
-                    </div>
-
-                    <div className="text-right">
-                      {action.reversedByPrincipal ? (
-                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold text-[10px] uppercase tracking-wider flex items-center gap-1">
-                          <RotateCcw className="w-3 h-3" /> Reversed by Principal
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded font-bold text-[10px] uppercase tracking-wider">
-                          Active Disciplinary
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <p className="font-semibold text-slate-800">{action.incidentType}</p>
-                  <p className="text-slate-600 leading-relaxed bg-white p-2.5 rounded border border-slate-200/80">
-                    {action.description}
-                  </p>
-
-                  {action.hearingScheduled && (
-                    <div className="p-2.5 rounded-lg bg-amber-50/90 border border-amber-200/90 text-amber-950 space-y-1">
-                      <div className="flex items-center justify-between font-bold text-[11px]">
-                        <span className="flex items-center gap-1.5 text-amber-900">
-                          <Calendar className="w-3.5 h-3.5 text-amber-700" />
-                          Hearing Scheduled: {action.hearingDate} at {action.hearingTime}
-                        </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200/80 border border-amber-300 text-amber-900 font-mono font-bold">
-                          {action.hearingStatus || 'SCHEDULED'}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1 text-[11px] text-amber-800">
-                        <MapPin className="w-3 h-3 text-amber-600" />
-                        {action.hearingLocation}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-200/80 text-[11px]">
-                    <div className="flex items-center gap-2">
-                      <span>Action: <strong className="text-slate-800">{action.actionTaken}</strong></span>
-                      <span className="text-emerald-700 font-semibold flex items-center gap-0.5">
-                        <CheckCircle2 className="w-3 h-3" /> Homeroom Alerted
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 mt-1 sm:mt-0">
-                      {action.parentNotified ? (
-                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          Parent Summons Sent (Gmail)
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                          Parent Notice Pending
-                        </span>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => setSelectedActionForHearing(action)}
-                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-semibold transition flex items-center gap-1 shadow-xs cursor-pointer"
-                      >
-                        <Mail className="w-3 h-3" />
-                        {action.hearingScheduled ? 'Manage Summons' : 'Schedule Hearing & Email'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {action.reversedByPrincipal && (
-                    <div className="pt-2 border-t border-emerald-200 text-[11px] text-emerald-900">
-                      <strong>Principal Reversal Reason:</strong> "{action.reversalReason}" ({action.reversalDate})
-                    </div>
-                  )}
-                </div>
-              ))}
-
-              {disciplinaryActions.length === 0 && (
-                <p className="text-xs text-slate-400 text-center py-6">No disciplinary actions recorded.</p>
-              )}
-            </div>
-          </div>
-        </div>
+        <StudentDisciplineModule
+          onOpenHearingModal={(action) => setSelectedActionForHearing(action)}
+        />
       )}
 
       {/* TAB 2: STUDENT EVALUATIONS */}

@@ -21,7 +21,10 @@ import {
   ThemeMode,
   AuditLogEntry,
   AuditActionCategory,
-  AuditSeverity
+  AuditSeverity,
+  TranscriptRequest,
+  InternalDocument,
+  DigitalSignatureInfo
 } from '../types';
 import { 
   INITIAL_STUDENTS, 
@@ -40,6 +43,7 @@ import {
 } from '../mockData';
 import { INITIAL_AUDIT_LOGS, generateAuditHash } from '../data/initialAuditLogs';
 import { sendTemporaryPasswordEmailViaGmail, isGmailAuthorized } from '../services/gmailAuthService';
+import { sendFreeTemporaryPasswordEmail } from '../services/freeEmailService';
 import { 
   sendDisciplinaryHearingEmailViaGmail, 
   sendUrgentFeeDeadlineEmailViaGmail, 
@@ -167,6 +171,7 @@ interface SchoolContextType {
   
   // Actions: Counsellor
   recordDisciplinaryAction: (action: Omit<DisciplinaryAction, 'id' | 'homeroomTeacherNotified' | 'reversedByPrincipal'> & { autoNotifyParent?: boolean }) => Promise<void> | void;
+  updateDisciplinaryAction: (actionId: string, updates: Partial<DisciplinaryAction>) => void;
   scheduleDisciplinaryHearing: (actionId: string, hearingData: { hearingDate: string; hearingTime: string; hearingLocation: string; hearingCommittee?: string[] }) => void;
   sendDisciplinaryHearingEmail: (disciplinaryId: string, customDetails?: { hearingDate?: string; hearingTime?: string; hearingLocation?: string; recipientEmail?: string; hearingCommittee?: string[] }) => Promise<{ success: boolean; messageId?: string; error?: string }>;
   submitCounsellorEvaluation: (evalData: Omit<StudentEvaluation, 'id'>) => void;
@@ -210,7 +215,12 @@ interface SchoolContextType {
     subtitle?: string;
     docName: string;
     docUrl?: string;
-    category?: 'CERTIFICATE' | 'DEPOSIT_SLIP' | 'MEDICAL_LEAVE' | 'RECOMMENDATION' | 'REPORT_CARD' | 'GENERAL';
+    category?: 'CERTIFICATE' | 'DEPOSIT_SLIP' | 'MEDICAL_LEAVE' | 'RECOMMENDATION' | 'REPORT_CARD' | 'TRANSCRIPT' | 'GENERAL';
+    watermark?: string;
+    canSign?: boolean;
+    documentId?: string;
+    signatoryRole?: UserRole;
+    onSignDocument?: (signature: DigitalSignatureInfo) => void;
     metadata?: any;
   } | null;
   openDocumentViewer: (params: {
@@ -218,10 +228,46 @@ interface SchoolContextType {
     subtitle?: string;
     docName: string;
     docUrl?: string;
-    category?: 'CERTIFICATE' | 'DEPOSIT_SLIP' | 'MEDICAL_LEAVE' | 'RECOMMENDATION' | 'REPORT_CARD' | 'GENERAL';
+    category?: 'CERTIFICATE' | 'DEPOSIT_SLIP' | 'MEDICAL_LEAVE' | 'RECOMMENDATION' | 'REPORT_CARD' | 'TRANSCRIPT' | 'GENERAL';
+    watermark?: string;
+    canSign?: boolean;
+    documentId?: string;
+    signatoryRole?: UserRole;
+    onSignDocument?: (signature: DigitalSignatureInfo) => void;
     metadata?: any;
   }) => void;
   closeDocumentViewer: () => void;
+
+  // Transcript Requests & Approvals
+  transcriptRequests: TranscriptRequest[];
+  requestTranscript: (data: {
+    studentId: string;
+    studentName: string;
+    grade: AcademicGrade;
+    stream?: AcademicStream | null;
+    requestedByRole: 'STUDENT' | 'PARENT';
+    requesterName: string;
+    requesterId: string;
+    scope: 'FULL' | 'PARTIAL';
+    requestedDate: string;
+    reason: string;
+  }) => TranscriptRequest;
+  approveTranscriptRequest: (requestId: string, signature?: DigitalSignatureInfo) => void;
+  rejectTranscriptRequest: (requestId: string, reason: string) => void;
+
+  // Digital Signatures & Internal Documents
+  internalDocuments: InternalDocument[];
+  signInternalDocument: (documentId: string, signature: DigitalSignatureInfo) => void;
+  createInternalDocument: (doc: {
+    title: string;
+    documentType: InternalDocument['documentType'];
+    referenceNumber: string;
+    description: string;
+    pdfUrl?: string;
+    targetStudentId?: string;
+    targetStudentName?: string;
+    requiredSignatories?: UserRole[];
+  }) => InternalDocument;
 
   // Principal Touch: Executive Master System Reset
   resetEverything: (options?: { keepPrincipalLoggedIn?: boolean }) => void;
@@ -424,6 +470,69 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     localStorage.setItem('oskar_school_parent_email_logs', JSON.stringify(parentEmailAlertLogs));
   }, [parentEmailAlertLogs]);
+
+  const [transcriptRequests, setTranscriptRequests] = useState<TranscriptRequest[]>(() => {
+    const saved = localStorage.getItem('oskar_school_transcript_requests');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('oskar_school_transcript_requests', JSON.stringify(transcriptRequests));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [transcriptRequests]);
+
+  const [internalDocuments, setInternalDocuments] = useState<InternalDocument[]>(() => {
+    const saved = localStorage.getItem('oskar_school_internal_documents');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return [
+      {
+        id: 'DOC-2026-001',
+        title: 'Institutional Academic Calendar & Assessment Directives',
+        documentType: 'ADMIN_MEMO',
+        referenceNumber: 'DIR/ACAD/2026/04',
+        issuedDate: '2026-09-01',
+        description: 'Mandatory guidelines for mid-term assessments and official transcript grading cutoffs.',
+        status: 'PENDING_SIGNATURE',
+        signatures: [],
+        requiredSignatories: ['PRINCIPAL', 'REGISTRAR'],
+      },
+      {
+        id: 'DOC-2026-002',
+        title: 'Continuous Evaluation & "NG" (No Grade) Protocol',
+        documentType: 'GENERAL_POLICY',
+        referenceNumber: 'POL/SEC/2026/11',
+        issuedDate: '2026-09-10',
+        description: 'Policy dictating "NG" (No Grade) notations for all pending or unfinalized subject coursework as of the requested transcript date.',
+        status: 'PENDING_SIGNATURE',
+        signatures: [],
+        requiredSignatories: ['PRINCIPAL'],
+      }
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('oskar_school_internal_documents', JSON.stringify(internalDocuments));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [internalDocuments]);
 
   const clearParentEmailAlertLogs = () => {
     setParentEmailAlertLogs([]);
@@ -778,7 +887,12 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     subtitle?: string;
     docName: string;
     docUrl?: string;
-    category?: 'CERTIFICATE' | 'DEPOSIT_SLIP' | 'MEDICAL_LEAVE' | 'RECOMMENDATION' | 'REPORT_CARD' | 'GENERAL';
+    category?: 'CERTIFICATE' | 'DEPOSIT_SLIP' | 'MEDICAL_LEAVE' | 'RECOMMENDATION' | 'REPORT_CARD' | 'TRANSCRIPT' | 'GENERAL';
+    watermark?: string;
+    canSign?: boolean;
+    documentId?: string;
+    signatoryRole?: UserRole;
+    onSignDocument?: (signature: DigitalSignatureInfo) => void;
     metadata?: any;
   } | null>(null);
 
@@ -787,7 +901,12 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     subtitle?: string;
     docName: string;
     docUrl?: string;
-    category?: 'CERTIFICATE' | 'DEPOSIT_SLIP' | 'MEDICAL_LEAVE' | 'RECOMMENDATION' | 'REPORT_CARD' | 'GENERAL';
+    category?: 'CERTIFICATE' | 'DEPOSIT_SLIP' | 'MEDICAL_LEAVE' | 'RECOMMENDATION' | 'REPORT_CARD' | 'TRANSCRIPT' | 'GENERAL';
+    watermark?: string;
+    canSign?: boolean;
+    documentId?: string;
+    signatoryRole?: UserRole;
+    onSignDocument?: (signature: DigitalSignatureInfo) => void;
     metadata?: any;
   }) => {
     setActiveDocumentModal({
@@ -963,9 +1082,9 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       extraCredentials: params.extraCredentials,
     };
 
-    // 2. Dispatch email with Temporary Password via Gmail REST API
+    // 2. Dispatch email with Temporary Password directly to user inbox
     try {
-      await sendTemporaryPasswordEmailViaGmail({
+      await sendFreeTemporaryPasswordEmail({
         recipientEmail: params.email.trim(),
         recipientName: params.name.trim(),
         roleName: params.role,
@@ -974,8 +1093,20 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         schoolName,
         senderName: currentUser?.name || schoolName,
       });
+
+      if (isGmailAuthorized()) {
+        await sendTemporaryPasswordEmailViaGmail({
+          recipientEmail: params.email.trim(),
+          recipientName: params.name.trim(),
+          roleName: params.role,
+          positionTitle: params.position.trim(),
+          tempPassword,
+          schoolName,
+          senderName: currentUser?.name || schoolName,
+        });
+      }
     } catch (err: any) {
-      console.warn('Notice: Gmail dispatch encountered warning or offline preview:', err);
+      console.warn('Notice: Email dispatch encountered warning or offline preview:', err);
     }
 
     // 3. Save to institutional users list
@@ -1840,6 +1971,15 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const updateDisciplinaryAction = (actionId: string, updates: Partial<DisciplinaryAction>) => {
+    setDisciplinaryActions(prev => prev.map(act => {
+      if (act.id === actionId) {
+        return { ...act, ...updates };
+      }
+      return act;
+    }));
+  };
+
   const submitCounsellorEvaluation = (evalData: Omit<StudentEvaluation, 'id'>) => {
     const newEval: StudentEvaluation = {
       ...evalData,
@@ -1960,14 +2100,28 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const saveSubjectGrade = (entryData: Omit<GradeEntry, 'id'>) => {
-    const total = Math.round(entryData.test1Score + entryData.midtermScore + entryData.finalScore);
-    const letter = total >= 90 ? 'A+' : total >= 85 ? 'A' : total >= 80 ? 'B+' : total >= 75 ? 'B' : total >= 70 ? 'C' : 'F';
+    const quizVal = entryData.quiz ?? entryData.test1Score ?? 15;
+    const assessVal = entryData.assessment ?? 15;
+    const midVal = entryData.midtermScore ?? entryData.midExam ?? 25;
+    const finalVal = entryData.finalScore ?? entryData.finalExam ?? 35;
+    const total = entryData.totalGrade !== undefined && entryData.totalGrade !== null 
+      ? entryData.totalGrade 
+      : Math.round(quizVal + assessVal + midVal + finalVal);
+
+    const letter = entryData.letterGrade || (
+      total >= 90 ? 'A+' : total >= 85 ? 'A' : total >= 80 ? 'B+' : total >= 75 ? 'B' : total >= 70 ? 'C' : 'F'
+    );
 
     const newEntry: GradeEntry = {
       ...entryData,
       id: `GRD-${Math.floor(1000 + Math.random() * 9000)}`,
       totalGrade: total,
       letterGrade: letter,
+      quiz: quizVal,
+      assessment: assessVal,
+      midExam: midVal,
+      finalExam: finalVal,
+      entryDate: entryData.entryDate || new Date().toISOString().split('T')[0],
     };
 
     setGrades(prev => {
@@ -1979,6 +2133,126 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       return [newEntry, ...prev];
     });
+  };
+
+  const requestTranscript = (data: {
+    studentId: string;
+    studentName: string;
+    grade: AcademicGrade;
+    stream?: AcademicStream | null;
+    requestedByRole: 'STUDENT' | 'PARENT';
+    requesterName: string;
+    requesterId: string;
+    scope: 'FULL' | 'PARTIAL';
+    requestedDate: string;
+    reason: string;
+  }): TranscriptRequest => {
+    const newReq: TranscriptRequest = {
+      ...data,
+      id: `TRQ-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      status: 'PENDING_APPROVAL',
+      appliedDate: new Date().toISOString().split('T')[0],
+      watermarkText: 'Temporary Transcript',
+    };
+
+    setTranscriptRequests(prev => [newReq, ...prev]);
+
+    logAuditAction({
+      action: 'ACADEMIC_RECORDS_UPDATED',
+      category: 'STUDENT_PORTAL',
+      severity: 'INFO',
+      details: `${data.requestedByRole} ${data.requesterName} submitted ${data.scope} transcript request for ${data.studentName} (${data.studentId}) with cutoff date ${data.requestedDate}. Reason: ${data.reason}`,
+      targetEntity: { type: 'STUDENT', id: data.studentId, label: data.studentName },
+    });
+
+    return newReq;
+  };
+
+  const approveTranscriptRequest = (requestId: string, signature?: DigitalSignatureInfo) => {
+    const timestamp = new Date().toISOString();
+    setTranscriptRequests(prev => prev.map(req => {
+      if (req.id !== requestId) return req;
+      return {
+        ...req,
+        status: 'APPROVED',
+        approvedDate: timestamp.split('T')[0],
+        approvedBy: signature?.signatoryName || 'Office of Executive Principal',
+        authorizedSignature: signature,
+        watermarkText: 'Temporary Transcript',
+      };
+    }));
+
+    logAuditAction({
+      action: 'EXECUTIVE_AUTHORIZATION_GRANTED',
+      category: 'PRINCIPAL_EXECUTIVE',
+      severity: 'HIGH',
+      details: `Executive Principal approved transcript request ${requestId} with authorized electronic signature. Watermark "Temporary Transcript" enabled for student/parent view & download.`,
+    });
+  };
+
+  const rejectTranscriptRequest = (requestId: string, reason: string) => {
+    setTranscriptRequests(prev => prev.map(req => {
+      if (req.id !== requestId) return req;
+      return {
+        ...req,
+        status: 'REJECTED',
+        rejectionReason: reason,
+      };
+    }));
+
+    logAuditAction({
+      action: 'EXECUTIVE_AUTHORIZATION_REJECTED',
+      category: 'PRINCIPAL_EXECUTIVE',
+      severity: 'MEDIUM',
+      details: `Executive Principal rejected transcript request ${requestId}. Reason: ${reason}`,
+    });
+  };
+
+  const signInternalDocument = (documentId: string, signature: DigitalSignatureInfo) => {
+    setInternalDocuments(prev => prev.map(doc => {
+      if (doc.id !== documentId) return doc;
+      const filtered = doc.signatures.filter(s => s.signatoryRole !== signature.signatoryRole);
+      return {
+        ...doc,
+        signatures: [...filtered, signature],
+        status: 'AUTHORIZED_SIGNED',
+      };
+    }));
+
+    logAuditAction({
+      action: 'INTERNAL_DOCUMENT_SIGNED',
+      category: 'ACADEMIC_ADMINISTRATION',
+      severity: 'MEDIUM',
+      details: `${signature.signatoryRole} ${signature.signatoryName} digitally signed & authorized internal document ${documentId} (${signature.verificationHash}).`,
+    });
+  };
+
+  const createInternalDocument = (doc: {
+    title: string;
+    documentType: InternalDocument['documentType'];
+    referenceNumber: string;
+    description: string;
+    pdfUrl?: string;
+    targetStudentId?: string;
+    targetStudentName?: string;
+    requiredSignatories?: UserRole[];
+  }): InternalDocument => {
+    const newDoc: InternalDocument = {
+      ...doc,
+      id: `DOC-${Date.now()}`,
+      issuedDate: new Date().toISOString().split('T')[0],
+      status: 'PENDING_SIGNATURE',
+      signatures: [],
+      requiredSignatories: doc.requiredSignatories || ['PRINCIPAL'],
+    };
+    setInternalDocuments(prev => [newDoc, ...prev]);
+    logAuditAction({
+      action: 'INTERNAL_DOCUMENT_CREATED',
+      category: 'ACADEMIC_ADMINISTRATION',
+      severity: 'LOW',
+      details: `New internal document drafted: ${newDoc.title} (${newDoc.referenceNumber})`,
+    });
+    return newDoc;
   };
 
   const submitDayOffRequest = (date: string, reason: string, supportingDocName?: string, supportingDocUrl?: string) => {
@@ -2372,6 +2646,13 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const saveGrade = (gradeData: any) => {
+    const q = Number(gradeData.quiz ?? 15);
+    const a = Number(gradeData.assessment ?? 15);
+    const m = Number(gradeData.midExam ?? 25);
+    const f = Number(gradeData.finalExam ?? 35);
+    const tot = q + a + m + f;
+    const letter = tot >= 90 ? 'A+' : tot >= 85 ? 'A' : tot >= 80 ? 'B+' : tot >= 75 ? 'B' : tot >= 70 ? 'C' : 'F';
+
     saveSubjectGrade({
       studentId: gradeData.studentId,
       studentName: gradeData.studentName,
@@ -2381,11 +2662,16 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       teacherId: gradeData.teacherId,
       teacherName: gradeData.teacherName,
       semester: (gradeData.term || 'Semester 1') as any,
-      test1Score: gradeData.quiz ?? 15,
-      midtermScore: gradeData.midExam ?? 25,
-      finalScore: (gradeData.assessment ?? 15) + (gradeData.finalExam ?? 35),
-      totalGrade: (gradeData.quiz ?? 0) + (gradeData.assessment ?? 0) + (gradeData.midExam ?? 0) + (gradeData.finalExam ?? 0),
-      letterGrade: 'A',
+      quiz: q,
+      assessment: a,
+      midExam: m,
+      finalExam: f,
+      test1Score: q,
+      midtermScore: m,
+      finalScore: f,
+      totalGrade: tot,
+      letterGrade: letter,
+      entryDate: gradeData.entryDate || new Date().toISOString().split('T')[0],
     });
   };
 
@@ -3303,6 +3589,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       autoBalanceGradeSections,
       assignHomeroomTeacher,
       recordDisciplinaryAction,
+      updateDisciplinaryAction,
       scheduleDisciplinaryHearing,
       sendDisciplinaryHearingEmail,
       submitCounsellorEvaluation,
@@ -3333,6 +3620,13 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       activeDocumentModal,
       openDocumentViewer,
       closeDocumentViewer,
+      transcriptRequests,
+      requestTranscript,
+      approveTranscriptRequest,
+      rejectTranscriptRequest,
+      internalDocuments,
+      signInternalDocument,
+      createInternalDocument,
       resetEverything,
       deleteInstitutionalUser,
       deleteUsersByCategory,

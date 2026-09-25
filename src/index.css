@@ -181,4 +181,46 @@ html.dark ::-webkit-scrollbar-thumb:hover {
     page-break-before: always !important;
     break-before: page !important;
   }
+
+  /* Teacher Class Attendance History Monochrome Report */
+  body.printing-teacher-attendance-report {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.printing-teacher-attendance-report * {
+    visibility: hidden;
+  }
+
+  body.printing-teacher-attendance-report #printable-teacher-attendance-report,
+  body.printing-teacher-attendance-report #printable-teacher-attendance-report * {
+    visibility: visible;
+  }
+
+  body.printing-teacher-attendance-report #printable-teacher-attendance-report {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 8mm 12mm !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  body.printing-teacher-attendance-report .avoid-page-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  body.printing-teacher-attendance-report .page-break-before {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
 }

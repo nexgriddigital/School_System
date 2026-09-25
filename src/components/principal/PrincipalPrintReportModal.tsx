@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useSchool } from '../../context/SchoolContext';
 import { AcademicGrade, DisciplinaryAction } from '../../types';
 import { 
@@ -12,7 +12,10 @@ import {
   Calendar,
   Layers,
   Award,
-  Download
+  Download,
+  PenTool,
+  UserCheck,
+  RotateCcw
 } from 'lucide-react';
 
 interface PrincipalPrintReportModalProps {
@@ -35,6 +38,7 @@ export const PrincipalPrintReportModal: React.FC<PrincipalPrintReportModalProps>
     disciplinaryActions,
     dayOffRequests,
     currentUser,
+    institutionalUsers,
   } = useSchool();
 
   // Print View Configuration State
@@ -44,6 +48,107 @@ export const PrincipalPrintReportModal: React.FC<PrincipalPrintReportModalProps>
   const [includeDisciplinaryLedger, setIncludeDisciplinaryLedger] = useState(true);
   const [includeAttendanceTimeline, setIncludeAttendanceTimeline] = useState(true);
   const [isPrinting, setIsPrinting] = useState(false);
+
+  // Dynamic Department Employees Signatures State
+  const [signatoryDepartment, setSignatoryDepartment] = useState<'AUTO' | 'ALL_DEPARTMENTS' | 'REGISTRAR' | 'FINANCE' | 'COUNSELLOR' | 'PROGRAM_OFFICE' | 'FACULTY'>('AUTO');
+  const [showSignatoryEditor, setShowSignatoryEditor] = useState(false);
+  const [signatoryNameOverrides, setSignatoryNameOverrides] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('oskar_signatory_name_overrides');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [signatoryTitleOverrides, setSignatoryTitleOverrides] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('oskar_signatory_title_overrides');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('oskar_signatory_name_overrides', JSON.stringify(signatoryNameOverrides));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [signatoryNameOverrides]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('oskar_signatory_title_overrides', JSON.stringify(signatoryTitleOverrides));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [signatoryTitleOverrides]);
+
+  // Resolve provisioned department employee profiles
+  const deptEmployees = useMemo(() => {
+    const registrarUser = institutionalUsers?.find(u => u.role === 'REGISTRAR' && u.status !== 'REVOKED');
+    const financeUser = institutionalUsers?.find(u => u.role === 'FINANCE' && u.status !== 'REVOKED');
+    const counsellorUser = institutionalUsers?.find(u => u.role === 'COUNSELLOR' && u.status !== 'REVOKED');
+    const programUser = institutionalUsers?.find(u => u.role === 'PROGRAM_OFFICE' && u.status !== 'REVOKED');
+    const teacherUser = institutionalUsers?.find(u => u.role === 'TEACHER' && u.status !== 'REVOKED');
+    const principalUser = currentUser?.role === 'PRINCIPAL' ? currentUser : institutionalUsers?.find(u => u.role === 'PRINCIPAL');
+
+    return {
+      principal: {
+        name: principalUser?.name || currentUser?.name || 'Dr. O. Woldeyesus',
+        title: 'Executive Principal & Headmaster',
+        department: 'Office of the Principal & Executive Board',
+      },
+      registrar: {
+        name: registrarUser?.name || 'Academic Registrar',
+        title: registrarUser?.position || 'Academic Registrar & Admissions Officer',
+        department: registrarUser?.department || 'Admissions & Records Office',
+      },
+      finance: {
+        name: financeUser?.name || 'Chief Finance Officer',
+        title: financeUser?.position || 'Chief Bursar & Director of Finance',
+        department: financeUser?.department || 'Finance & Treasury Department',
+      },
+      counsellor: {
+        name: counsellorUser?.name || 'Head Guidance Counsellor',
+        title: counsellorUser?.position || 'Head of Guidance & Pastoral Care',
+        department: counsellorUser?.department || 'Student Support & Guidance Services',
+      },
+      program: {
+        name: programUser?.name || 'Director of Curriculum',
+        title: programUser?.position || 'Director of Academic Programs & Curriculum',
+        department: programUser?.department || 'Curriculum & Academic Affairs',
+      },
+      faculty: {
+        name: teacherUser?.name || teachers?.[0]?.name || 'Senior Faculty Lead',
+        title: teacherUser?.position || 'Instructional Faculty Lead',
+        department: teacherUser?.department || 'Instructional Staff Division',
+      },
+    };
+  }, [institutionalUsers, currentUser, teachers]);
+
+  const getOfficerName = (deptKey: keyof typeof deptEmployees) => {
+    return signatoryNameOverrides[deptKey] || deptEmployees[deptKey].name;
+  };
+
+  const getOfficerTitle = (deptKey: keyof typeof deptEmployees) => {
+    return signatoryTitleOverrides[deptKey] || deptEmployees[deptKey].title;
+  };
+
+  // Determine active department officer for single-signatory view
+  const activeSignatoryKey = useMemo<keyof typeof deptEmployees>(() => {
+    if (signatoryDepartment === 'REGISTRAR') return 'registrar';
+    if (signatoryDepartment === 'FINANCE') return 'finance';
+    if (signatoryDepartment === 'COUNSELLOR') return 'counsellor';
+    if (signatoryDepartment === 'PROGRAM_OFFICE') return 'program';
+    if (signatoryDepartment === 'FACULTY') return 'faculty';
+    // AUTO: match report scope
+    if (reportScope === 'DISCIPLINARY') return 'counsellor';
+    if (reportScope === 'FACULTY_OPERATIONS') return 'program';
+    if (reportScope === 'ATTENDANCE_ENROLLMENT') return 'registrar';
+    return 'registrar';
+  }, [signatoryDepartment, reportScope]);
 
   // Current formatted timestamp
   const reportDate = useMemo(() => {
@@ -436,7 +541,7 @@ export const PrincipalPrintReportModal: React.FC<PrincipalPrintReportModalProps>
         </div>
 
         {/* Second Level Print Toggles */}
-        <div className="max-w-6xl mx-auto flex flex-wrap items-center gap-5 pt-2 mt-2 border-t border-slate-800/80 text-[11px] text-slate-400">
+        <div className="max-w-6xl mx-auto flex flex-wrap items-center gap-4 pt-2 mt-2 border-t border-slate-800/80 text-[11px] text-slate-400">
           <span className="font-semibold text-slate-300 flex items-center gap-1">
             <SlidersHorizontal className="w-3 h-3" />
             Display Options:
@@ -452,6 +557,42 @@ export const PrincipalPrintReportModal: React.FC<PrincipalPrintReportModalProps>
             <span>Executive Signature Block & Institutional Seal</span>
           </label>
 
+          {includeSignatures && (
+            <div className="flex items-center gap-2 pl-2 border-l border-slate-700">
+              <span className="text-slate-300 font-semibold flex items-center gap-1">
+                <PenTool className="w-3 h-3 text-blue-400" />
+                Signatory:
+              </span>
+              <select
+                value={signatoryDepartment}
+                onChange={(e) => setSignatoryDepartment(e.target.value as any)}
+                className="bg-slate-800 text-slate-200 border border-slate-700 rounded-lg px-2 py-1 text-[11px] focus:ring-1 focus:ring-blue-500 font-medium"
+              >
+                <option value="AUTO">Auto (Match Report Type)</option>
+                <option value="REGISTRAR">Admissions & Records ({getOfficerName('registrar')})</option>
+                <option value="FINANCE">Finance & Treasury ({getOfficerName('finance')})</option>
+                <option value="COUNSELLOR">Guidance & Support ({getOfficerName('counsellor')})</option>
+                <option value="PROGRAM_OFFICE">Academic Programs ({getOfficerName('program')})</option>
+                <option value="FACULTY">Faculty Lead ({getOfficerName('faculty')})</option>
+                <option value="ALL_DEPARTMENTS">All Department Heads (Multi-Signatory Board)</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setShowSignatoryEditor(!showSignatoryEditor)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition border cursor-pointer flex items-center gap-1.5 ${
+                  showSignatoryEditor
+                    ? 'bg-blue-600 text-white border-blue-500 shadow-xs'
+                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                }`}
+                title="Adjust or override signatory employee names for each department"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-blue-300" />
+                <span>{showSignatoryEditor ? 'Close Signatory Editor' : 'Adjust Signatory Names'}</span>
+              </button>
+            </div>
+          )}
+
           <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-200 select-none">
             <input
               type="checkbox"
@@ -459,7 +600,7 @@ export const PrincipalPrintReportModal: React.FC<PrincipalPrintReportModalProps>
               onChange={(e) => setIncludeDisciplinaryLedger(e.target.checked)}
               className="w-3.5 h-3.5 rounded border-slate-700 text-slate-900 focus:ring-0"
             />
-            <span>Detailed Disciplinary Infractions Ledger</span>
+            <span>Detailed Disciplinary Ledger</span>
           </label>
 
           <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-200 select-none">
@@ -469,13 +610,270 @@ export const PrincipalPrintReportModal: React.FC<PrincipalPrintReportModalProps>
               onChange={(e) => setIncludeAttendanceTimeline(e.target.checked)}
               className="w-3.5 h-3.5 rounded border-slate-700 text-slate-900 focus:ring-0"
             />
-            <span>Chronological Attendance History Table</span>
+            <span>Attendance History Table</span>
           </label>
 
           <span className="ml-auto text-slate-500 font-mono hidden lg:inline">
             Optimized for Standard ISO A4 / US Letter Monochrome Printing
           </span>
         </div>
+
+        {/* DEPARTMENT SIGNATORY NAMES & TITLES DRAWER */}
+        {showSignatoryEditor && includeSignatures && (
+          <div className="max-w-6xl mx-auto mt-3 p-4 bg-slate-900/95 border border-blue-500/40 rounded-2xl text-xs text-slate-200 shadow-xl space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <PenTool className="w-4 h-4 text-blue-400" />
+                <span className="font-bold text-white text-sm">
+                  Department Employee Signatory Names & Position Titles
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] text-slate-400">
+                  Pre-populated from registered department employee accounts. Custom names persist across prints.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSignatoryNameOverrides({});
+                    setSignatoryTitleOverrides({});
+                    localStorage.removeItem('oskar_signatory_name_overrides');
+                    localStorage.removeItem('oskar_signatory_title_overrides');
+                  }}
+                  className="px-2 py-1 text-[10px] font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition flex items-center gap-1 cursor-pointer"
+                  title="Reset all fields to the default names registered in Institutional Directory"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset to Provisioned Names</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {/* Registrar */}
+              <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-bold text-blue-300">Admissions & Records</span>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">Registrar</span>
+                </div>
+                {institutionalUsers && institutionalUsers.length > 0 && (
+                  <select
+                    onChange={(e) => {
+                      const u = institutionalUsers.find(item => item.id === e.target.value);
+                      if (u) {
+                        setSignatoryNameOverrides(prev => ({ ...prev, registrar: u.name }));
+                        setSignatoryTitleOverrides(prev => ({ ...prev, registrar: u.position || 'Academic Registrar & Admissions Officer' }));
+                      }
+                    }}
+                    defaultValue=""
+                    className="w-full bg-slate-900 text-slate-300 border border-slate-700 rounded-lg px-2 py-1 text-[10px] focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="">Select Provisioned Employee...</option>
+                    {institutionalUsers.map(u => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.role} - {u.position})</option>
+                    ))}
+                  </select>
+                )}
+                <input
+                  type="text"
+                  value={getOfficerName('registrar')}
+                  onChange={(e) => setSignatoryNameOverrides(prev => ({ ...prev, registrar: e.target.value }))}
+                  placeholder="Full Officer Name"
+                  className="w-full bg-slate-900 text-white border border-slate-700 rounded-lg px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500"
+                />
+                <input
+                  type="text"
+                  value={getOfficerTitle('registrar')}
+                  onChange={(e) => setSignatoryTitleOverrides(prev => ({ ...prev, registrar: e.target.value }))}
+                  placeholder="Official Title"
+                  className="w-full bg-slate-900 text-slate-300 border border-slate-700 rounded-lg px-2.5 py-1 text-[11px] focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Finance */}
+              <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-bold text-emerald-300">Finance & Treasury</span>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">Bursar</span>
+                </div>
+                {institutionalUsers && institutionalUsers.length > 0 && (
+                  <select
+                    onChange={(e) => {
+                      const u = institutionalUsers.find(item => item.id === e.target.value);
+                      if (u) {
+                        setSignatoryNameOverrides(prev => ({ ...prev, finance: u.name }));
+                        setSignatoryTitleOverrides(prev => ({ ...prev, finance: u.position || 'Chief Bursar & Director of Finance' }));
+                      }
+                    }}
+                    defaultValue=""
+                    className="w-full bg-slate-900 text-slate-300 border border-slate-700 rounded-lg px-2 py-1 text-[10px] focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="">Select Provisioned Employee...</option>
+                    {institutionalUsers.map(u => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.role} - {u.position})</option>
+                    ))}
+                  </select>
+                )}
+                <input
+                  type="text"
+                  value={getOfficerName('finance')}
+                  onChange={(e) => setSignatoryNameOverrides(prev => ({ ...prev, finance: e.target.value }))}
+                  placeholder="Full Officer Name"
+                  className="w-full bg-slate-900 text-white border border-slate-700 rounded-lg px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500"
+                />
+                <input
+                  type="text"
+                  value={getOfficerTitle('finance')}
+                  onChange={(e) => setSignatoryTitleOverrides(prev => ({ ...prev, finance: e.target.value }))}
+                  placeholder="Official Title"
+                  className="w-full bg-slate-900 text-slate-300 border border-slate-700 rounded-lg px-2.5 py-1 text-[11px] focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Guidance & Pastoral */}
+              <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-bold text-purple-300">Guidance & Support</span>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">Counsellor</span>
+                </div>
+                {institutionalUsers && institutionalUsers.length > 0 && (
+                  <select
+                    onChange={(e) => {
+                      const u = institutionalUsers.find(item => item.id === e.target.value);
+                      if (u) {
+                        setSignatoryNameOverrides(prev => ({ ...prev, counsellor: u.name }));
+                        setSignatoryTitleOverrides(prev => ({ ...prev, counsellor: u.position || 'Head of Guidance & Pastoral Care' }));
+                      }
+                    }}
+                    defaultValue=""
+                    className="w-full bg-slate-900 text-slate-300 border border-slate-700 rounded-lg px-2 py-1 text-[10px] focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="">Select Provisioned Employee...</option>
+                    {institutionalUsers.map(u => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.role} - {u.position})</option>
+                    ))}
+                  </select>
+                )}
+                <input
+                  type="text"
+                  value={getOfficerName('counsellor')}
+                  onChange={(e) => setSignatoryNameOverrides(prev => ({ ...prev, counsellor: e.target.value }))}
+                  placeholder="Full Officer Name"
+                  className="w-full bg-slate-900 text-white border border-slate-700 rounded-lg px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500"
+                />
+                <input
+                  type="text"
+                  value={getOfficerTitle('counsellor')}
+                  onChange={(e) => setSignatoryTitleOverrides(prev => ({ ...prev, counsellor: e.target.value }))}
+                  placeholder="Official Title"
+                  className="w-full bg-slate-900 text-slate-300 border border-slate-700 rounded-lg px-2.5 py-1 text-[11px] focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Program Office */}
+              <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-bold text-amber-300">Academic Programs</span>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">Director</span>
+                </div>
+                {institutionalUsers && institutionalUsers.length > 0 && (
+                  <select
+                    onChange={(e) => {
+                      const u = institutionalUsers.find(item => item.id === e.target.value);
+                      if (u) {
+                        setSignatoryNameOverrides(prev => ({ ...prev, program: u.name }));
+                        setSignatoryTitleOverrides(prev => ({ ...prev, program: u.position || 'Director of Academic Programs & Curriculum' }));
+                      }
+                    }}
+                    defaultValue=""
+                    className="w-full bg-slate-900 text-slate-300 border border-slate-700 rounded-lg px-2 py-1 text-[10px] focus:ring-1 focus:ring-amber-500"
+                  >
+                    <option value="">Select Provisioned Employee...</option>
+                    {institutionalUsers.map(u => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.role} - {u.position})</option>
+                    ))}
+                  </select>
+                )}
+                <input
+                  type="text"
+                  value={getOfficerName('program')}
+                  onChange={(e) => setSignatoryNameOverrides(prev => ({ ...prev, program: e.target.value }))}
+                  placeholder="Full Officer Name"
+                  className="w-full bg-slate-900 text-white border border-slate-700 rounded-lg px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500"
+                />
+                <input
+                  type="text"
+                  value={getOfficerTitle('program')}
+                  onChange={(e) => setSignatoryTitleOverrides(prev => ({ ...prev, program: e.target.value }))}
+                  placeholder="Official Title"
+                  className="w-full bg-slate-900 text-slate-300 border border-slate-700 rounded-lg px-2.5 py-1 text-[11px] focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Faculty Lead */}
+              <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-bold text-rose-300">Instructional Faculty</span>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">Lead Teacher</span>
+                </div>
+                {(teachers && teachers.length > 0) ? (
+                  <select
+                    onChange={(e) => {
+                      const t = teachers.find(item => item.id === e.target.value);
+                      if (t) {
+                        setSignatoryNameOverrides(prev => ({ ...prev, faculty: t.name }));
+                        setSignatoryTitleOverrides(prev => ({ ...prev, faculty: `${t.subject} Faculty Lead` }));
+                      }
+                    }}
+                    defaultValue=""
+                    className="w-full bg-slate-900 text-slate-300 border border-slate-700 rounded-lg px-2 py-1 text-[10px] focus:ring-1 focus:ring-rose-500"
+                  >
+                    <option value="">Select Teacher from Faculty...</option>
+                    {teachers.map(t => (
+                      <option key={t.id} value={t.id}>{t.name} ({t.subject})</option>
+                    ))}
+                  </select>
+                ) : null}
+                <input
+                  type="text"
+                  value={getOfficerName('faculty')}
+                  onChange={(e) => setSignatoryNameOverrides(prev => ({ ...prev, faculty: e.target.value }))}
+                  placeholder="Full Officer Name"
+                  className="w-full bg-slate-900 text-white border border-slate-700 rounded-lg px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500"
+                />
+                <input
+                  type="text"
+                  value={getOfficerTitle('faculty')}
+                  onChange={(e) => setSignatoryTitleOverrides(prev => ({ ...prev, faculty: e.target.value }))}
+                  placeholder="Official Title"
+                  className="w-full bg-slate-900 text-slate-300 border border-slate-700 rounded-lg px-2.5 py-1 text-[11px] focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Principal */}
+              <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-bold text-sky-300">Office of Principal</span>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">Executive</span>
+                </div>
+                <input
+                  type="text"
+                  value={getOfficerName('principal')}
+                  onChange={(e) => setSignatoryNameOverrides(prev => ({ ...prev, principal: e.target.value }))}
+                  placeholder="Full Principal Name"
+                  className="w-full bg-slate-900 text-white border border-slate-700 rounded-lg px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500"
+                />
+                <input
+                  type="text"
+                  value={getOfficerTitle('principal')}
+                  onChange={(e) => setSignatoryTitleOverrides(prev => ({ ...prev, principal: e.target.value }))}
+                  placeholder="Executive Title"
+                  className="w-full bg-slate-900 text-slate-300 border border-slate-700 rounded-lg px-2.5 py-1 text-[11px] focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* ------------------------------------------------------------- */}
@@ -546,8 +944,16 @@ export const PrincipalPrintReportModal: React.FC<PrincipalPrintReportModalProps>
                   <span className="font-bold text-black">2026/27 • TERM 1</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block">ISSUING OFFICER:</span>
-                  <span className="font-bold text-black">{currentUser?.name || 'Office of the Principal'}</span>
+                  <span className="text-slate-500 block">ISSUING PRINCIPAL:</span>
+                  <span className="font-bold text-black">{getOfficerName('principal')}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">DEPT ATTESTING OFFICER:</span>
+                  <span className="font-bold text-black">
+                    {signatoryDepartment === 'ALL_DEPARTMENTS' 
+                      ? 'Institutional Executive Council (All Departments)' 
+                      : `${getOfficerName(activeSignatoryKey)} (${getOfficerTitle(activeSignatoryKey)})`}
+                  </span>
                 </div>
               </div>
             </div>
@@ -920,60 +1326,189 @@ export const PrincipalPrintReportModal: React.FC<PrincipalPrintReportModalProps>
                 </p>
               </div>
 
-              <div className="grid grid-cols-3 gap-6 items-end pt-6">
-                
-                {/* Signature 1: Principal */}
-                <div className="space-y-1 text-left">
-                  <div className="h-10 border-b-2 border-black flex items-end pb-1">
-                    <span className="font-serif italic text-base font-black text-black">
-                      {currentUser?.name || 'Executive Principal'}
-                    </span>
-                  </div>
-                  <p className="font-bold text-[10px] uppercase font-serif text-black">
-                    {currentUser?.name || 'Office of the Principal'}
-                  </p>
-                  <p className="text-[9px] font-mono text-slate-600 uppercase">
-                    Executive Principal & Headmaster
-                  </p>
-                  <p className="text-[9px] font-mono text-slate-500">
-                    Date: {reportDate.dateString}
-                  </p>
-                </div>
+              {signatoryDepartment === 'ALL_DEPARTMENTS' ? (
+                /* Multi-Department Signatory Board */
+                <div className="space-y-6 pt-4">
+                  {/* Row 1: Principal, Seal, and Registrar */}
+                  <div className="grid grid-cols-3 gap-6 items-end">
+                    {/* Executive Principal */}
+                    <div className="space-y-1 text-left">
+                      <div className="h-10 border-b-2 border-black flex items-end pb-1">
+                        <span className="font-serif italic text-base font-black text-black">
+                          {getOfficerName('principal')}
+                        </span>
+                      </div>
+                      <p className="font-bold text-[10px] uppercase font-serif text-black">
+                        {getOfficerName('principal')}
+                      </p>
+                      <p className="text-[9px] font-mono text-slate-600 uppercase">
+                        {getOfficerTitle('principal')}
+                      </p>
+                      <p className="text-[8px] font-mono text-slate-500">
+                        {deptEmployees.principal.department}
+                      </p>
+                      <p className="text-[8px] font-mono text-slate-500">
+                        Date: {reportDate.dateString}
+                      </p>
+                    </div>
 
-                {/* Center Institutional Seal SVG */}
-                <div className="flex flex-col items-center justify-center text-center">
-                  <div className="w-24 h-24 rounded-full border-2 border-dashed border-black flex flex-col items-center justify-center p-1 relative">
-                    <div className="w-20 h-20 rounded-full border border-black flex flex-col items-center justify-center p-1 text-[7px] font-mono font-bold uppercase leading-tight text-black text-center">
-                      <span>★ OSKAR ACADEMY ★</span>
-                      <span className="text-[6px] tracking-widest text-slate-700">OFFICE OF PRINCIPAL</span>
-                      <div className="w-6 h-px bg-black my-0.5" />
-                      <span className="text-[6px]">OFFICIAL SEAL</span>
-                      <span>2026/2027</span>
+                    {/* Center Embossed Seal */}
+                    <div className="flex flex-col items-center justify-center text-center">
+                      <div className="w-24 h-24 rounded-full border-2 border-dashed border-black flex flex-col items-center justify-center p-1 relative">
+                        <div className="w-20 h-20 rounded-full border border-black flex flex-col items-center justify-center p-1 text-[7px] font-mono font-bold uppercase leading-tight text-black text-center">
+                          <span>★ {schoolName.toUpperCase()} ★</span>
+                          <span className="text-[6px] tracking-widest text-slate-700">OFFICE OF PRINCIPAL</span>
+                          <div className="w-6 h-px bg-black my-0.5" />
+                          <span className="text-[6px]">OFFICIAL SEAL</span>
+                          <span>2026/2027</span>
+                        </div>
+                      </div>
+                      <span className="text-[8px] font-mono text-slate-600 uppercase mt-1">
+                        [ OFFICIAL EMBOSSED SEAL ]
+                      </span>
+                    </div>
+
+                    {/* Admissions & Records (Registrar) */}
+                    <div className="space-y-1 text-right">
+                      <div className="h-10 border-b-2 border-black flex items-end justify-end pb-1">
+                        <span className="font-serif italic text-base text-slate-700">
+                          {getOfficerName('registrar')}
+                        </span>
+                      </div>
+                      <p className="font-bold text-[10px] uppercase font-serif text-black">
+                        {getOfficerName('registrar')}
+                      </p>
+                      <p className="text-[9px] font-mono text-slate-600 uppercase">
+                        {getOfficerTitle('registrar')}
+                      </p>
+                      <p className="text-[8px] font-mono text-slate-500">
+                        {deptEmployees.registrar.department}
+                      </p>
+                      <p className="text-[8px] font-mono text-slate-500">
+                        Date: {reportDate.dateString}
+                      </p>
                     </div>
                   </div>
-                  <span className="text-[8px] font-mono text-slate-600 uppercase mt-1">
-                    [ OFFICIAL EMBOSSED SEAL ]
-                  </span>
-                </div>
 
-                {/* Signature 2: Academic Registrar */}
-                <div className="space-y-1 text-right">
-                  <div className="h-10 border-b-2 border-black flex items-end justify-end pb-1">
-                    <span className="font-serif italic text-base text-slate-700">
-                      Tadesse Bekele
+                  {/* Row 2: Finance, Guidance, and Academic Programs */}
+                  <div className="grid grid-cols-3 gap-6 items-end pt-3 border-t border-dashed border-slate-300">
+                    {/* Finance Officer */}
+                    <div className="space-y-1 text-left">
+                      <div className="h-9 border-b border-black flex items-end pb-1">
+                        <span className="font-serif italic text-sm text-slate-700">
+                          {getOfficerName('finance')}
+                        </span>
+                      </div>
+                      <p className="font-bold text-[9px] uppercase font-serif text-black">
+                        {getOfficerName('finance')}
+                      </p>
+                      <p className="text-[8px] font-mono text-slate-600 uppercase">
+                        {getOfficerTitle('finance')}
+                      </p>
+                      <p className="text-[8px] font-mono text-slate-500">
+                        {deptEmployees.finance.department}
+                      </p>
+                    </div>
+
+                    {/* Guidance Counsellor */}
+                    <div className="space-y-1 text-center">
+                      <div className="h-9 border-b border-black flex items-end justify-center pb-1">
+                        <span className="font-serif italic text-sm text-slate-700">
+                          {getOfficerName('counsellor')}
+                        </span>
+                      </div>
+                      <p className="font-bold text-[9px] uppercase font-serif text-black">
+                        {getOfficerName('counsellor')}
+                      </p>
+                      <p className="text-[8px] font-mono text-slate-600 uppercase">
+                        {getOfficerTitle('counsellor')}
+                      </p>
+                      <p className="text-[8px] font-mono text-slate-500">
+                        {deptEmployees.counsellor.department}
+                      </p>
+                    </div>
+
+                    {/* Program Director / Faculty Lead */}
+                    <div className="space-y-1 text-right">
+                      <div className="h-9 border-b border-black flex items-end justify-end pb-1">
+                        <span className="font-serif italic text-sm text-slate-700">
+                          {getOfficerName('program')}
+                        </span>
+                      </div>
+                      <p className="font-bold text-[9px] uppercase font-serif text-black">
+                        {getOfficerName('program')}
+                      </p>
+                      <p className="text-[8px] font-mono text-slate-600 uppercase">
+                        {getOfficerTitle('program')}
+                      </p>
+                      <p className="text-[8px] font-mono text-slate-500">
+                        {deptEmployees.program.department}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Standard Dual Signatory (Principal + Selected/Auto Department Officer) */
+                <div className="grid grid-cols-3 gap-6 items-end pt-6">
+                  {/* Signature 1: Principal */}
+                  <div className="space-y-1 text-left">
+                    <div className="h-10 border-b-2 border-black flex items-end pb-1">
+                      <span className="font-serif italic text-base font-black text-black">
+                        {getOfficerName('principal')}
+                      </span>
+                    </div>
+                    <p className="font-bold text-[10px] uppercase font-serif text-black">
+                      {getOfficerName('principal')}
+                    </p>
+                    <p className="text-[9px] font-mono text-slate-600 uppercase">
+                      {getOfficerTitle('principal')}
+                    </p>
+                    <p className="text-[8px] font-mono text-slate-500">
+                      {deptEmployees.principal.department}
+                    </p>
+                    <p className="text-[9px] font-mono text-slate-500">
+                      Date: {reportDate.dateString}
+                    </p>
+                  </div>
+
+                  {/* Center Institutional Seal SVG */}
+                  <div className="flex flex-col items-center justify-center text-center">
+                    <div className="w-24 h-24 rounded-full border-2 border-dashed border-black flex flex-col items-center justify-center p-1 relative">
+                      <div className="w-20 h-20 rounded-full border border-black flex flex-col items-center justify-center p-1 text-[7px] font-mono font-bold uppercase leading-tight text-black text-center">
+                        <span>★ {schoolName.toUpperCase()} ★</span>
+                        <span className="text-[6px] tracking-widest text-slate-700">OFFICE OF PRINCIPAL</span>
+                        <div className="w-6 h-px bg-black my-0.5" />
+                        <span className="text-[6px]">OFFICIAL SEAL</span>
+                        <span>2026/2027</span>
+                      </div>
+                    </div>
+                    <span className="text-[8px] font-mono text-slate-600 uppercase mt-1">
+                      [ OFFICIAL EMBOSSED SEAL ]
                     </span>
                   </div>
-                  <p className="font-bold text-[10px] uppercase font-serif text-black">
-                    Tadesse Bekele
-                  </p>
-                  <p className="text-[9px] font-mono text-slate-600 uppercase">
-                    Academic Registrar & Admissions Officer
-                  </p>
-                  <p className="text-[9px] font-mono text-slate-500">
-                    Date: {reportDate.dateString}
-                  </p>
+
+                  {/* Signature 2: Selected Department Employee */}
+                  <div className="space-y-1 text-right">
+                    <div className="h-10 border-b-2 border-black flex items-end justify-end pb-1">
+                      <span className="font-serif italic text-base text-slate-700">
+                        {getOfficerName(activeSignatoryKey)}
+                      </span>
+                    </div>
+                    <p className="font-bold text-[10px] uppercase font-serif text-black">
+                      {getOfficerName(activeSignatoryKey)}
+                    </p>
+                    <p className="text-[9px] font-mono text-slate-600 uppercase">
+                      {getOfficerTitle(activeSignatoryKey)}
+                    </p>
+                    <p className="text-[8px] font-mono text-slate-500">
+                      {deptEmployees[activeSignatoryKey].department}
+                    </p>
+                    <p className="text-[9px] font-mono text-slate-500">
+                      Date: {reportDate.dateString}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 

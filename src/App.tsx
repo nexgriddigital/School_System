@@ -17,6 +17,7 @@ import { ParentView } from './components/parent/ParentView';
 import { LoginView } from './components/auth/LoginView';
 import { SessionTimeoutManager } from './components/common/SessionTimeoutManager';
 import { FloatingMascotCompanion } from './components/common/FloatingMascotCompanion';
+import { QuickActionsFAB } from './components/common/QuickActionsFAB';
 import { Sparkles, Shield, BookOpen, Download } from 'lucide-react';
 import { downloadInstructionsManualPdf } from './services/manualPdfService';
 
@@ -54,6 +55,11 @@ const MainContent: React.FC<{
           docName={activeDocumentModal.docName}
           docUrl={activeDocumentModal.docUrl}
           category={activeDocumentModal.category}
+          watermark={activeDocumentModal.watermark}
+          canSign={activeDocumentModal.canSign}
+          documentId={activeDocumentModal.documentId}
+          signatoryRole={activeDocumentModal.signatoryRole}
+          onSignDocument={activeDocumentModal.onSignDocument}
           metadata={activeDocumentModal.metadata}
         />
       )}
@@ -162,6 +168,9 @@ const MainApp: React.FC = () => {
 
       {/* Floating Mascot Scholar Companion (Floats around UI, shows loading flight animations when logged in) */}
       <FloatingMascotCompanion />
+
+      {/* Global Administrative Quick Actions FAB (Floating Action Button: Registrar, Finance, Principal) */}
+      <QuickActionsFAB />
 
       <div className="flex-1">
         {isAuthenticated ? (

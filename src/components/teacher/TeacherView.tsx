@@ -20,10 +20,16 @@ import {
   Eye,
   Download,
   Sparkles,
-  TrendingUp
+  TrendingUp,
+  Fingerprint,
+  Printer,
+  BarChart2
 } from 'lucide-react';
 import { TelegramInbox } from '../common/TelegramInbox';
 import { StudentPerformanceWidget } from './StudentPerformanceWidget';
+import { BiometricAttendance } from './BiometricAttendance';
+import { TeacherAttendancePrintModal } from './TeacherAttendancePrintModal';
+import { ClassSubjectPerformanceTrends } from './ClassSubjectPerformanceTrends';
 // Types inferred from SchoolContext
 
 export const TeacherView: React.FC = () => {
@@ -49,7 +55,7 @@ export const TeacherView: React.FC = () => {
     openDocumentViewer
   } = useSchool();
 
-  const [activeTab, setActiveTab] = useState<'STUDENT_PERFORMANCE' | 'ATTENDANCE' | 'GRADEBOOK' | 'DAY_OFF' | 'RECOMMENDATIONS' | 'EVALUATIONS' | 'PARENT_CHAT'>('STUDENT_PERFORMANCE');
+  const [activeTab, setActiveTab] = useState<'STUDENT_PERFORMANCE' | 'SUBJECT_TRENDS' | 'BIOMETRIC_ATTENDANCE' | 'ATTENDANCE' | 'GRADEBOOK' | 'DAY_OFF' | 'RECOMMENDATIONS' | 'EVALUATIONS' | 'PARENT_CHAT'>('STUDENT_PERFORMANCE');
 
   const teacher = currentTeacher || teachers?.find(t => t.id === activeTeacherId) || teachers?.[0];
   const teacherSections: string[] = (Array.isArray(teacher?.assignedSections) && teacher.assignedSections.length > 0)
@@ -70,6 +76,12 @@ export const TeacherView: React.FC = () => {
 
   // Attendance Date
   const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Printable Monochrome Attendance Dossier Modal State
+  const [isAttendancePrintModalOpen, setIsAttendancePrintModalOpen] = useState(false);
+  const [attendancePrintSectionId, setAttendancePrintSectionId] = useState<string>(
+    homeroomSection?.id || teacherSections[0] || '9A'
+  );
 
   // Gradebook State
   const [selectedGradeSectionId, setSelectedGradeSectionId] = useState<string>(
@@ -224,6 +236,21 @@ export const TeacherView: React.FC = () => {
 
           <div className="flex flex-wrap gap-2">
             <button
+              onClick={() => {
+                setAttendancePrintSectionId(homeroomSection?.id || teacherSections[0] || '9A');
+                setIsAttendancePrintModalOpen(true);
+              }}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition bg-slate-900 hover:bg-black text-white shadow-sm cursor-pointer border border-slate-700 hover:border-slate-500"
+              title="Export formatted printable classroom attendance history (Institutional Monochrome Report)"
+            >
+              <Printer className="w-3.5 h-3.5 text-white" />
+              <span>Print Attendance Dossier</span>
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-white/20 text-white font-bold uppercase tracking-wider">
+                Monochrome
+              </span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('STUDENT_PERFORMANCE')}
               className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
                 activeTab === 'STUDENT_PERFORMANCE'
@@ -234,6 +261,34 @@ export const TeacherView: React.FC = () => {
               <TrendingUp className="w-3.5 h-3.5" />
               Student Performance
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            </button>
+
+            <button
+              onClick={() => setActiveTab('SUBJECT_TRENDS')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                activeTab === 'SUBJECT_TRENDS'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <BarChart2 className="w-3.5 h-3.5 text-blue-500" />
+              Class Subject Trends
+              <span className="px-1.5 py-0.2 rounded text-[9px] bg-blue-100 text-blue-800 font-bold">
+                Recharts
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('BIOMETRIC_ATTENDANCE')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                activeTab === 'BIOMETRIC_ATTENDANCE'
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/20'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <Fingerprint className="w-3.5 h-3.5 text-emerald-500" />
+              Biometric Attendance
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
             </button>
 
             {isHomeroom && (
@@ -316,6 +371,31 @@ export const TeacherView: React.FC = () => {
           }}
           onNavigateToGradebook={() => setActiveTab('GRADEBOOK')}
           onNavigateToAttendance={() => isHomeroom ? setActiveTab('ATTENDANCE') : undefined}
+          onNavigateToSubjectTrends={() => setActiveTab('SUBJECT_TRENDS')}
+          onOpenPrintDossier={(secId) => {
+            setAttendancePrintSectionId(secId || homeroomSection?.id || teacherSections[0] || '9A');
+            setIsAttendancePrintModalOpen(true);
+          }}
+        />
+      )}
+
+      {/* TAB: CLASS ACADEMIC PERFORMANCE TRENDS OVER CURRENT TERM FOR EACH SUBJECT (RECHARTS) */}
+      {activeTab === 'SUBJECT_TRENDS' && (
+        <ClassSubjectPerformanceTrends
+          initialSectionId={teacherSections[0]}
+          onNavigateToGradebook={() => setActiveTab('GRADEBOOK')}
+        />
+      )}
+
+      {/* TAB: REAL-TIME BIOMETRIC ATTENDANCE LOGGING */}
+      {activeTab === 'BIOMETRIC_ATTENDANCE' && (
+        <BiometricAttendance
+          onNavigateToGradebook={() => setActiveTab('GRADEBOOK')}
+          onNavigateToHomeroomAttendance={() => isHomeroom ? setActiveTab('ATTENDANCE') : undefined}
+          onOpenPrintDossier={(secId) => {
+            setAttendancePrintSectionId(secId || homeroomSection?.id || teacherSections[0] || '9A');
+            setIsAttendancePrintModalOpen(true);
+          }}
         />
       )}
 
@@ -332,14 +412,34 @@ export const TeacherView: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAttendancePrintSectionId(homeroomSection?.id || '9A');
+                  setIsAttendancePrintModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-black text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-xs border border-slate-700 hover:border-slate-500"
+                title="Export formatted printable classroom attendance history (Institutional Monochrome Report)"
+              >
+                <Printer className="w-3.5 h-3.5 text-white" />
+                <span>Print Attendance Dossier</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('BIOMETRIC_ATTENDANCE')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg text-xs font-semibold transition cursor-pointer shadow-xs"
+              >
+                <Fingerprint className="w-3.5 h-3.5" />
+                Live Biometric Scanner
+              </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('STUDENT_PERFORMANCE')}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold transition cursor-pointer"
               >
                 <TrendingUp className="w-3.5 h-3.5" />
-                View Attendance Consistency
+                View Consistency
               </button>
               <label className="text-xs font-semibold text-slate-600">Attendance Date:</label>
               <input
@@ -427,7 +527,24 @@ export const TeacherView: React.FC = () => {
 
       {/* TAB 2: GRADEBOOK (ASSESSMENT, QUIZ, MID EXAM, FINAL EXAM) */}
       {activeTab === 'GRADEBOOK' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="space-y-4">
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Fingerprint className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>
+                <strong>Biometric Attendance Link:</strong> Real-time classroom arrivals can be directly synced into students' <strong>Continuous Assessment & Participation</strong> score.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('BIOMETRIC_ATTENDANCE')}
+              className="text-emerald-700 hover:text-emerald-950 font-bold text-xs underline shrink-0 cursor-pointer"
+            >
+              Open Biometric Terminal →
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Enter Grade Form */}
           <form onSubmit={handleSaveAssessment} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
             <h3 className="font-oskar-vintage text-base font-bold text-slate-900">
@@ -580,6 +697,7 @@ export const TeacherView: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
       )}
 
       {/* TAB 3: PERSONAL DAY-OFF REQUEST */}
@@ -899,6 +1017,13 @@ export const TeacherView: React.FC = () => {
           <TelegramInbox mode="TEACHER" preselectedStudentId={chatStudentId} />
         </div>
       )}
+
+      {/* MONOCHROME PRINTABLE ATTENDANCE DOSSIER MODAL */}
+      <TeacherAttendancePrintModal
+        isOpen={isAttendancePrintModalOpen}
+        onClose={() => setIsAttendancePrintModalOpen(false)}
+        defaultSectionId={attendancePrintSectionId}
+      />
 
     </div>
   );

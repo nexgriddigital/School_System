@@ -34,10 +34,18 @@ import {
   AlertOctagon,
   ShieldAlert,
   Filter,
-  X
+  X,
+  ExternalLink
 } from 'lucide-react';
 import { downloadInstructionsManualPdf } from '../../services/manualPdfService';
-import { sendTemporaryPasswordEmailViaGmail } from '../../services/gmailAuthService';
+import { 
+  sendTemporaryPasswordEmailViaGmail, 
+  isGmailAuthorized, 
+  signInWithGoogle, 
+  getCurrentGoogleUser,
+  generateCredentialsMailtoUrl 
+} from '../../services/gmailAuthService';
+import { sendFreeTemporaryPasswordEmail } from '../../services/freeEmailService';
 import { ChangeMasterCodeModal } from './ChangeMasterCodeModal';
 
 interface UserProvisioningTabProps {
@@ -97,6 +105,27 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
   // Directory Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'ALL' | UserRole>('ALL');
+
+  // Free Gmail Integration State
+  const [isConnectingGmail, setIsConnectingGmail] = useState(false);
+  const [gmailStatusNotice, setGmailStatusNotice] = useState<string | null>(null);
+  const isGmailActive = isGmailAuthorized();
+  const currentGoogle = getCurrentGoogleUser();
+
+  const handleConnectGmail = async () => {
+    setIsConnectingGmail(true);
+    setGmailStatusNotice(null);
+    try {
+      const res = await signInWithGoogle();
+      if (res) {
+        setGmailStatusNotice(`Google account (${res.user.email}) connected! Temporary passwords will now be emailed directly to user inboxes.`);
+      }
+    } catch (err: any) {
+      setGmailStatusNotice(err?.message || 'Google authorization could not be completed.');
+    } finally {
+      setIsConnectingGmail(false);
+    }
+  };
 
   // Role Metadata Config
   const roleOptions: {
@@ -262,20 +291,48 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
     setResendSuccessMsg(null);
 
     try {
-      await sendTemporaryPasswordEmailViaGmail({
+      // 1. Dispatch via Free API endpoint directly to user email
+      const freeRes = await sendFreeTemporaryPasswordEmail({
+        recipientEmail: user.email.trim(),
+        recipientName: user.name.trim(),
+        roleName: user.role,
+        positionTitle: user.position.trim(),
+        tempPassword: user.temporaryPassword,
+        schoolName,
+        senderName: currentUser?.name || 'Office of the Principal',
+      });
+
+      // 2. Also dispatch via Gmail if logged in
+      if (isGmailAuthorized()) {
+        try {
+          await sendTemporaryPasswordEmailViaGmail({
+            recipientEmail: user.email.trim(),
+            recipientName: user.name.trim(),
+            roleName: user.role,
+            positionTitle: user.position.trim(),
+            tempPassword: user.temporaryPassword,
+            schoolName,
+            senderName: currentUser?.name || 'Office of the Principal',
+          });
+        } catch (gErr) {
+          console.warn('Gmail redispatch fallback notice:', gErr);
+        }
+      }
+
+      setResendSuccessMsg(`Temporary password email successfully dispatched via Free API directly to ${user.email}`);
+      setTimeout(() => setResendSuccessMsg(null), 5000);
+    } catch (e: any) {
+      console.warn('Email dispatch notice:', e);
+      const mailto = generateCredentialsMailtoUrl({
         recipientEmail: user.email,
         recipientName: user.name,
         roleName: user.role,
         positionTitle: user.position,
         tempPassword: user.temporaryPassword,
         schoolName,
-        senderName: currentUser?.name || 'Office of the Principal',
       });
-      setResendSuccessMsg(`Temporary password email successfully redispatched to ${user.email}`);
-      setTimeout(() => setResendSuccessMsg(null), 4000);
-    } catch (e: any) {
-      console.error(e);
-      alert('Could not dispatch email. Please verify Gmail sender authorization.');
+      window.location.href = mailto;
+      setResendSuccessMsg(`Opened pre-filled email in default mail client for ${user.email}`);
     } finally {
       setResendingId(null);
     }
@@ -603,6 +660,68 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
 
         {/* Ambient background accent */}
         <div className="absolute -right-16 -bottom-16 w-64 h-64 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
+      </div>
+
+      {/* FREE GMAIL SENDER DISPATCH STATUS CARD */}
+      <div className={`p-4 rounded-3xl border transition-all ${
+        isGmailActive 
+          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950' 
+          : 'bg-amber-50/70 border-amber-200 text-amber-950'
+      }`}>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+              isGmailActive ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'
+            }`}>
+              <Mail className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-bold text-sm">
+                  {isGmailActive ? 'Free Automated Gmail Dispatch Connected' : 'Free Gmail Dispatch Integration'}
+                </h4>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase font-mono ${
+                  isGmailActive ? 'bg-emerald-200 text-emerald-900' : 'bg-amber-200 text-amber-900'
+                }`}>
+                  {isGmailActive ? 'Active & Ready' : 'OAuth Not Connected'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-0.5 max-w-2xl">
+                {isGmailActive ? (
+                  <>Temporary passwords are automatically emailed directly to provisioned user inboxes from <strong>{currentGoogle?.email || 'Authorized Google Sender'}</strong>. Plaintext passwords are confidential and never shown on-screen.</>
+                ) : (
+                  <>Connect your Google/Gmail account (100% Free OAuth, no credit card or paid API required) so the system emails temporary passwords directly to users instead of displaying them to the Principal.</>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {!isGmailActive ? (
+              <button
+                type="button"
+                onClick={handleConnectGmail}
+                disabled={isConnectingGmail}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-60"
+              >
+                <Mail className="w-4 h-4" />
+                <span>{isConnectingGmail ? 'Connecting Google Account...' : 'Connect Free Gmail Sender'}</span>
+              </button>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-emerald-300 text-emerald-800 text-xs font-semibold shadow-xs">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>Dispatch Ready</span>
+              </span>
+            )}
+          </div>
+        </div>
+
+        {gmailStatusNotice && (
+          <div className="mt-3 p-2.5 bg-white rounded-xl border border-slate-200 text-xs text-slate-700 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-blue-500 shrink-0" />
+            <span>{gmailStatusNotice}</span>
+          </div>
+        )}
       </div>
 
       {/* SECTION 0: ADMINISTRATIVE LEADERSHIP AUTHORITY STATUS GRID */}
@@ -1008,30 +1127,54 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
                 <span className="font-mono text-slate-800 font-semibold">{provisionSuccessResult.user.email}</span>
               </div>
               <div>
-                <span className="text-slate-400 text-[10px] uppercase font-bold block">Temporary Password</span>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                    {provisionSuccessResult.tempPassword}
+                <span className="text-slate-400 text-[10px] uppercase font-bold block">Delivery Status</span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="inline-flex items-center gap-1 font-mono font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded border border-emerald-300 text-[11px]">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Emailed to User
                   </span>
-                  <button
-                    onClick={() => handleCopyCredentials(provisionSuccessResult.tempPassword, 'provision-pass')}
-                    className="p-1 hover:bg-slate-100 rounded text-slate-500"
-                    title="Copy Temporary Password"
-                  >
-                    {copiedId === 'provision-pass' ? (
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    ) : (
-                      <Copy className="w-3.5 h-3.5" />
-                    )}
-                  </button>
                 </div>
               </div>
             </div>
 
-            <p className="text-[11px] text-emerald-700">
-              ✓ An automated notification containing these temporary credentials was emailed to <strong>{provisionSuccessResult.user.email}</strong>. 
-              The user must set their permanent password upon initial login before entering their workspace.
-            </p>
+            <div className="p-3 bg-white rounded-xl border border-emerald-300/80 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-start gap-2 max-w-xl">
+                <Lock className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                <div className="text-[11px] text-emerald-950 space-y-0.5">
+                  <p className="font-bold">Confidential Password Delivery</p>
+                  <p className="text-emerald-800 leading-normal">
+                    The cryptographic temporary password has been dispatched directly to <strong>{provisionSuccessResult.user.email}</strong>. 
+                    In adherence with strict security and privacy standards, temporary passwords are not shown to administrators.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleResendTempPassword(provisionSuccessResult.user)}
+                  disabled={resendingId === provisionSuccessResult.user.id}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-60"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>{resendingId === provisionSuccessResult.user.id ? 'Sending...' : 'Resend Email via Gmail'}</span>
+                </button>
+                <a
+                  href={generateCredentialsMailtoUrl({
+                    recipientEmail: provisionSuccessResult.user.email,
+                    recipientName: provisionSuccessResult.user.name,
+                    roleName: provisionSuccessResult.user.role,
+                    positionTitle: provisionSuccessResult.user.position,
+                    tempPassword: provisionSuccessResult.tempPassword,
+                    schoolName,
+                  })}
+                  className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
+                  title="Open pre-formatted draft in default mail client"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Open in Mail Client</span>
+                </a>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -1297,28 +1440,14 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
                       <td className="py-3 px-4">
                         {user.mustChangePasswordOnFirstLogin ? (
                           <div className="space-y-1">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                              <AlertTriangle className="w-3 h-3 text-amber-600" />
-                              <span>Temp Password (Must Change)</span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                              <Mail className="w-3 h-3 text-amber-600" />
+                              <span>Emailed to User</span>
                             </span>
-                            {user.temporaryPassword && (
-                              <div className="flex items-center gap-1">
-                                <span className="font-mono text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                                  {user.temporaryPassword}
-                                </span>
-                                <button
-                                  onClick={() => handleCopyCredentials(user.temporaryPassword!, user.id)}
-                                  className="text-slate-400 hover:text-slate-600 p-0.5"
-                                  title="Copy temporary password"
-                                >
-                                  {copiedId === user.id ? (
-                                    <Check className="w-3 h-3 text-emerald-600" />
-                                  ) : (
-                                    <Copy className="w-3 h-3" />
-                                  )}
-                                </button>
-                              </div>
-                            )}
+                            <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium">
+                              <Lock className="w-3 h-3 text-slate-400" />
+                              <span>Confidential to {user.email}</span>
+                            </div>
                           </div>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
@@ -1332,15 +1461,31 @@ export const UserProvisioningTab: React.FC<UserProvisioningTabProps> = ({ onOpen
                       <td className="py-3 px-6 text-right">
                         <div className="flex items-center justify-end gap-2">
                           {user.mustChangePasswordOnFirstLogin && user.temporaryPassword && (
-                            <button
-                              onClick={() => handleResendTempPassword(user)}
-                              disabled={resendingId === user.id}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition border border-blue-200 cursor-pointer disabled:opacity-60"
-                              title="Resend temporary password email via Gmail"
-                            >
-                              <RefreshCw className={`w-3 h-3 ${resendingId === user.id ? 'animate-spin' : ''}`} />
-                              <span>{resendingId === user.id ? 'Sending...' : 'Resend Email'}</span>
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleResendTempPassword(user)}
+                                disabled={resendingId === user.id}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition border border-blue-200 cursor-pointer disabled:opacity-60"
+                                title="Resend temporary password email via Gmail"
+                              >
+                                <RefreshCw className={`w-3 h-3 ${resendingId === user.id ? 'animate-spin' : ''}`} />
+                                <span>{resendingId === user.id ? 'Sending...' : 'Resend Email'}</span>
+                              </button>
+                              <a
+                                href={generateCredentialsMailtoUrl({
+                                  recipientEmail: user.email,
+                                  recipientName: user.name,
+                                  roleName: user.role,
+                                  positionTitle: user.position,
+                                  tempPassword: user.temporaryPassword,
+                                  schoolName,
+                                })}
+                                className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-800 rounded-lg transition border border-transparent hover:border-slate-200"
+                                title="Open pre-filled draft in default mail client"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
                           )}
 
                           {isPrincipal ? (

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useSchool } from '../../context/SchoolContext';
 import { AcademicGrade, AcademicStream } from '../../types';
 import { 
-  generateOfficialCertificatePdf, 
   fileToDataUrl, 
   downloadPdfDataUrl 
 } from '../../utils/pdfGenerator';
@@ -80,8 +79,8 @@ export const AdmissionsView: React.FC = () => {
   const [emergencyRelationship, setEmergencyRelationship] = useState('Relative / Guardian');
 
   // Documents
-  const [eighthGradeCertAttached, setEighthGradeCertAttached] = useState(true);
-  const [certFileName, setCertFileName] = useState<string>('8th_grade_ministry_certificate.pdf');
+  const [eighthGradeCertAttached, setEighthGradeCertAttached] = useState(false);
+  const [certFileName, setCertFileName] = useState<string>('');
   const [certDataUrl, setCertDataUrl] = useState<string>('');
   const [entranceExamScore, setEntranceExamScore] = useState<string>('');
   
@@ -194,13 +193,7 @@ export const AdmissionsView: React.FC = () => {
       average: Math.round(((parseFloat(g11Math) || 85) + (parseFloat(g11Major1) || 85) + (parseFloat(g11Major2) || 85)) / 3)
     } : null;
 
-    const finalCertUrl = certDataUrl || generateOfficialCertificatePdf({
-      studentName: fullName || 'Enrolled Student',
-      studentId: `OSK-${new Date().getFullYear()}-0${selectedGrade}99`,
-      grade: selectedGrade,
-      schoolName,
-      examScore: entranceExamScore ? parseFloat(entranceExamScore) : 89.5,
-    });
+    const finalCertUrl = certDataUrl || '';
 
     const createdStudent = registerStudent({
       fullName,
@@ -209,8 +202,8 @@ export const AdmissionsView: React.FC = () => {
       grade: selectedGrade,
       stream: selectedGrade >= 11 ? selectedStream : null,
       sectionId: null,
-      eighthGradeCertAttached: true,
-      certificateDocName: certFileName || '8th_grade_ministry_certificate.pdf',
+      eighthGradeCertAttached: Boolean(certDataUrl || eighthGradeCertAttached),
+      certificateDocName: certFileName || (certDataUrl ? `${fullName.replace(/\s+/g, '_')}_8th_Grade_Certificate.pdf` : 'Pending_Certificate.pdf'),
       certificateDocUrl: finalCertUrl,
       entranceExamScore: entranceExamScore ? parseFloat(entranceExamScore) : null,
       ninthGradeResults: g9Results,
@@ -271,9 +264,9 @@ export const AdmissionsView: React.FC = () => {
     setSelectedStream(null);
     setEntranceExamScore('');
     setPhotoUrl('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80');
-    setCertFileName('Ministry_Grade8_Exam_Certificate.pdf');
+    setCertFileName('');
     setCertDataUrl('');
-    setEighthGradeCertAttached(true);
+    setEighthGradeCertAttached(false);
     setG9Math('88');
     setG9English('84');
     setG9Science('82');
@@ -575,7 +568,7 @@ export const AdmissionsView: React.FC = () => {
           {/* Verification Breakdown Sub-Metrics */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-3 pt-3 border-t border-slate-200 text-xs">
             <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-lg border border-slate-200/80">
-              <span className="text-slate-600 font-medium">8th Grade Ministry Certs</span>
+              <span className="text-slate-600 font-medium">8th Grade Certificates</span>
               <span className="font-mono font-bold text-slate-900">
                 {eighthGradeCertsVerifiedCount}/{totalStudents} ({Math.round((eighthGradeCertsVerifiedCount / (totalStudents || 1)) * 100)}%)
               </span>
@@ -902,10 +895,10 @@ export const AdmissionsView: React.FC = () => {
                 <label className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition text-center bg-slate-50/50 group">
                   <Upload className="w-6 h-6 text-slate-400 group-hover:text-blue-600 mb-2 transition" />
                   <span className="text-xs font-semibold text-slate-700 block truncate max-w-full px-2">
-                    {certFileName}
+                    {certFileName || 'No certificate selected — Browse device or drag & drop'}
                   </span>
                   <span className="text-[11px] text-slate-400 mt-1">
-                    Click to browse device or drag and drop certificate
+                    Upload official 8th Grade Certificate (PDF or Image file)
                   </span>
                   <input
                     type="file"
@@ -928,69 +921,44 @@ export const AdmissionsView: React.FC = () => {
                 </label>
               </div>
 
-              {/* Instant PDF Generation & Preview Box */}
-              <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-200 flex flex-col justify-between space-y-3">
-                <div>
-                  <div className="flex items-center gap-1.5 text-blue-900 font-bold text-xs">
-                    <Sparkles className="w-4 h-4 text-blue-600" />
-                    <span>Generate Official Ministry Certificate PDF</span>
+              {/* Uploaded Certificate Status & In-Portal Preview */}
+              {certDataUrl ? (
+                <div className="p-4 bg-emerald-50/70 rounded-xl border border-emerald-200 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <div>
+                      <span className="text-xs font-bold text-emerald-950 block">Authentic Certificate File Attached</span>
+                      <span className="text-[11px] text-emerald-700 truncate block max-w-sm font-mono">{certFileName}</span>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-blue-800/80 mt-1 leading-relaxed">
-                    Instantly compile an official Ministry of Education & Regional Examination Board Grade 8 Certificate with serial credentials, scores, and watermark seal.
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-2 pt-2">
                   <button
                     type="button"
                     onClick={() => {
-                      const generated = generateOfficialCertificatePdf({
-                        studentName: fullName || 'New Enrolling Candidate',
-                        studentId: `MOE-8TH-${Math.floor(100000 + Math.random() * 900000)}`,
-                        grade: selectedGrade,
-                        schoolName,
-                        examScore: entranceExamScore ? parseFloat(entranceExamScore) : 91.2,
-                      });
-                      setCertDataUrl(generated);
-                      setCertFileName(`${(fullName || 'student').replace(/\s+/g, '_')}_8th_Grade_Certificate.pdf`);
-                      setEighthGradeCertAttached(true);
-                    }}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-1.5"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    Generate Authentic PDF
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const targetUrl = certDataUrl || generateOfficialCertificatePdf({
-                        studentName: fullName || 'Preview Candidate',
-                        studentId: 'MOE-PREVIEW-01',
-                        grade: selectedGrade,
-                        schoolName,
-                        examScore: entranceExamScore ? parseFloat(entranceExamScore) : 89.4,
-                      });
                       openDocumentViewer({
-                        title: 'Official Ministry 8th Grade Certificate',
+                        title: 'Verified 8th Grade Certificate',
                         subtitle: `Academic Prerequisite Record for ${fullName || 'New Student'}`,
                         docName: certFileName,
-                        docUrl: targetUrl,
+                        docUrl: certDataUrl,
                         category: 'CERTIFICATE',
                         metadata: {
                           studentName: fullName || 'Enrolling Scholar',
-                          referenceNumber: 'MOE-REG-8TH-CERT',
+                          referenceNumber: 'STUDENT-DOC-8TH',
                           uploadedDate: new Date().toISOString().split('T')[0],
                         },
                       });
                     }}
-                    className="px-3 py-1.5 bg-white border border-blue-300 hover:bg-blue-100/50 text-blue-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5"
+                    className="px-3 py-1.5 bg-white border border-emerald-300 hover:bg-emerald-100/50 text-emerald-800 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
                   >
                     <Eye className="w-3.5 h-3.5" />
-                    Preview in Portal
+                    Preview Uploaded Document
                   </button>
                 </div>
-              </div>
+              ) : (
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-500 text-xs flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span>Attach the student's authentic Grade 8 certificate PDF or scan image above to archive into their record.</span>
+                </div>
+              )}
             </div>
 
             {/* Confirmation Checkbox */}
@@ -1587,34 +1555,31 @@ export const AdmissionsView: React.FC = () => {
                       >
                         ID Card
                       </button>
-                      <button
-                        onClick={() => {
-                          const docUrl = s.certificateDocUrl || generateOfficialCertificatePdf({
-                            studentName: s.fullName,
-                            studentId: s.id,
-                            grade: s.grade,
-                            schoolName,
-                            examScore: s.entranceExamScore || 89.4,
-                          });
-                          openDocumentViewer({
-                            title: 'Official Ministry 8th Grade Certificate',
-                            subtitle: `Verified Registration Record for ${s.fullName}`,
-                            docName: s.certificateDocName || `${s.id}_8th_Grade_Certificate.pdf`,
-                            docUrl: docUrl,
-                            category: 'CERTIFICATE',
-                            metadata: {
-                              studentName: s.fullName,
-                              studentId: s.id,
-                              referenceNumber: `MOE-CERT-${s.id}`,
-                              uploadedDate: 'Verified at Registration',
-                            },
-                          });
-                        }}
-                        className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded font-semibold text-[11px] transition flex items-center gap-1 ml-auto"
-                      >
-                        <FileText className="w-3 h-3" />
-                        8th Cert PDF
-                      </button>
+                      {s.certificateDocUrl ? (
+                        <button
+                          onClick={() => {
+                            openDocumentViewer({
+                              title: 'Verified 8th Grade Certificate',
+                              subtitle: `Verified Registration Record for ${s.fullName}`,
+                              docName: s.certificateDocName || `${s.id}_8th_Grade_Certificate.pdf`,
+                              docUrl: s.certificateDocUrl!,
+                              category: 'CERTIFICATE',
+                              metadata: {
+                                studentName: s.fullName,
+                                studentId: s.id,
+                                referenceNumber: `MOE-CERT-${s.id}`,
+                                uploadedDate: 'Verified at Registration',
+                              },
+                            });
+                          }}
+                          className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded font-semibold text-[11px] transition flex items-center gap-1 ml-auto"
+                        >
+                          <FileText className="w-3 h-3" />
+                          8th Cert PDF
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 font-mono ml-auto block">No File</span>
+                      )}
                     </td>
                   </tr>
                 ))}

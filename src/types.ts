@@ -172,6 +172,11 @@ export interface GradeEntry {
   letterGrade: string;
   teacherComment?: string;
   semester: 'Semester 1' | 'Semester 2';
+  quiz?: number;
+  assessment?: number;
+  midExam?: number;
+  finalExam?: number;
+  entryDate?: string;
 }
 
 export interface StudentEvaluation {
@@ -229,6 +234,10 @@ export interface RecommendationRequest {
   hardCopyRequested: boolean;
 }
 
+export type DisciplineSeverity = 'LEVEL_1_MINOR' | 'LEVEL_2_MODERATE' | 'LEVEL_3_SERIOUS' | 'LEVEL_4_CRITICAL';
+
+export type FollowUpStatus = 'PENDING' | 'COMPLETED' | 'RESCHEDULED' | 'OVERDUE' | 'NOT_REQUIRED';
+
 export interface DisciplinaryAction {
   id: string;
   studentId: string;
@@ -236,7 +245,12 @@ export interface DisciplinaryAction {
   grade: AcademicGrade;
   sectionId?: string;
   incidentDate: string;
+  incidentTime?: string;
   incidentType: string;
+  classificationCategory?: string;
+  severityLevel?: DisciplineSeverity | string;
+  location?: string;
+  witnesses?: string;
   description: string;
   actionTaken: string;
   counsellorName: string;
@@ -253,6 +267,17 @@ export interface DisciplinaryAction {
   parentNoticeSent?: boolean;
   parentNoticeSentAt?: string;
   parentNoticeMessageId?: string;
+  // Follow-up scheduling
+  followUpRequired?: boolean;
+  followUpDate?: string;
+  followUpTime?: string;
+  followUpType?: string;
+  followUpAssignedTo?: string;
+  followUpNotes?: string;
+  followUpStatus?: FollowUpStatus;
+  followUpCompletedDate?: string;
+  followUpOutcome?: string;
+  followUpOutcomeNotes?: string;
 }
 
 export interface ParentEmailAlertLog {
@@ -370,4 +395,59 @@ export interface AuditLogEntry {
   status: 'SUCCESS' | 'FLAGGED' | 'BLOCKED';
   metadata?: Record<string, any>;
   checksum?: string; // Simulated SHA-256 tamper-evident integrity hash
+}
+
+export interface DigitalSignatureInfo {
+  signatoryId: string;
+  signatoryName: string;
+  signatoryRole: UserRole;
+  signatoryTitle: string;
+  signatureDataUrl: string; // Base64 PNG
+  signedAt: string; // ISO 8601
+  verificationHash: string; // Cryptographic hash
+  signingRemarks?: string;
+  authorizationType?: 'APPROVED' | 'OFFICIAL_ATTESTATION' | 'EXECUTIVE_CLEARANCE' | 'RECORDED_CERTIFIED';
+}
+
+export interface TranscriptRequest {
+  id: string; // e.g. "TRQ-2026-001"
+  studentId: string;
+  studentName: string;
+  grade: AcademicGrade;
+  stream?: AcademicStream | null;
+  requestedByRole: 'STUDENT' | 'PARENT';
+  requesterName: string;
+  requesterId: string;
+  scope: 'FULL' | 'PARTIAL';
+  requestedDate: string; // Cutoff date (YYYY-MM-DD)
+  reason: string;
+  status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  appliedDate: string;
+  approvedDate?: string;
+  approvedBy?: string;
+  rejectionReason?: string;
+  authorizedSignature?: DigitalSignatureInfo;
+  watermarkText: string; // "Temporary Transcript"
+}
+
+export interface InternalDocument {
+  id: string;
+  title: string;
+  documentType: 
+    | 'TRANSCRIPT'
+    | 'RECOMMENDATION_LETTER'
+    | 'DISCIPLINARY_NOTICE'
+    | 'TEACHER_LEAVE_CLEARANCE'
+    | 'STUDENT_TRANSFER_CLEARANCE'
+    | 'ADMIN_MEMO'
+    | 'GENERAL_POLICY';
+  referenceNumber: string;
+  issuedDate: string;
+  targetStudentId?: string;
+  targetStudentName?: string;
+  description: string;
+  pdfUrl?: string;
+  status: 'DRAFT' | 'PENDING_SIGNATURE' | 'AUTHORIZED_SIGNED';
+  signatures: DigitalSignatureInfo[];
+  requiredSignatories?: UserRole[];
 }

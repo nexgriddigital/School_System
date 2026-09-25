@@ -32,7 +32,8 @@ import {
   SlidersHorizontal,
   ChevronRight,
   HelpCircle,
-  GraduationCap
+  GraduationCap,
+  Printer
 } from 'lucide-react';
 
 interface StudentPerformanceWidgetProps {
@@ -40,13 +41,17 @@ interface StudentPerformanceWidgetProps {
   onSelectStudentForGrading?: (studentId: string) => void;
   onNavigateToGradebook?: () => void;
   onNavigateToAttendance?: () => void;
+  onOpenPrintDossier?: (sectionId?: string) => void;
+  onNavigateToSubjectTrends?: () => void;
 }
 
 export const StudentPerformanceWidget: React.FC<StudentPerformanceWidgetProps> = ({
   defaultSectionId,
   onSelectStudentForGrading,
   onNavigateToGradebook,
-  onNavigateToAttendance
+  onNavigateToAttendance,
+  onOpenPrintDossier,
+  onNavigateToSubjectTrends
 }) => {
   const {
     currentTeacher,
@@ -450,6 +455,258 @@ export const StudentPerformanceWidget: React.FC<StudentPerformanceWidgetProps> =
     };
   }, [studentCorrelationTable]);
 
+  // Custom Interactive Tooltip for Grade Performance (Specific Test Scores & Points Breakdown)
+  const CustomGradePerformanceTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0]?.payload;
+      if (!data) return null;
+
+      const isSingle = Boolean(singleStudent && selectedStudentId !== 'ALL');
+      const score = isSingle ? data.studentScore : data.averageScore;
+
+      // Calculate scaled test points based on milestone type
+      const milestoneLower = (data.milestone || '').toLowerCase();
+      let scaleLabel = 'Standard Milestone Scale';
+      let maxPts = 100;
+      let rawPoints = score;
+
+      if (milestoneLower.includes('quiz')) {
+        scaleLabel = 'Quiz Scale (20 pts)';
+        maxPts = 20;
+        rawPoints = score * 0.20;
+      } else if (milestoneLower.includes('mid-term') || milestoneLower.includes('midterm')) {
+        scaleLabel = 'Official Midterm Scale (30 pts)';
+        maxPts = 30;
+        rawPoints = score * 0.30;
+      } else if (milestoneLower.includes('project') || milestoneLower.includes('cw') || milestoneLower.includes('assess')) {
+        scaleLabel = 'Continuous Assessment (20 pts)';
+        maxPts = 20;
+        rawPoints = score * 0.20;
+      } else if (milestoneLower.includes('final')) {
+        scaleLabel = 'Final Examination (40 pts)';
+        maxPts = 40;
+        rawPoints = score * 0.40;
+      }
+
+      const letterGrade = score >= 90 ? 'A+' : score >= 85 ? 'A' : score >= 80 ? 'B+' : score >= 75 ? 'B' : score >= 70 ? 'C' : 'D';
+
+      return (
+        <div className="bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md text-white p-3.5 rounded-xl shadow-2xl border border-slate-700 text-xs min-w-[270px] space-y-2.5 z-50">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-slate-700/80 pb-2">
+            <div>
+              <span className="font-bold text-sm text-white block">{data.milestone}</span>
+              <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1.5 mt-0.5">
+                <span className="px-1.5 py-0.2 rounded bg-blue-900/50 text-blue-300 font-bold border border-blue-700/50">{data.week}</span>
+                <span>Term Academic Benchmark</span>
+              </span>
+            </div>
+            <span className={`px-2 py-0.5 rounded-md font-mono text-[11px] font-bold ${
+              score >= 85 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+              score >= 70 ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
+              'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+            }`}>
+              {letterGrade}
+            </span>
+          </div>
+
+          {/* Granular Test Scores Details */}
+          <div className="space-y-1.5">
+            {isSingle ? (
+              <>
+                <div className="flex items-center justify-between p-2 rounded-lg bg-slate-800/60 border border-slate-700/50">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[10px]">
+                      {singleStudent?.fullName?.charAt(0)}
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-semibold text-slate-200 block truncate max-w-[130px]">
+                        {singleStudent?.fullName}
+                      </span>
+                      <span className="text-[9px] text-slate-400">{scaleLabel}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-mono font-bold text-sm text-blue-400 block">{score}%</span>
+                    <span className="text-[10px] font-mono text-slate-300">
+                      {rawPoints.toFixed(1)} / {maxPts} pts
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[10px] pt-0.5">
+                  <div className="p-2 rounded-lg bg-slate-800/40 border border-slate-700/30">
+                    <span className="text-slate-400 block">Section Benchmark</span>
+                    <span className="font-mono font-bold text-slate-200 text-xs mt-0.5 block">{data.sectionAverage}%</span>
+                    <span className={`text-[9px] font-semibold ${score >= data.sectionAverage ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {score >= data.sectionAverage ? `+${score - data.sectionAverage}% vs mean` : `${score - data.sectionAverage}% vs mean`}
+                    </span>
+                  </div>
+
+                  <div className="p-2 rounded-lg bg-slate-800/40 border border-slate-700/30">
+                    <span className="text-slate-400 block">Passing Benchmark (70%)</span>
+                    <span className={`font-mono font-bold text-xs mt-0.5 block ${score >= 70 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {score >= 70 ? 'CLEAR PASS' : 'AT RISK'}
+                    </span>
+                    <span className="text-[9px] text-slate-400">
+                      {score >= 85 ? 'Honor Distinction' : (score >= 70 ? 'Standard Clearance' : 'Support Required')}
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between p-2 rounded-lg bg-slate-800/60 border border-slate-700/50">
+                  <div>
+                    <span className="text-xs font-semibold text-slate-200 block">Class Cohort Average</span>
+                    <span className="text-[10px] text-slate-400">{scaleLabel}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-mono font-bold text-sm text-blue-400 block">{data.averageScore}%</span>
+                    <span className="text-[10px] font-mono text-slate-300">
+                      {rawPoints.toFixed(1)} / {maxPts} pts
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                  <div className="p-2 rounded-lg bg-emerald-950/30 border border-emerald-800/40">
+                    <span className="text-emerald-400 block font-medium">Top Cohort Score</span>
+                    <span className="font-mono font-bold text-emerald-200 text-xs mt-0.5 block">{data.highestScore}%</span>
+                    <span className="text-[9px] text-emerald-400/80">
+                      {((data.highestScore * maxPts) / 100).toFixed(1)} / {maxPts} pts
+                    </span>
+                  </div>
+
+                  <div className="p-2 rounded-lg bg-slate-800/40 border border-slate-700/30">
+                    <span className="text-slate-400 block font-medium">Lowest Score in Class</span>
+                    <span className="font-mono font-bold text-slate-300 text-xs mt-0.5 block">{data.lowestScore}%</span>
+                    <span className="text-[9px] text-slate-400">
+                      {((data.lowestScore * maxPts) / 100).toFixed(1)} / {maxPts} pts
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1 px-1 text-[10px] text-slate-400 border-t border-slate-800">
+                  <span>Score Spread Variance:</span>
+                  <span className="font-mono font-bold text-slate-200">Δ {data.highestScore - data.lowestScore}% points</span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Custom Interactive Tooltip for Attendance Consistency (Specific Turnout Percentages & Headcounts)
+  const CustomAttendancePerformanceTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0]?.payload;
+      if (!data) return null;
+
+      const isSingle = Boolean(singleStudent && selectedStudentId !== 'ALL');
+      const [y, m, d] = (data.date || '2026-09-01').split('-');
+      const dateObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+      const fullDate = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+
+      return (
+        <div className="bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md text-white p-3.5 rounded-xl shadow-2xl border border-slate-700 text-xs min-w-[280px] space-y-2.5 z-50">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-slate-700/80 pb-2">
+            <div>
+              <span className="font-bold text-sm text-white block">{fullDate}</span>
+              <span className="text-[10px] text-slate-400 font-mono">
+                {isSingle ? `${singleStudent?.fullName} • Section ${singleStudent?.sectionId || selectedSectionId}` : `Class Attendance (Section ${selectedSectionId})`}
+              </span>
+            </div>
+            <span className="px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              {isSingle ? `${data.consistencyRate}% Rate` : `${data.dailyRate}% Turnout`}
+            </span>
+          </div>
+
+          {/* Granular Breakdown */}
+          {isSingle ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-800/60 border border-slate-700/50">
+                <span className="text-slate-300 font-medium text-xs">Session Attendance Status:</span>
+                <span className={`px-2 py-0.5 rounded text-[11px] font-bold font-mono uppercase tracking-wider ${
+                  data.status === 'PRESENT' ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40' :
+                  data.status === 'LATE' ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40' :
+                  data.status === 'EXCUSED' ? 'bg-blue-500/30 text-blue-300 border border-blue-500/40' :
+                  'bg-rose-500/30 text-rose-300 border border-rose-500/40'
+                }`}>
+                  {data.status}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                <div className="p-2 rounded-lg bg-slate-800/40 border border-slate-700/30">
+                  <span className="text-slate-400 block">Cumulative Consistency</span>
+                  <span className="font-mono font-bold text-emerald-400 text-sm mt-0.5 block">{data.consistencyRate}%</span>
+                  <span className="text-[9px] text-slate-400">Rolling semester average</span>
+                </div>
+
+                <div className="p-2 rounded-lg bg-slate-800/40 border border-slate-700/30">
+                  <span className="text-slate-400 block">Academy Target (90%)</span>
+                  <span className={`font-mono font-bold text-xs mt-0.5 block ${data.consistencyRate >= 90 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {data.consistencyRate >= 90 ? 'HONORS ATTENDANCE' : 'GAP TO TARGET'}
+                  </span>
+                  <span className="text-[9px] text-slate-400">
+                    {data.consistencyRate >= 90 ? `+${data.consistencyRate - 90}% above target` : `-${90 - data.consistencyRate}% below target`}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="grid grid-cols-4 gap-1.5 text-center text-[10px]">
+                <div className="p-1.5 rounded-lg bg-emerald-950/40 border border-emerald-800/40">
+                  <span className="text-emerald-400 font-bold block text-xs font-mono">{data.presentCount}</span>
+                  <span className="text-slate-400 text-[9px]">Present</span>
+                </div>
+                <div className="p-1.5 rounded-lg bg-amber-950/40 border border-amber-800/40">
+                  <span className="text-amber-400 font-bold block text-xs font-mono">{data.lateCount}</span>
+                  <span className="text-slate-400 text-[9px]">Late</span>
+                </div>
+                <div className="p-1.5 rounded-lg bg-rose-950/40 border border-rose-800/40">
+                  <span className="text-rose-400 font-bold block text-xs font-mono">{data.absentCount}</span>
+                  <span className="text-slate-400 text-[9px]">Absent</span>
+                </div>
+                <div className="p-1.5 rounded-lg bg-blue-950/40 border border-blue-800/40">
+                  <span className="text-blue-400 font-bold block text-xs font-mono">{data.excusedCount}</span>
+                  <span className="text-slate-400 text-[9px]">Excused</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-800/60 border border-slate-700/50 text-[11px]">
+                <div>
+                  <span className="text-slate-300 font-medium block">Turnout Ratio</span>
+                  <span className="text-[9px] text-slate-400">Daily validated presence</span>
+                </div>
+                <div className="text-right">
+                  <span className="font-mono font-bold text-sm text-emerald-400">{data.dailyRate}%</span>
+                  <span className="text-[9px] text-slate-400 block font-mono">
+                    Consistency: {data.cumulativeConsistency}%
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1 px-1 text-[10px] text-slate-400 border-t border-slate-800">
+                <span>Institutional Target (90%):</span>
+                <span className={`font-mono font-bold ${data.dailyRate >= 90 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {data.dailyRate >= 90 ? `+${data.dailyRate - 90}% Above Benchmark` : `-${90 - data.dailyRate}% Below Benchmark`}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div id="student-performance-widget" className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-6">
       {/* 1. WIDGET HEADER & FILTER BAR */}
@@ -538,6 +795,18 @@ export const StudentPerformanceWidget: React.FC<StudentPerformanceWidgetProps> =
               Attendance
             </button>
           </div>
+
+          {onNavigateToSubjectTrends && (
+            <button
+              type="button"
+              onClick={onNavigateToSubjectTrends}
+              className="px-3 py-1.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+              title="Open Class Academic Performance Trends by Subject"
+            >
+              <BarChart2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>Subject Trends</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -706,26 +975,7 @@ export const StudentPerformanceWidget: React.FC<StudentPerformanceWidgetProps> =
                     tickLine={false}
                     ticks={[50, 70, 85, 100]}
                   />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: chartStyles.tooltipBg,
-                      borderRadius: '12px',
-                      border: `1px solid ${chartStyles.tooltipBorder}`,
-                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                      fontSize: '11px',
-                      color: chartStyles.tooltipText
-                    }}
-                    itemStyle={{ color: chartStyles.tooltipText }}
-                    labelStyle={{ color: chartStyles.tooltipText }}
-                    formatter={(value: any, name: any) => {
-                      if (name === 'studentScore') return [`${value}%`, singleStudent?.fullName || 'Student'];
-                      if (name === 'averageScore') return [`${value}%`, 'Class Average'];
-                      if (name === 'highestScore') return [`${value}%`, 'Top Cohort Score'];
-                      if (name === 'lowestScore') return [`${value}%`, 'Lowest Score'];
-                      if (name === 'sectionAverage') return [`${value}%`, 'Section Benchmark'];
-                      return [value, name];
-                    }}
-                  />
+                  <Tooltip content={<CustomGradePerformanceTooltip />} />
                   <ReferenceLine y={70} stroke={chartStyles.referenceLine} strokeDasharray="3 3" label={{ value: 'Passing (70%)', position: 'insideBottomRight', fill: chartStyles.referenceLine, fontSize: 9 }} />
                   <ReferenceLine y={85} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: 'Honors (85%)', position: 'insideTopRight', fill: '#d97706', fontSize: 9 }} />
 
@@ -844,22 +1094,7 @@ export const StudentPerformanceWidget: React.FC<StudentPerformanceWidgetProps> =
                       tickLine={false}
                       ticks={[70, 80, 90, 100]}
                     />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: chartStyles.tooltipBg,
-                        borderRadius: '12px',
-                        border: `1px solid ${chartStyles.tooltipBorder}`,
-                        fontSize: '11px',
-                        color: chartStyles.tooltipText
-                      }}
-                      itemStyle={{ color: chartStyles.tooltipText }}
-                      labelStyle={{ color: chartStyles.tooltipText }}
-                      formatter={(value: any, name: any, item: any) => {
-                        if (name === 'consistencyRate') return [`${value}%`, 'Cumulative Consistency'];
-                        if (name === 'statusWeight') return [item.payload.status, 'Session Status'];
-                        return [value, name];
-                      }}
-                    />
+                    <Tooltip content={<CustomAttendancePerformanceTooltip />} />
                     <ReferenceLine y={90} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Target (90%)', position: 'insideBottomRight', fill: '#ef4444', fontSize: 9 }} />
                     <Line
                       type="monotone"
@@ -889,27 +1124,7 @@ export const StudentPerformanceWidget: React.FC<StudentPerformanceWidgetProps> =
                       tickLine={false}
                       ticks={[25, 50, 75, 90, 100]}
                     />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: chartStyles.tooltipBg,
-                        borderRadius: '12px',
-                        border: `1px solid ${chartStyles.tooltipBorder}`,
-                        fontSize: '11px',
-                        color: chartStyles.tooltipText
-                      }}
-                      itemStyle={{ color: chartStyles.tooltipText }}
-                      labelStyle={{ color: chartStyles.tooltipText }}
-                      formatter={(value: any, name: any, item: any) => {
-                        if (name === 'dailyRate') {
-                          return [
-                            `${value}% (Pres: ${item.payload.presentCount}, Late: ${item.payload.lateCount}, Abs: ${item.payload.absentCount})`,
-                            'Turnout Rate'
-                          ];
-                        }
-                        if (name === 'cumulativeConsistency') return [`${value}%`, 'Semester Trend'];
-                        return [value, name];
-                      }}
-                    />
+                    <Tooltip content={<CustomAttendancePerformanceTooltip />} />
                     <ReferenceLine y={90} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Target 90%', position: 'insideTopRight', fill: '#ef4444', fontSize: 9 }} />
                     <Bar
                       dataKey="dailyRate"
@@ -932,15 +1147,28 @@ export const StudentPerformanceWidget: React.FC<StudentPerformanceWidgetProps> =
 
             <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
               <span>Ethiopian Ministry of Education: 85% Minimum Required for Promotion</span>
-              {onNavigateToAttendance && (
-                <button
-                  onClick={onNavigateToAttendance}
-                  className="font-semibold text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-300 transition flex items-center gap-1 cursor-pointer"
-                >
-                  Mark Daily Homeroom Attendance
-                  <ChevronRight className="w-3 h-3" />
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {onOpenPrintDossier && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenPrintDossier(selectedSectionId)}
+                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-black dark:hover:text-white transition flex items-center gap-1 cursor-pointer bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 px-2.5 py-1 rounded-lg text-xs"
+                    title="Export formatted printable classroom attendance history (Institutional Monochrome Report)"
+                  >
+                    <Printer className="w-3 h-3" />
+                    <span>Print Attendance Dossier</span>
+                  </button>
+                )}
+                {onNavigateToAttendance && (
+                  <button
+                    onClick={onNavigateToAttendance}
+                    className="font-semibold text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-300 transition flex items-center gap-1 cursor-pointer"
+                  >
+                    Mark Daily Homeroom Attendance
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
