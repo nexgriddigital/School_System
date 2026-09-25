@@ -12,8 +12,10 @@ import {
   ShieldCheck, 
   Fingerprint, 
   AlertTriangle,
-  RotateCcw
+  RotateCcw,
+  Loader2
 } from 'lucide-react';
+import { downloadElementAsPdf } from '../../utils/domToPdfDownloader';
 
 interface TeacherAttendancePrintModalProps {
   isOpen: boolean;
@@ -68,6 +70,8 @@ export const TeacherAttendancePrintModal: React.FC<TeacherAttendancePrintModalPr
   const [includeAtRiskAdvisory, setIncludeAtRiskAdvisory] = useState<boolean>(true);
   const [includeBiometricTag, setIncludeBiometricTag] = useState<boolean>(true);
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
+  const [downloadProgress, setDownloadProgress] = useState<string>('');
 
   // Signatory Overrides
   const [teacherSignatoryTitle, setTeacherSignatoryTitle] = useState<string>(
@@ -304,6 +308,33 @@ export const TeacherAttendancePrintModal: React.FC<TeacherAttendancePrintModalPr
     };
   }, [selectedSectionId, sessionDates]);
 
+  // PDF Download Handler
+  const handleDownloadPdf = async () => {
+    const reportEl = document.getElementById('printable-teacher-attendance-report');
+    if (!reportEl) {
+      handlePrint();
+      return;
+    }
+
+    try {
+      setIsDownloadingPdf(true);
+      setDownloadProgress('Preparing PDF...');
+
+      const filename = `Attendance-Audit-Section-${selectedSectionId}-${new Date().toISOString().slice(0, 10)}.pdf`;
+
+      await downloadElementAsPdf({
+        element: reportEl,
+        fileName: filename,
+        onProgress: (status) => setDownloadProgress(status),
+      });
+    } catch (err) {
+      console.error('PDF download error:', err);
+    } finally {
+      setIsDownloadingPdf(false);
+      setDownloadProgress('');
+    }
+  };
+
   // Print Handler
   const handlePrint = () => {
     setIsPrinting(true);
@@ -448,14 +479,30 @@ export const TeacherAttendancePrintModal: React.FC<TeacherAttendancePrintModalPr
               <span>CSV Ledger</span>
             </button>
 
-            {/* Print Trigger Button */}
+            {/* Download PDF Trigger Button */}
+            <button
+              onClick={handleDownloadPdf}
+              disabled={isDownloadingPdf || isPrinting}
+              className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-100 text-slate-950 rounded-lg text-xs font-bold shadow-md transition transform active:scale-98 cursor-pointer disabled:opacity-60"
+              title="Download attendance ledger directly as a PDF document"
+            >
+              {isDownloadingPdf ? (
+                <Loader2 className="w-3.5 h-3.5 text-slate-950 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5 text-slate-950" />
+              )}
+              <span>{isDownloadingPdf ? (downloadProgress || 'Generating PDF...') : 'Download PDF'}</span>
+            </button>
+
+            {/* Optional Browser Print Trigger */}
             <button
               onClick={handlePrint}
-              disabled={isPrinting}
-              className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-100 text-slate-950 rounded-lg text-xs font-bold shadow-md transition transform active:scale-98 cursor-pointer disabled:opacity-50"
+              disabled={isPrinting || isDownloadingPdf}
+              className="flex items-center gap-1.5 px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-medium border border-slate-700 transition cursor-pointer disabled:opacity-50"
+              title="Print document or open system print dialog"
             >
-              <Printer className="w-3.5 h-3.5 text-slate-950" />
-              <span>{isPrinting ? 'Preparing Document...' : 'Print Document'}</span>
+              <Printer className="w-3.5 h-3.5 text-slate-300" />
+              <span className="hidden sm:inline">Print</span>
             </button>
 
             {/* Close Button */}

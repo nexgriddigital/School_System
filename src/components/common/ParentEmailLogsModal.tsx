@@ -34,6 +34,7 @@ export const ParentEmailLogsModal: React.FC<ParentEmailLogsModalProps> = ({
   const { 
     parentEmailAlertLogs, 
     clearParentEmailAlertLogs, 
+    logParentEmailAlert,
     schoolName 
   } = useSchool();
 
@@ -53,12 +54,15 @@ export const ParentEmailLogsModal: React.FC<ParentEmailLogsModalProps> = ({
     setIsSendingTest(true);
     setTestResult(null);
     try {
+      if (!isGmailAuthorized()) {
+        await signInWithGoogle();
+      }
       const googleUser = getCurrentGoogleUser();
       const testEmail = googleUser?.email || 'nexgriddigital@gmail.com';
       const nowStr = new Date().toLocaleString();
 
       const testHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; rounded: 8px;">
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
           <h2 style="color: #1e3a8a; margin-top: 0;">${schoolName} - Gmail Service Test</h2>
           <p>Hello,</p>
           <p>This is a verification test email dispatched from <strong>${schoolName}</strong> automated parent notification infrastructure at <strong>${nowStr}</strong>.</p>
@@ -76,7 +80,22 @@ export const ParentEmailLogsModal: React.FC<ParentEmailLogsModalProps> = ({
         htmlBody: testHtml,
       });
 
-      setTestResult(`Test email successfully delivered to ${testEmail}! (Gmail ID: ${res.messageId})`);
+      logParentEmailAlert({
+        id: `LOG-TEST-${Date.now()}`,
+        type: 'DISCIPLINARY_HEARING',
+        studentId: 'SYS-LOG-TEST',
+        studentName: 'Diagnostic Verification Student',
+        parentName: 'NexGrid Digital Admin',
+        parentEmail: testEmail,
+        subject: `${schoolName} - Parent Notification Service Test (${nowStr})`,
+        dispatchedAt: new Date().toISOString(),
+        status: 'SENT',
+        messageId: res.messageId,
+        referenceId: `TEST-${Date.now()}`,
+        details: 'Live system diagnostic test verification email sent via Google Workspace API',
+      });
+
+      setTestResult(`Test email successfully delivered to ${testEmail}! (Gmail ID: ${res.messageId.slice(0, 14)}...)`);
     } catch (err: any) {
       setTestResult(`Test failed: ${err.message || 'Authorization required'}`);
     } finally {

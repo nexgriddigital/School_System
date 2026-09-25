@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useSchool } from '../../context/SchoolContext';
 import { Invoice } from '../../types';
-import { X, Download, Printer, CheckCircle, ShieldCheck } from 'lucide-react';
+import { X, Download, Printer, CheckCircle, ShieldCheck, Loader2 } from 'lucide-react';
 import { SchoolMascotLogo } from './SchoolMascotLogo';
+import { downloadElementAsPdf } from '../../utils/domToPdfDownloader';
 
 interface ReceiptModalProps {
   invoice?: Invoice | null;
@@ -11,11 +12,31 @@ interface ReceiptModalProps {
 
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ invoice: propInvoice, onClose: propOnClose }) => {
   const { schoolName, selectedInvoiceForReceipt, setSelectedInvoiceForReceipt, institutionalUsers } = useSchool();
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const invoice = propInvoice || selectedInvoiceForReceipt;
   const onClose = propOnClose || (() => setSelectedInvoiceForReceipt(null));
 
   const financeOfficer = institutionalUsers?.find(u => u.role === 'FINANCE')?.name || 'Bursar & Finance Office';
+
+  const handleDownloadPdf = async () => {
+    const el = document.getElementById('printable-receipt-card');
+    if (!el) {
+      window.print();
+      return;
+    }
+    try {
+      setIsDownloading(true);
+      await downloadElementAsPdf({
+        element: el,
+        fileName: `Receipt-${invoice?.id || 'Bill'}-${invoice?.studentName || 'Student'}.pdf`,
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   if (!invoice) {
     return null;
@@ -41,7 +62,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ invoice: propInvoice
 
         {/* Printable Receipt Paper Container with Watermark */}
         <div className="p-8 bg-slate-50 relative overflow-hidden">
-          <div className="bg-white border border-slate-300 rounded-xl p-8 shadow-sm relative overflow-hidden">
+          <div id="printable-receipt-card" className="bg-white border border-slate-300 rounded-xl p-8 shadow-sm relative overflow-hidden">
             
             {/* WATERMARK: "PAID BILL" diagonally across the receipt */}
             {invoice.paidWatermark && (
@@ -167,17 +188,23 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ invoice: propInvoice
           <div className="flex gap-2">
             <button
               onClick={() => window.print()}
-              className="px-3.5 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition"
+              disabled={isDownloading}
+              className="px-3.5 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
             >
               <Printer className="w-3.5 h-3.5" />
               Print
             </button>
             <button
-              onClick={() => window.print()}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-sm transition"
+              onClick={handleDownloadPdf}
+              disabled={isDownloading}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-sm transition cursor-pointer disabled:opacity-60"
             >
-              <Download className="w-3.5 h-3.5" />
-              Download PDF Voucher
+              {isDownloading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              <span>{isDownloading ? 'Generating PDF...' : 'Download PDF Voucher'}</span>
             </button>
           </div>
         </div>

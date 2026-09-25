@@ -78,6 +78,7 @@ interface SchoolContextType {
   chatMessages: ChatMessage[];
   parentEmailAlertLogs: ParentEmailAlertLog[];
   clearParentEmailAlertLogs: () => void;
+  logParentEmailAlert: (log: ParentEmailAlertLog) => void;
   
   // Institutional Users & Principal Provisioning State
   institutionalUsers: InstitutionalUser[];
@@ -537,6 +538,10 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const clearParentEmailAlertLogs = () => {
     setParentEmailAlertLogs([]);
     localStorage.removeItem('oskar_school_parent_email_logs');
+  };
+
+  const logParentEmailAlert = (log: ParentEmailAlertLog) => {
+    setParentEmailAlertLogs(prev => [log, ...prev]);
   };
 
   // Modal selections
@@ -3556,6 +3561,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       chatMessages,
       parentEmailAlertLogs,
       clearParentEmailAlertLogs,
+      logParentEmailAlert,
       institutionalUsers,
       createPrincipalAccount,
       createInstitutionalUser,

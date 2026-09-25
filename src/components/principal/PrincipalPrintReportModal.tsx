@@ -15,8 +15,10 @@ import {
   Download,
   PenTool,
   UserCheck,
-  RotateCcw
+  RotateCcw,
+  Loader2
 } from 'lucide-react';
+import { downloadElementAsPdf } from '../../utils/domToPdfDownloader';
 
 interface PrincipalPrintReportModalProps {
   isOpen: boolean;
@@ -48,6 +50,8 @@ export const PrincipalPrintReportModal: React.FC<PrincipalPrintReportModalProps>
   const [includeDisciplinaryLedger, setIncludeDisciplinaryLedger] = useState(true);
   const [includeAttendanceTimeline, setIncludeAttendanceTimeline] = useState(true);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState('');
 
   // Dynamic Department Employees Signatures State
   const [signatoryDepartment, setSignatoryDepartment] = useState<'AUTO' | 'ALL_DEPARTMENTS' | 'REGISTRAR' | 'FINANCE' | 'COUNSELLOR' | 'PROGRAM_OFFICE' | 'FACULTY'>('AUTO');
@@ -431,6 +435,35 @@ export const PrincipalPrintReportModal: React.FC<PrincipalPrintReportModalProps>
     };
   }, [attendanceMetrics.overallRate, disciplinaryMetrics.activeCases, students.length, aggregateLedger.pendingPayment, facultyMetrics.pendingLeaves]);
 
+  // PDF Document Generation & Download Handler
+  const handleDownloadPdf = async () => {
+    const reportElement = document.getElementById('printable-principal-report');
+    if (!reportElement) {
+      handlePrint();
+      return;
+    }
+
+    try {
+      setIsDownloadingPdf(true);
+      setDownloadProgress('Preparing PDF...');
+
+      const cleanSchoolName = (schoolName || 'Institutional').replace(/[^a-zA-Z0-9]/g, '-');
+      const cleanDocRef = reportDate.docRef.replace(/[^a-zA-Z0-9_-]/g, '-');
+      const filename = `${cleanDocRef}-${cleanSchoolName}-Official-Institutional-Report.pdf`;
+
+      await downloadElementAsPdf({
+        element: reportElement,
+        fileName: filename,
+        onProgress: (status) => setDownloadProgress(status),
+      });
+    } catch (error) {
+      console.error('PDF generation error:', error);
+    } finally {
+      setIsDownloadingPdf(false);
+      setDownloadProgress('');
+    }
+  };
+
   // Print Execution Handler
   const handlePrint = () => {
     setIsPrinting(true);
@@ -469,12 +502,12 @@ export const PrincipalPrintReportModal: React.FC<PrincipalPrintReportModalProps>
           {/* Title & Document Badge */}
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-white/10 text-white flex items-center justify-center border border-white/20">
-              <Printer className="w-4 h-4 text-white" />
+              <Download className="w-4 h-4 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-bold text-white tracking-wide">
-                  Official Institutional Report — Print & Archival View
+                  Official Institutional Report — Archival & PDF Export
                 </h2>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-white/20 text-white font-bold uppercase tracking-wider">
                   Monochrome Audit Theme
@@ -518,14 +551,30 @@ export const PrincipalPrintReportModal: React.FC<PrincipalPrintReportModalProps>
               <option value="FACULTY_OPERATIONS">Scope: Faculty & Operations</option>
             </select>
 
-            {/* Print Trigger Button */}
+            {/* Download PDF Trigger Button */}
+            <button
+              onClick={handleDownloadPdf}
+              disabled={isDownloadingPdf || isPrinting}
+              className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-100 text-slate-950 rounded-lg text-xs font-bold shadow-md transition transform active:scale-98 cursor-pointer disabled:opacity-60"
+              title="Download official report directly as a high-fidelity PDF document"
+            >
+              {isDownloadingPdf ? (
+                <Loader2 className="w-3.5 h-3.5 text-slate-950 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5 text-slate-950" />
+              )}
+              <span>{isDownloadingPdf ? (downloadProgress || 'Generating PDF...') : 'Download PDF'}</span>
+            </button>
+
+            {/* Optional Browser Print Trigger */}
             <button
               onClick={handlePrint}
-              disabled={isPrinting}
-              className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-100 text-slate-950 rounded-lg text-xs font-bold shadow-md transition transform active:scale-98 cursor-pointer disabled:opacity-50"
+              disabled={isPrinting || isDownloadingPdf}
+              className="flex items-center gap-1.5 px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-medium border border-slate-700 transition cursor-pointer disabled:opacity-50"
+              title="Print document or open browser print dialog"
             >
-              <Printer className="w-3.5 h-3.5 text-slate-950" />
-              <span>{isPrinting ? 'Preparing Document...' : 'Print Document'}</span>
+              <Printer className="w-3.5 h-3.5 text-slate-300" />
+              <span className="hidden sm:inline">Print</span>
             </button>
 
             {/* Close Button */}
